@@ -56,31 +56,69 @@ class MROM:
 		Data is where the lower spots are
 		It is unknown which is 0 and which is a 1
 		Arbitrarily call a 1 the higher/darker value and 0 the lower/lighter value
-
-		Example 1's
-          50 |     4.937500                           ===============
-          29 |     4.421875                             =============
-          60 |     4.328125                             =============
-           8 |     3.324219                                ==========
-
-		Examle 0's
-          40 |     2.929688                                 =========
-          19 |     2.496094                                   =======
-          71 |     2.562500                                   =======
-          82 |     2.453125                                   =======		
 		'''
 		
-		threshold_0_min = 2.3
-		threshold_0_max = 3.0
-		threshold_0_min = 3.1
-		threshold_0_max = 5.0
+		if True:
+			'''
+			small_just_bits.jpg
+			Example 1's
+		      47 |     2.484375                   =======================
+		      26 |     2.167969                      ====================
+		      57 |     2.144531                      ====================
+		       5 |     1.781250                          ================
+
+			Examle 0's
+		      37 |     0.968750                                 =========
+		      68 |     0.855469                                  ========
+		      78 |     0.777344                                   =======
+		      15 |     0.746094                                   =======
+			'''
+			threshold_0_min = 0.7
+			threshold_0_max = 1.0
+			threshold_1_min = 1.7
+			threshold_1_max = 2.5			
+		else:
+			'''
+			Because of lighting differences at the edge, it might be better to try to center on the values and
+			then take a vertical projection profile derrivitive
+			This will make similar edges have normalized bit behavior
+		
+			TODO: try k-means clustering on the high/low values
+		
+			small.jpg
+			Example 1's
+		      50 |     4.937500                           ===============
+		      29 |     4.421875                             =============
+		      60 |     4.328125                             =============
+		       8 |     3.324219                                ==========
+
+			Examle 0's
+		      40 |     2.929688                                 =========
+		      19 |     2.496094                                   =======
+		      71 |     2.562500                                   =======
+		      82 |     2.453125                                   =======		
+			'''
+			threshold_0_min = 2.3
+			threshold_0_max = 3.0
+			threshold_1_min = 3.1
+			threshold_1_max = 5.0
 		
 		# How may pixels between bits
 		bit_spacing = None
 		pprofile = projection_profile.ProjectionProfile(pimage)
+		profile = pprofile.get_grayscale_horizontal_profile()
 		pprofile.print_horizontal_profile()
 		
-		# pprofile.print_horizontal_profile()
+		cur = 0
+		while True:
+			# TODO: base this off of peak spacing
+			local_minmax_distance = 3
+			cur = profile.next_min(cur, local_minmax_distance)
+			if cur is None:
+				break
+
+			print cur
+			
 	
 	def get_bits(self):
 		self.process_adjacent_bits(self.pimage)

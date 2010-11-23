@@ -35,10 +35,50 @@ class Profile:
 		return d
 
 	def next_max(self, pos):
+		'''
+		Max version of min, see min for details
+		'''
 		pass
 		
-	def next_min(self, pos):
-		pass
+	def decreases_in_range(self, start, end):
+		'''
+		From start to end, excluding end
+		If start == end, returns False
+		'''
+		
+		# Looks like we are at a min, but see if we are at a local min
+		for pos in range(start, end):
+			# Out of range?
+			if pos >= len(self.profile):
+				return False
+		
+			# Additional decrease?
+			if self.profile[pos] < self.profile[pos - 1]:
+				return True
+
+	def next_min(self, pos, look_ahead = 0):
+		'''
+		Returns next min index
+		Equal value at same position does not count as min
+		If at end and has decreased from original value, will be considered a min
+		look_ahead: how many values to check ahead to make sure we are at a min
+		'''
+		has_decreased = False
+		while True:
+			pos += 1
+			# Out of range?
+			if pos >= len(self.profile):
+				# If we were decreasing, consider it a min
+				if has_decreased:
+					return pos - 1
+				else:
+					return None
+			if self.profile[pos] > self.profile[pos - 1]:
+				if has_decreased:
+					if not self.decreases_in_range(pos, pos + look_ahead):
+						return pos - 1
+			if self.profile[pos] < self.profile[pos - 1]:
+				has_decreased = True
 
 	def display_profile(self, name, key_label, callback = None):
 		def bar_graph(value):
