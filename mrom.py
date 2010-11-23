@@ -9,6 +9,7 @@ import common_driver
 import sys
 import pimage
 import projection_profile
+import profile
 
 class MROM:
 	def __init__(self, pimage):
@@ -19,16 +20,71 @@ class MROM:
 	def print_bits(self):
 		print self.get_bits()
 
-	def get_bits(self):
+
+	def process_adjacent_bits(self, pimage):
 		'''
 		1: confident is a 1
 		0: confident is a 0
 		X: unknown value
+		
+           2 |    12.925781  ========================================
+           3 |    12.304688    ======================================
+           4 |     9.988281            ==============================
+           5 |     7.976562                  ========================
+           6 |     5.769531                         =================
+           7 |     4.167969                              ============
+           8 |     3.324219                                ==========
+           9 |     4.269531                             =============
+          10 |     5.867188                        ==================
+          11 |     8.164062                 =========================
+          12 |    11.476562       ===================================
+          13 |    12.003906     =====================================
+          14 |    11.992188     =====================================
+          15 |    11.476562       ===================================
+          16 |     7.636719                   =======================
+          17 |     4.960938                           ===============
+          20 |     4.531250                            ==============
+          18 |     2.796875                                  ========
+          19 |     2.496094                                   =======
+          21 |     6.664062                      ====================
+          22 |    10.011719            ==============================
+          23 |    11.234375        ==================================
+          24 |    11.335938       ===================================
+          25 |    11.332031       ===================================
+
+		We are considering black 1 and white 0
+		Data is where the lower spots are
+		It is unknown which is 0 and which is a 1
+		Arbitrarily call a 1 the higher/darker value and 0 the lower/lighter value
+
+		Example 1's
+          50 |     4.937500                           ===============
+          29 |     4.421875                             =============
+          60 |     4.328125                             =============
+           8 |     3.324219                                ==========
+
+		Examle 0's
+          40 |     2.929688                                 =========
+          19 |     2.496094                                   =======
+          71 |     2.562500                                   =======
+          82 |     2.453125                                   =======		
 		'''
 		
-		pprofile = projection_profile.ProjectionProfile(self.pimage)
+		threshold_0_min = 2.3
+		threshold_0_max = 3.0
+		threshold_0_min = 3.1
+		threshold_0_max = 5.0
+		
+		# How may pixels between bits
+		bit_spacing = None
+		pprofile = projection_profile.ProjectionProfile(pimage)
 		pprofile.print_horizontal_profile()
-
+		
+		# pprofile.print_horizontal_profile()
+	
+	def get_bits(self):
+		self.process_adjacent_bits(self.pimage)
+		
 		return '10101100'
 
 class Driver(common_driver.CommonDriver):
