@@ -10,6 +10,7 @@ import sys
 import pimage
 import projection_profile
 import profile
+import util
 
 class MROM:
 	def __init__(self, pimage):
@@ -57,6 +58,8 @@ class MROM:
 		It is unknown which is 0 and which is a 1
 		Arbitrarily call a 1 the higher/darker value and 0 the lower/lighter value
 		'''
+		
+		ret = ''
 		
 		if True:
 			'''
@@ -106,24 +109,47 @@ class MROM:
 		# How may pixels between bits
 		bit_spacing = None
 		pprofile = projection_profile.ProjectionProfile(pimage)
-		profile = pprofile.get_grayscale_horizontal_profile()
+		hprofile = pprofile.get_grayscale_horizontal_profile()
 		pprofile.print_horizontal_profile()
 		
+
+		local_minmax_distance = 3
+
+		min_indexes = hprofile.get_mins(local_minmax_distance)
+
+		# Presumably middle isn't effected by end spacing
+		separation_profile = profile.Profile(min_indexes[1:-1]).derrivative()
+		(separation_mean, separation_stddev) = util.mean_stddev(separation_profile.profile)
+
 		cur = 0
 		while True:
 			# TODO: base this off of peak spacing
 			local_minmax_distance = 3
-			cur = profile.next_min(cur, local_minmax_distance)
+			cur = hprofile.next_min(cur, local_minmax_distance)
 			if cur is None:
 				break
 
-			print cur
-			
+			cur_val = hprofile.profile[cur]
+			if cur_val >= threshold_0_min and cur_val <= threshold_0_max:
+				next = '0'
+			elif cur_val >= threshold_1_min and cur_val <= threshold_1_max:
+				next = '1'
+			else:
+				next = 'X'
+
+			print '%s: %s' % (cur, next)
+			ret += next
+		return ret
 	
-	def get_bits(self):
-		self.process_adjacent_bits(self.pimage)
+	def get_adjacent_bit_images(self):
+		return [self.pimage]
 		
-		return '10101100'
+	def get_bits(self):
+		ret = ''
+		for image in self.get_adjacent_bit_images():
+			ret += self.process_adjacent_bits(image)
+		return ret
+		#return '10101100'
 
 class Driver(common_driver.CommonDriver):
 	def __init__(self):

@@ -32,7 +32,7 @@ class Profile:
 		for i in range(1, len(self.profile)):
 			d[i - 1] = self.profile[i] - self.profile[i - 1]
 		d[len(self.profile)] = -self.profile[len(self.profile) - 1]
-		return d
+		return Profile(d)
 
 	def next_max(self, pos):
 		'''
@@ -55,6 +55,15 @@ class Profile:
 			# Additional decrease?
 			if self.profile[pos] < self.profile[pos - 1]:
 				return True
+
+	def get_mins(self, local_minmax_distance = 0):
+		ret = list()
+		cur = 0
+		while True:
+			cur = self.next_min(cur, local_minmax_distance)
+			if cur is None:
+				return ret
+			ret.append(cur)
 
 	def next_min(self, pos, look_ahead = 0):
 		'''
