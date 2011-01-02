@@ -24,6 +24,8 @@ class MROM:
 
 	def process_adjacent_bits(self, pimage):
 		'''
+		Expects a thin strip containing only 1/0 bits with metal gaps (drak spots) in between
+		
 		1: confident is a 1
 		0: confident is a 0
 		X: unknown value
@@ -119,7 +121,9 @@ class MROM:
 
 		# Presumably middle isn't effected by end spacing
 		separation_profile = profile.Profile(min_indexes[1:-1]).derrivative()
+		print separation_profile
 		(separation_mean, separation_stddev) = util.mean_stddev(separation_profile.profile)
+		print 'mean: %lf, stddev: %lf' % (separation_mean, separation_stddev)
 
 		cur = 0
 		while True:
@@ -142,6 +146,10 @@ class MROM:
 		return ret
 	
 	def get_adjacent_bit_images(self):
+		'''Generator to return the bits in sequence'''
+		
+		# Divide into column groups
+		
 		return [self.pimage]
 		
 	def get_bits(self):
