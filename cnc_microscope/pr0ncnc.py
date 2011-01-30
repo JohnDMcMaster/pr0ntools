@@ -32,7 +32,11 @@ def take_picture():
 
 def focus_camera():
 	print 'M7'
-	pause(3)
+	pause(2)
+
+def fix_focus():
+	# And just don't 
+	focus_camera()
 
 pictures_taken = 0
 def do_take_picture():
@@ -67,11 +71,16 @@ def do_move(code, x, y, z):
 
 	print '%s G1%s%s%s F3' % (code, x_part, y_part, z_part)
 
-def drange(start, stop, step):
+def drange(start, stop, step, inclusive = False):
 	r = start
-	while r < stop:
-		yield r
-		r += step
+	if inclusive:
+		while r <= stop:
+			yield r
+			r += step
+	else:
+		while r < stop:
+			yield r
+			r += step
 
 '''
 I'll move this to a JSON, XML or something format if I keep working on this
@@ -91,6 +100,24 @@ upper right: 0, 0, 0
 lower left: 0.2639,0.3275,-0.0068
 
 '''
+
+class CameraResolution:
+	width = 1280
+	height = 1024
+	pictures = 500
+
+class Camera:
+	vendor = "canon"
+	model = "SD630"
+	resolutions = list()
+	memory = None
+	
+	def __init__():
+		#resolutions.append(
+		set_memory("4GB")
+
+	def set_memory(s):
+		memory = 4000000000
 
 class FocusLevel:
 	# Assume XY isn't effected by Z
@@ -170,7 +197,7 @@ if __name__ == "__main__":
 			help()
 			sys.exit(1)
 	
-	focus = canon_SD630_unitron_N_15XE_10XO
+	focus = canon_SD630_unitron_N_15XE_5XO
 	overlap = 2.0 / 3.0
 	overlap_max_error = 0.05
 	
@@ -183,18 +210,17 @@ if __name__ == "__main__":
 	y_start = 0.0
 	z_start = 0.0
 	start = [x_start, y_start, z_start]
-	x_end = 0.3115
-	y_end = 0.2666
-	# Guess I chose a less flat area?
-	# Hmm no must be less flat than before it fell off
-	#z_end = -0.0068
-	z_end = -0.0086
+	
+	x_end = 0.4056
+	y_end = 0.4595
+	z_end = 0.0140
 	end = [x_end, y_end, z_end]
-	# Usually all we will care about z since using corner is simplest
-	x_other = 0.0015
-	y_other = 0.2637
-	z_other = -0.0246
+	
+	x_other = 0.0171
+	y_other = 0.4595
+	z_other = 0.0018
 	other = [x_other, y_other, z_other]
+	
 	
 	full_x_delta = x_end - x_start
 	full_y_delta = x_end - y_start
@@ -300,8 +326,8 @@ if __name__ == "__main__":
 	# So, need to make sure we are scanning same direction each time
 	# err for now just easier I guess
 	forward = True
-	for cur_x in drange(x_start, x_end, x_step):
-		for cur_y in drange(y_start, y_end, y_step):
+	for cur_x in drange(x_start, x_end, x_step, True):
+		for cur_y in drange(y_start, y_end, y_step, True):
 			'''
 			Until I can properly spring load the z axis, I have it rubber banded
 			Also, for now assume simple planar model where we assume the third point is such that it makes the plane "level"
