@@ -80,9 +80,9 @@ def drange_at_least(start, stop, step):
 	r = start
 	while True:
 		yield r
-		r += step
 		if r > stop:
 			break
+		r += step
 
 '''
 I'll move this to a JSON, XML or something format if I keep working on this
