@@ -6,20 +6,13 @@ import sys
 import time
 import math
 import numpy
+import json
 
 VERSION = '0.1'
 
-def help():
-	print 'pr0ncnc version %s' % VERSION
-	print 'Copyright 2011 John McMaster <JohnDMcMaster@gmail.com>'
-	print 'Usage:'
-	print 'pr0nstitch <x1>,<y1>,<z1> [<x2>,<y2>,<z2>]' #[<x3>,<y3>,<z3> <x4>,<y4>,<z4>]]
-	print 'if one set of points specified, assume 0,0,0 forms other part of rectangle'
-	print 'If two points are specified, assume those as the opposing corners'
-	# maybe support later if makes sense, closer to polygon support
-	# print 'If four points are specified, use those as the explicit corners'
-
 def end_program():
+	print
+	print '(Done!)'
 	print 'M2'
 	
 def pause(seconds):
@@ -82,6 +75,15 @@ def drange(start, stop, step, inclusive = False):
 			yield r
 			r += step
 
+def drange_at_least(start, stop, step):
+	'''Garauntee max is in the output'''
+	r = start
+	while True:
+		yield r
+		r += step
+		if r > stop:
+			break
+
 '''
 I'll move this to a JSON, XML or something format if I keep working on this
 
@@ -121,7 +123,7 @@ class Camera:
 
 class FocusLevel:
 	# Assume XY isn't effected by Z
-	eyepeice_mag = None
+	eyepiece_mag = None
 	objective_mag = None
 	# Not including digital
 	camera_mag = None
@@ -140,39 +142,32 @@ class FocusLevel:
 # Each higher probably more accurate than those above it if extrapolated to above?
 # If this is the case too, should just need to store some reference values and can extrapolate
 
-canon_SD630_unitron_N_15XE_5XO = FocusLevel()
-canon_SD630_unitron_N_15XE_5XO.eyepeice_mag = 15.0
-canon_SD630_unitron_N_15XE_5XO.objective_mag = 5.0
-canon_SD630_unitron_N_15XE_5XO.camera_mag = 3.0
-canon_SD630_unitron_N_15XE_5XO.camera_digital_mag = 4.0
-canon_SD630_unitron_N_15XE_5XO.x_view = 0.0350
-canon_SD630_unitron_N_15XE_5XO.y_view = 0.0465
 
-canon_SD630_unitron_N_15XE_10XO = FocusLevel()
-canon_SD630_unitron_N_15XE_10XO.eyepeice_mag = 15.0
-canon_SD630_unitron_N_15XE_10XO.objective_mag = 10.0
-canon_SD630_unitron_N_15XE_10XO.camera_mag = 3.0
-canon_SD630_unitron_N_15XE_10XO.camera_digital_mag = 4.0
-canon_SD630_unitron_N_15XE_10XO.x_view = 0.0170
-canon_SD630_unitron_N_15XE_10XO.y_view = 0.0240
+def help():
+	print 'pr0ncnc version %s' % VERSION
+	print 'Copyright 2011 John McMaster <JohnDMcMaster@gmail.com>'
+	print 'Usage:'
+	print 'pr0nstitch <x1>,<y1>,<z1> [<x2>,<y2>,<z2>]' #[<x3>,<y3>,<z3> <x4>,<y4>,<z4>]]
+	print 'if one set of points specified, assume 0,0,0 forms other part of rectangle'
+	print 'If two points are specified, assume those as the opposing corners'
+	print 'z_backlash=<val>: correction for z axis imperfections'
+	print 'overlap=<val>: proportion of overlap on each image to adjacent'
+	print 'overlap-max-error=<val>: max allowable overlap proportion error'
 
-canon_SD630_unitron_N_15XE_20XO = FocusLevel()
-canon_SD630_unitron_N_15XE_20XO.eyepeice_mag = 15.0
-canon_SD630_unitron_N_15XE_20XO.objective_mag = 10.0
-canon_SD630_unitron_N_15XE_20XO.camera_mag = 3.0
-canon_SD630_unitron_N_15XE_20XO.camera_digital_mag = 4.0
-canon_SD630_unitron_N_15XE_20XO.x_view = 0.0170/2.0
-canon_SD630_unitron_N_15XE_20XO.y_view = 0.0240/2.0
-
-canon_SD630_unitron_N_15XE_40XO = FocusLevel()
-canon_SD630_unitron_N_15XE_40XO.eyepeice_mag = 15.0
-canon_SD630_unitron_N_15XE_40XO.objective_mag = 10.0
-canon_SD630_unitron_N_15XE_40XO.camera_mag = 3.0
-canon_SD630_unitron_N_15XE_40XO.camera_digital_mag = 4.0
-canon_SD630_unitron_N_15XE_40XO.x_view = 0.0170/4.0
-canon_SD630_unitron_N_15XE_40XO.y_view = 0.0240/4.0
+	# maybe support later if makes sense, closer to polygon support
+	# print 'If four points are specified, use those as the explicit corners'
 
 if __name__ == "__main__":
+	# How much to move z to ensure we aren't in a deadzone
+	z_backlash = 0.01
+	# Proportion of overlap on each image to adjacent
+	overlap = 2.0 / 3.0
+	# Maximum allowable overlap proportion error when trying to fit number of snapshots
+	overlap_max_error = 0.05
+	microscope_config_file_name = 'microscope.json'
+	scan_config_file_name = 'scan.json'
+	naked_arg_index = 0
+	
 	for arg_index in range (1, len(sys.argv)):
 		arg = sys.argv[arg_index]
 		arg_key = None
@@ -187,40 +182,68 @@ if __name__ == "__main__":
 			else:
 				arg_key = arg[2:]
 				
-		if arg_key == "help":
-			help()
-			sys.exit(0)
-		if arg_key == "at-optimized-parameters":
-			at_optmized_parameters = arg_values
+			if arg_key == "help":
+				help()
+				sys.exit(0)
+			if arg_key == "overlap":
+				overlap = float(arg_val)
+			elif arg_key == "overlap-max-error":
+				overlap_max_error = float(arg_val)
+			elif arg_key == "z-backlash":
+				if len(z_backlash) == 0:
+					z_backlash = None
+				else:
+					z_backlash = float(z_backlash)
+			else:
+				log('Unrecognized argument: %s' % arg)
+				help()
+				sys.exit(1)
 		else:
-			log('Unrecognized argument: %s' % arg)
-			help()
-			sys.exit(1)
+			if naked_arg_index == 0:
+				microscope_config_file_name = arg
+			else:
+				log('too many undecorated args: %s' % arg)
+				help()
+				sys.exit(1)
 	
-	focus = canon_SD630_unitron_N_15XE_5XO
-	overlap = 2.0 / 3.0
-	overlap_max_error = 0.05
+	microscope_config_file = open(microscope_config_file_name)
+	microscope_config = json.loads(microscope_config_file.read())
+
+	focus = FocusLevel()
+	focus.eyepiece_mag = float(microscope_config['microscope']['eyepiece'][0])
+	# objective_config = microscope_config['microscope']['objective'].itervalues().next()
+	objective_config = microscope_config['microscope']['objective'][0]
+	focus.objective_mag = float(objective_config['mag'])
+	focus.camera_mag = float(microscope_config['camera']['mag'])
+	focus.camera_digital_mag = float(microscope_config['camera']['digital_mag'])
+	# FIXME: this needs a baseline and scale it
+	focus.x_view = float(objective_config['x_view'])
+	focus.y_view = float(objective_config['y_view'])
+	
+	z_backlash = float(microscope_config['stage']['z_backlash'])
 	
 	'''
 	Planar test run
 	plane calibration corner ended at 0.0000, 0.2674, -0.0129
 	'''
 	
-	x_start = 0.0
-	y_start = 0.0
-	z_start = 0.0
+	scan_config_file = open(scan_config_file_name)
+	scan_config = json.loads(scan_config_file.read())
+
+	x_start = float(scan_config['start']['x'])
+	y_start = float(scan_config['start']['y'])
+	z_start = float(scan_config['start']['z'])
 	start = [x_start, y_start, z_start]
 	
-	x_end = 0.4056
-	y_end = 0.4595
-	z_end = 0.0140
+	x_end = float(scan_config['end']['x'])
+	y_end = float(scan_config['end']['y'])
+	z_end = float(scan_config['end']['z'])
 	end = [x_end, y_end, z_end]
 	
-	x_other = 0.0171
-	y_other = 0.4595
-	z_other = 0.0018
-	other = [x_other, y_other, z_other]
-	
+	x_other = float(scan_config['other']['x'])
+	y_other = float(scan_config['other']['y'])
+	z_other = float(scan_config['other']['z'])
+	other = [x_other, y_other, z_other]	
 	
 	full_x_delta = x_end - x_start
 	full_y_delta = x_end - y_start
@@ -284,6 +307,21 @@ if __name__ == "__main__":
 			* p0,p1 and p2 = vertex points
 			* x = cross product
 	'''
+	p0 = start
+	p1 = end
+	p2 = other
+
+	# [a - b for a, b in zip(a, b)]
+	# cross0 = p1 - p0
+	cross0 = [t1 - t0 for t1, t0 in zip(p1, p0)]
+	# cross1 = p2 - p0
+	cross1 = [t2 - t0 for t2, t0 in zip(p2, p0)]
+	normal = numpy.cross(cross0, cross1)
+	# a x + b y + c z + d = 0 
+	# z = -(a x + by) / c
+	# dz/dy = -b / c
+	dz_dy = -normal[1] / normal[2]
+
 	def calc_z():
 		if False:
 			return calc_z_simple()
@@ -299,16 +337,6 @@ if __name__ == "__main__":
 		return cur_z
 		
 	def calc_z_planar():
-		p0 = start
-		p1 = end
-		p2 = other
-
-		# [a - b for a, b in zip(a, b)]
-		# cross0 = p1 - p0
-		cross0 = [t1 - t0 for t1, t0 in zip(p1, p0)]
-		# cross1 = p2 - p0
-		cross1 = [t2 - t0 for t2, t0 in zip(p2, p0)]
-		normal = numpy.cross(cross0, cross1)
 		# Plane is through origin, so x0 is (0, 0, 0) and dissapears, same goes for distance d
 		# Now we just need to solve the equation for z
 		# a x + b y + c z + d = 0 
@@ -320,25 +348,62 @@ if __name__ == "__main__":
 	print
 	print
 	print '(Generated by pr0nstitch %s on %s)' % (VERSION, time.strftime("%d/%m/%Y %H:%M:%S"))
+	print '(x_step: %f, y_step: %f)' % (x_step, y_step)
+	net_mag = focus.objective_mag * focus.eyepiece_mag * focus.camera_mag
+	print '(objective: %f, eyepiece: %f, camera: %f, net: %f)' % (focus.objective_mag, focus.eyepiece_mag, focus.camera_mag, net_mag)
+	if z_backlash:
+		if dz_dy > 0:
+			# Then decrease and increase
+			print '(increasing dz/dy backlash normalization)'
+			#relative_move(0.0, 0.0, -z_backlash)
+			#relative_move(0.0, 0.0, z_backlash)
+		else:
+			# Then increase then decrease
+			print '(decreasing dz/dy backlash normalization)'
+			#relative_move(0.0, 0.0, z_backlash)
+			#relative_move(0.0, 0.0, -z_backlash)
+	pictures_to_take = 0
+	for cur_x in drange_at_least(x_start, x_end, x_step):
+		for cur_y in drange_at_least(y_start, y_end, y_step):
+			pictures_to_take += 1
+	print '(pictures: %d)' % pictures_to_take
+	print
 
-	# Because of the play on Z, its better to scan in same direction
+
+	# Because of the backlash on Z, its better to scan in same direction
 	# Additionally, it doesn't matter too much for focus which direction we go, but XY is thrown off
 	# So, need to make sure we are scanning same direction each time
 	# err for now just easier I guess
 	forward = True
-	for cur_x in drange(x_start, x_end, x_step, True):
-		for cur_y in drange(y_start, y_end, y_step, True):
+	for cur_x in drange_at_least(x_start, x_end, x_step):
+		first_y = True
+		for cur_y in drange_at_least(y_start, y_end, y_step):
 			'''
 			Until I can properly spring load the z axis, I have it rubber banded
 			Also, for now assume simple planar model where we assume the third point is such that it makes the plane "level"
 				That is, even X and Y distortion
 			'''
 			
+			z_backlash_delta = 0.0
+			if first_y and z_backlash:
+				# Reposition z to ensure we aren't getting errors from axis backlash
+				# Taking into account y slant to make sure we will be going in the same direction
+				# z increasing as we scan along y?
+				if dz_dy > 0:
+					# Then decrease and increase
+					#print '(increasing dz/dy backlash normalization)'
+					z_backlash_delta = -z_backlash
+				else:
+					# Then increase then decrease
+					#print '(decreasing dz/dy backlash normalization)'
+					z_backlash_delta = z_backlash
+
 			print
 			cur_z = calc_z()
 			# print cur_z
 			# print 'full_z_delta: %f, z_start %f, z_end %f' % (full_z_delta, z_start, z_end)
 			print '(%f, %f, %f)' % (cur_x, cur_y, cur_z)
+
 			#if cur_z < z_start or cur_z > z_end:
 			#	print 'cur_z: %f, z_start %f, z_end %f' % (cur_z, z_start, z_end)
 			#	raise Exception('z out of range')
@@ -346,11 +411,14 @@ if __name__ == "__main__":
 			y_delta = cur_y - prev_y
 			z_delta = cur_z - prev_z
 			
-			relative_move(x_delta, y_delta, z_delta)
+			relative_move(x_delta, y_delta, z_delta + z_backlash_delta)
+			if z_backlash_delta:
+				relative_move(0.0, 0.0, -z_backlash_delta)
 			take_picture()
 			prev_x = cur_x
 			prev_y = cur_y
 			prev_z = cur_z
+			first_y = False
 
 		'''
 		if forward:
@@ -361,12 +429,16 @@ if __name__ == "__main__":
 				inner_loop()
 		'''
 		forward = not forward
-
-	print
-	print
-	print
-	print '(Statistics:)'
-	print '(Pictures: %d)' % pictures_taken
+		print
 
 	end_program()
+
+	print
+	print
+	print
+	#print '(Statistics:)'
+	#print '(Pictures: %d)' % pictures_taken
+	if not pictures_taken == pictures_to_take:
+		raise Exception('pictures taken mismatch (taken: %d, to take: %d)' % (pictures_to_take, pictures_taken))
+
 	

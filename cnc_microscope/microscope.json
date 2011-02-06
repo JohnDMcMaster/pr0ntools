@@ -1,0 +1,50 @@
+{
+	"microscope":
+	{
+		"objective":
+		[
+			{
+				"mag": 5.0,
+				"x_view": 0.0350,
+				"y_view": 0.0465
+			},
+
+			{
+				"mag": 10.0,
+				"x_view": 0.0170,
+				"y_view": 0.0240
+			},
+
+			{
+				"mag": 20.0,
+				"x_view": 0.0085,
+				"y_view": 0.0120
+			},
+
+			{
+				"mag": 40.0,
+				"x_view": 0.0042,
+				"y_view": 0.0060
+			}
+		],
+	
+		"eyepiece":
+		[
+			15.0,
+			5.0,
+		 	10.0
+	 	]
+	},
+
+	"camera":
+	{
+		"mag": 3.0,
+		"digital_mag": 1.0
+	},
+	
+	"stage":
+	{
+		"z_backlash": 0.0050
+	}
+}
+
