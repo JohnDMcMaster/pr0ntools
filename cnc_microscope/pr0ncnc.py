@@ -1,6 +1,9 @@
 #!/usr/bin/python
-# pr0ncnc: IC die image scan
-# Copyright 2011 John McMaster <johnDMcMaster@gmail.com>
+'''
+pr0ncnc: IC die image scan
+Copyright 2010 John McMaster <JohnDMcMaster@gmail.com>
+Licensed under the terms of the LGPL V3 or later, see COPYING for details
+'''
 
 import sys
 import time
@@ -146,7 +149,7 @@ class FocusLevel:
 		pass
 
 def genBasename(point, original_file_name):
-	postfix = ".jpg"
+	suffix = original_file_name.split('.')[1]
 	row = point[3]
 	col = point[4]
 	rowcol = ''
@@ -159,7 +162,7 @@ def genBasename(point, original_file_name):
 	spacer = ''
 	if len(rowcol) and len(coordinate):
 		spacer = '__'
-	return "%s%s%s%s" % (rowcol, spacer, coordinate, postfix)
+	return "%s%s%s%s" % (rowcol, spacer, coordinate, suffix)
 
 # Coordinate seems to be accurate enough and more intuitive to work with
 include_rowcol = False
@@ -217,6 +220,8 @@ def doJSON():
 		{"x": 0.2132, "y": 0.2131, "z": 0.0023},
 	]
 	'''
+	
+	image_map = ImageMap()
 	
 	print '{'
 	comma = ''
@@ -579,4 +584,4 @@ if __name__ == "__main__":
 	else:
 		print 'bad action: %d' % action
 		sys.exit(1)
-	
+

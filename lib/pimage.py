@@ -2,7 +2,7 @@
 This file is part of pr0ntools
 Image utility class
 Copyright 2010 John McMaster <JohnDMcMaster@gmail.com>
-Licensed under GPL V3+
+Licensed under the terms of the LGPL V3 or later, see COPYING for details
 '''
 
 import Image
@@ -40,6 +40,7 @@ Currently code treats 0 as white and non-0 as black
 class PImage:
 	# A PIL Image object
 	image = None
+	temp_file = None
 	
 	# We do not copy array, so be careful with modifications
 	def __init__(self, image):
@@ -328,4 +329,32 @@ class PImage:
 			ret = PImage(Image.new(mode_out, (0, 0), "White"))
 		#print 'from_array: end'
 		return ret
+
+    @staticmethod
+    def is_image_filename(filename):
+        return filename.find('.tif') > 0 or filename.find('.jpg') > 0 or filename.find('.png') > 0 or filename.find('.bmp') > 0
+
+class ManagedPImage:
+	file_name = None
+	pimage = None
+	
+	def __init__(self, file_name):
+		if file_name:
+			self.file_name = file_name
+		else:
+			self.file_name = TempFile.get()
+	
+	def get_a_file_name(self):
+		pass
+	
+	@staticmethod
+	def get(prefix = None, suffix = None):
+		return ManagedTempFile(TempFile.get(prefix, suffix))
+
+	@staticmethod
+	def from_existing(file_name):
+		return ManagedTempFile(file_name)
+
+	def __del__(self):
+		os.rm(self.file_name)
 
