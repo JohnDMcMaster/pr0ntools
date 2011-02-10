@@ -145,7 +145,24 @@ class FocusLevel:
 	def __init__(self):
 		pass
 
-include_rowcol = True
+def genBasename(point, original_file_name):
+	postfix = ".jpg"
+	row = point[3]
+	col = point[4]
+	rowcol = ''
+	if include_rowcol:
+		rowcol = 'c%04d_r%04d' % (col, row)
+	coordinate = ''
+	# 5 digits seems quite reasonable
+	if include_coordinate:
+		coordinate = "x%05d_y%05d" % (point[0] * 1000, point[1] * 1000)
+	spacer = ''
+	if len(rowcol) and len(coordinate):
+		spacer = '__'
+	return "%s%s%s%s" % (rowcol, spacer, coordinate, postfix)
+
+# Coordinate seems to be accurate enough and more intuitive to work with
+include_rowcol = False
 include_coordinate = True
 def doRename():
 	'''
@@ -183,18 +200,8 @@ def doRename():
 	for i in range(0, pictures_to_take):
 		source_file_name = image_dir + '/' + image_files[i]
 		point = points[i]
-		row = point[3]
-		col = point[4]
-		rowcol = ''
-		if include_rowcol:
-			rowcol = 'c%04d_r%04d' % (col, row)
-		coordinate = ''
-		if include_coordinate:
-			coordinate = "x%05d_y%05d" % (point[0] * 1000, point[1] * 1000)
-		spacer = ''
-		if len(rowcol) and len(coordinate):
-			spacer = '__'
-		dest_file_name = '%s/%s%s%s.jpg' % (image_dir, rowcol, spacer, coordinate)
+		basename = genBasename(point, source_file_name)
+		dest_file_name = '%s/%s' % (image_dir, basename)
 		print '%s -> %s' % (source_file_name, dest_file_name)
 		if not dry_run:
 			if os.path.exists(dest_file_name):
@@ -214,7 +221,8 @@ def doJSON():
 	print '{'
 	comma = ''
 	for point in getPointsEx():
-		print '\t{"x": %f, "y": %f, "z": %f, "row": %d, "col": %d}%s' % (point[0], point[1], point[2], point[3], point[4], comma)
+		print '\t{"x": %f, "y": %f, "z": %f, "row": %d, "col": %d, "file_name": "%s"}%s' % \
+				(point[0], point[1], point[2], point[3], point[4], genBasename(point, ".jpg"), comma)
 		comma = ','
 	print '}'
 	
@@ -361,6 +369,8 @@ def help():
 
 if __name__ == "__main__":
 	# How much to move z to ensure we aren't in a deadzone
+	x_backlash = 0.01
+	y_backlash = 0.01
 	z_backlash = 0.01
 	# Proportion of overlap on each image to adjacent
 	overlap = 2.0 / 3.0

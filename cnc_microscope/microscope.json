@@ -44,6 +44,8 @@
 	
 	"stage":
 	{
+		"x_backlash": 0.0050,
+		"y_backlash": 0.0050,
 		"z_backlash": 0.0050
 	}
 }
