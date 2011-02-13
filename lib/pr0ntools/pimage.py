@@ -330,9 +330,9 @@ class PImage:
 		#print 'from_array: end'
 		return ret
 
-    @staticmethod
-    def is_image_filename(filename):
-        return filename.find('.tif') > 0 or filename.find('.jpg') > 0 or filename.find('.png') > 0 or filename.find('.bmp') > 0
+	@staticmethod
+	def is_image_filename(filename):
+		return filename.find('.tif') > 0 or filename.find('.jpg') > 0 or filename.find('.png') > 0 or filename.find('.bmp') > 0
 
 class ManagedPImage:
 	file_name = None

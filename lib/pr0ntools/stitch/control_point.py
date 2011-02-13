@@ -34,13 +34,17 @@ class AutopanoAj(ControlPointGenerator):
 	os.system("cat %s |sed 's@%s@%s@g' >/tmp/%s" % (project_file, original_dir, image_dir, temp_project_file))
 """
 
+from pr0ntools.temp_file import ManagedTempFile
+from pr0ntools.execute import Execute
+from pr0ntools.stitch.pto import PTOProject
+
 #class AutopanoSiftC : ControlPointGenerator:	
 class ControlPointGenerator:
 	'''
 	Example stitch command
 	"autopano-sift-c" "--maxmatches" "0" "--maxdim" "10000" "out.pto" "first.png" "second.png"
 	'''
-	def generate_core(image_file_names):
+	def generate_core(self, image_file_names):
 		project_file = ManagedTempFile.get(None, ".pto")
 
 		command = "autopano-sift-c"
@@ -55,7 +59,7 @@ class ControlPointGenerator:
 		args.append("10000")
 
 		# Project file
-		args.append(project_file.file_name())
+		args.append(project_file.file_name)
 		
 		# Images
 		for image_file_name in image_file_names:
@@ -67,5 +71,5 @@ class ControlPointGenerator:
 			raise Exception('Bad rc: %d' % rc)
 		
 		# We return PTO object, not string
-		return PTOProject.from_file_name(project_file.file_name(), True)
+		return PTOProject.from_temp_file(project_file)
 

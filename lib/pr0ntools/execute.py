@@ -4,6 +4,8 @@ Copyright 2011 John McMaster <JohnDMcMaster@gmail.com>
 Licensed under the terms of the LGPL V3 or later, see COPYING for details
 '''
 
+import os
+
 class Execute:
 	@staticmethod
 	def simple(cmd):
@@ -36,7 +38,7 @@ class Execute:
 		'''Return (rc, output)'''
 		to_exec = program
 		for arg in args:
-			to_exec += arg
+			to_exec += ' "' + arg + '"'
 		return Execute.with_output_simple(to_exec)
 		
 	@staticmethod
@@ -44,7 +46,7 @@ class Execute:
 		'''Return (rc, output)'''
 		# ugly...but simple
 		# ((false; true; true) 2>&1; echo "***RC_HACK: $?") |tee temp.txt
-		rc = Execute.simple_shell_exec('(' + cmd + ') 2>&1 |tee file.tmp; exit $PIPESTATUS')
+		rc = Execute.simple('(' + cmd + ') 2>&1 |tee file.tmp; exit $PIPESTATUS')
 		output = open('file.tmp').read()
 		# print 'OUTPUT: %d, %s' % (rc, output)
 		return (rc, output)

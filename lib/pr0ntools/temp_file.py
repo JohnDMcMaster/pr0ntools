@@ -4,6 +4,9 @@ Copyright 2011 John McMaster <JohnDMcMaster@gmail.com>
 Licensed under the terms of the LGPL V3 or later, see COPYING for details
 '''
 
+import random
+import os
+
 class TempFile:
 	@staticmethod
 	def default_prefix():
@@ -19,11 +22,11 @@ class TempFile:
 	@staticmethod
 	def get(prefix = None, suffix = None):
 		if not prefix:
-			prefix = default_prefix()
+			prefix = TempFile.default_prefix()
 		if not suffix:
 			suffix = ""
 		# Good enough for now
-		return prefix + rand_str(16) + suffix
+		return prefix + TempFile.rand_str(16) + suffix
 
 class ManagedTempFile:
 	file_name = None
@@ -34,6 +37,9 @@ class ManagedTempFile:
 		else:
 			self.file_name = TempFile.get()
 	
+	def __repr__(self):
+		return self.file_name
+	
 	@staticmethod
 	def get(prefix = None, suffix = None):
 		return ManagedTempFile(TempFile.get(prefix, suffix))
@@ -43,7 +49,12 @@ class ManagedTempFile:
 		return ManagedTempFile(file_name)
 
 	def __del__(self):
-		os.rm(self.file_name)
+		try:
+			# os.remove(self.file_name)
+			print 'Deleted temp file %s' % self.file_name
+		# Ignore if it was never created
+		except:
+			pass
 
 class TempFileSet:
 	prefix = None
