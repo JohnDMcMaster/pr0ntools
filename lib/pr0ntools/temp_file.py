@@ -50,11 +50,14 @@ class ManagedTempFile:
 
 	def __del__(self):
 		try:
-			# os.remove(self.file_name)
-			print 'Deleted temp file %s' % self.file_name
+			if os.path.exists(self.file_name):
+				# os.remove(self.file_name)
+				print 'Deleted temp file %s' % self.file_name
+			else:
+				print "Didn't delete inexistant temp file %s" % self.file_name
 		# Ignore if it was never created
 		except:
-			pass
+			print 'WARNING: failed to delete temp file: %s' % self.file_name
 
 class TempFileSet:
 	prefix = None

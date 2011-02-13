@@ -7,6 +7,8 @@ Licensed under the terms of the LGPL V3 or later, see COPYING for details
 
 import Image
 import sys
+from temp_file import TempFile
+from temp_file import ManagedTempFile
 
 '''
 images are indexed imageInstance[x][y]
@@ -111,7 +113,7 @@ class PImage:
 		return (self.subimage(x_min, x_max, y_min, y_max), x_min, x_max, y_min, y_max)
 
 	'''
-	Given inclusive array bounds,
+	Given exclusive end array bounds (allows .width() convenience)
 	returns a new image trimmed to the given bounds
 	Truncates the image if our array bounds are out of range
 		Maybe we should throw exception instead?
@@ -120,16 +122,18 @@ class PImage:
 		if x_min is None:
 			x_min = 0
 		if x_max is None:
-			x_max = self.width() - 1
+			x_max = self.width()
 		if y_min is None:
 			y_min = 0
 		if y_max is None:
-			y_max = self.height() - 1
+			y_max = self.height()
 		#print 'subimage: start.  x_min: %d: x_max: %d, y_min: %d, y_max: %d' % (x_min, x_max, y_min, y_max)
 
 		# Did we truncate the whole image?
 		if x_min > x_max or y_min > y_max:
 			return self.from_array([], self.get_mode(), self.get_mode())
+		
+		'''
 		height = y_max - y_min + 1
 		width = x_max - x_min + 1
 
@@ -140,7 +144,15 @@ class PImage:
 
 		#print 'subimage: beginning from array'
 		return self.from_array(array_out, self.get_mode(), self.get_mode())
-	
+		'''
+		# 4-tuple (x0, y0, x1, y1)
+		print 'x_min: %d, y_min: %d, x_max: %d, y_max: %d' % (x_min, y_min, x_max, y_max)
+		# This is exclusive, I want inclusive
+		return PImage.from_image(self.image.crop((x_min, y_min, x_max, y_max)))
+
+	def copy(self):
+		return self.subimage(self, None, None, None, None)
+
 	def width(self):
 		return self.image.size[0]
 	
@@ -238,8 +250,11 @@ class PImage:
 		img = Image.open(path)
 		if img is None:
 			raise Exception("Couldn't open image file: %s" % path)
-		img_converted = img.convert('L')
-		return PImage.from_image(img_converted)
+		if False:
+			img_converted = img.convert('L')
+			return PImage.from_image(img_converted)
+		else:
+			return PImage.from_image(img)
 
 	@staticmethod
 	def from_image(image):
@@ -334,7 +349,7 @@ class PImage:
 	def is_image_filename(filename):
 		return filename.find('.tif') > 0 or filename.find('.jpg') > 0 or filename.find('.png') > 0 or filename.find('.bmp') > 0
 
-class ManagedPImage:
+class TempPImage:
 	file_name = None
 	pimage = None
 	

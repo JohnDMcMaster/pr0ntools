@@ -280,6 +280,7 @@ class ControlPointImage:
 class ControlPoint:
 	# c n0 N1 x1444.778035 y233.742619 X1225.863118 Y967.737131 t0
 	# Both of type ControlPointImage
+	# Coordinates are increasing from upper left of image
 	lower_image = None
 	upper_image = None
 	# What is t?

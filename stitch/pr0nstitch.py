@@ -14,6 +14,8 @@ import sys
 import os.path
 import pr0ntools.pimage
 from pr0ntools.pimage import PImage
+from pr0ntools.pimage import TempPImage
+from pr0ntools.temp_file import ManagedTempFile
 from pr0ntools.stitch.control_point import ControlPointGenerator
 from pr0ntools.stitch.pto import PTOProject
 from pr0ntools.execute import Execute
@@ -47,6 +49,17 @@ class ImageCoordinateMapPairing:
 	def __repr__(self):
 		return '(col=%d, row=%d)' % (self.col, self.row)
 
+	def __cmp__(self, other):
+		delta = self.col - other.col
+		if delta:
+			return delta
+			
+		delta = self.row - other.row
+		if delta:
+			return delta
+
+		return 0
+		
 class ImageCoordinatePair:
 	# Of type ImageCoordinateMapPairing
 	first = None
@@ -55,6 +68,17 @@ class ImageCoordinatePair:
 	def __init__(self, first, second):
 		self.first = first
 		self.second = second
+
+	def __cmp__(self, other):
+		delta = self.first.__compare__(other.first)
+		if delta:
+			return delta
+			
+		delta = delta = self.second.__compare__(other.second)
+		if delta:
+			return delta
+
+		return 0
 
 	def __repr__(self):
 		return '%s vs %s' % (self.first, self.second)
@@ -163,19 +187,19 @@ class ImageCoordinateMap:
 		return ret
 	
 	def gen_pairs(self, row_spread = 1, col_spread = 1):
-		'''Returns a generator of ImageCoordinatePair's'''
-		for row_0 in range(0, self.rows):
-			# Don't repeat elements, don't pair with self, keep a delta of row_spread
-			for row_1 in range(max(0, row_0 - row_spread), min(self.rows, row_0 + row_spread)):
-				for col_0 in range(0, self.cols):
-					for col_1 in range(max(0, col_0 - col_spread), min(self.cols, col_0 + col_spread)):
+		'''Returns a generator of ImageCoordinatePair's, sorted'''
+		for col_0 in range(0, self.cols):
+			for col_1 in range(max(0, col_0 - col_spread), min(self.cols, col_0 + col_spread)):
+				for row_0 in range(0, self.rows):
+					# Don't repeat elements, don't pair with self, keep a delta of row_spread
+					for row_1 in range(max(0, row_0 - row_spread), min(self.rows, row_0 + row_spread)):
 						if col_0 == col_1 and row_0 == row_1:
 							continue
 						# For now just allow manhatten distance of 1
 						if abs(col_0 - col_1) + abs(row_0 - row_1) > 1:
 							continue
 						
-						to_yield = ImageCoordinatePair(ImageCoordinateMapPairing(col_0, row_0), ImageCoordinateMapPairing(col_1, row_1))
+						to_yield = ImageCoordinatePair(ImageCoordinateMapPairing(col_1, row_1), ImageCoordinateMapPairing(col_0, row_0))
 						yield to_yield
 
 	def __repr__(self):
@@ -408,11 +432,153 @@ class PanoEngine:
 		# If you hand took the pictures, this might suit you
 		self.project = PTOProject.from_blank()
 		temp_projects = list()
+		subimage_control_points = True
+
+		'''
+		for pair in self.coordinate_map.gen_pairs(1, 1):
+			print 'pair raw: ' + repr(pair)
+			pair_images = self.coordinate_map.get_images_from_pair(pair)
+			print 'pair images: ' + repr(pair_images)
+		'''
 		if True:
-			for pair in self.coordinate_map.gen_pairs(1, 1):
+			for pair in self.coordinate_map.gen_pairs(1, 1):				
 				print 'pair raw: ' + repr(pair)
 				pair_images = self.coordinate_map.get_images_from_pair(pair)
-				temp_projects.append(control_point_gen.generate_core(pair_images))
+				print 'pair images: ' + repr(pair_images)
+
+				if subimage_control_points:
+					'''
+					Just work on the overlap section, maybe even less
+					'''
+					overlap = 1.0 / 3.0
+					
+					image_0 = PImage.from_file(pair_images[0])
+					image_1 = PImage.from_file(pair_images[1])
+					
+					'''
+					image_0 used as reference
+					4 basic situations: left, right, up right
+					8 extended: 4 basic + corners
+					Pairs should be sorted, which simplifies the logic
+					'''
+					working_image_0_x_delta = 0
+					working_image_0_y_delta = 0
+					working_image_1_x_end = image_1.width()
+					working_image_1_y_end = image_1.height()
+					working_image_1_y_real_start = 0
+
+					# image 0 left of image 1?
+					if pair.first.col < pair.second.col:
+						# Keep image 0 right, image 1 left
+						working_image_0_x_delta = int(image_0.width() * (1.0 - overlap))
+						working_image_1_x_end = int(image_1.width() * overlap)
+					
+					# image 0 below image 1?
+					if pair.first.row < pair.second.row:
+						# Keep image 0 top, image 1 bottom
+						working_image_0_y_delta = int(image_0.height() * (1.0 - overlap))
+						working_image_1_y_end = int(image_1.width() * overlap)
+						working_image_1_y_real_start = image_1.height() - working_image_1_y_end
+					
+					print 'x delta: %d' % working_image_0_x_delta
+					print 'y delta: %d' % working_image_0_y_delta
+					'''
+					Note y starts at top in PIL
+					'''
+					working_image_0 = image_0.subimage(working_image_0_x_delta, None, None, image_0.height() - working_image_0_y_delta)
+					working_image_1 = image_1.subimage(0, working_image_1_x_end, working_image_1_y_real_start, None)
+					working_image_0_file = ManagedTempFile.get(None, '.jpg')
+					working_image_1_file = ManagedTempFile.get(None, '.jpg')
+					print 'sub image 0: width=%d, height=%d, name=%s' % (working_image_0.width(), working_image_0.height(), working_image_0_file.file_name)
+					print 'sub image 1: width=%d, height=%d, name=%s' % (working_image_1.width(), working_image_1.height(), working_image_0_file.file_name)
+					#sys.exit(1)
+					working_image_0.image.save(working_image_0_file.file_name)
+					working_image_1.image.save(working_image_1_file.file_name)
+					
+					sub_pair_images = (working_image_0_file.file_name, working_image_1_file.file_name)
+
+					'''
+					# Hugin project file generated by APSCpp
+
+					p f2 w3000 h1500 v360  n"JPEG q90"
+					m g1 i0
+
+					i w2816 h704 f0 a0 b-0.01 c0 d0 e0 p0 r0 v180 y0  u10 n"/tmp/pr0ntools_6691335AD228382E.jpg"
+					i w2816 h938 f0 a0 b-0.01 c0 d0 e0 p0 r0 v180 y0  u10 n"/tmp/pr0ntools_64D97FF4621BC36E.jpg"
+
+					v p1 r1 y1
+
+					# automatically generated control points
+					c n0 N1 x1142.261719 y245.074757 X699.189408 Y426.042661 t0
+					c n0 N1 x887.417450 y164.602097 X1952.346197 Y921.975829 t0
+					...
+					c n0 N1 x823.803714 y130.802771 X674.596763 Y335.994699 t0
+					c n0 N1 x1097.192159 y121.170416 X937.394996 Y329.998934 t0
+
+					# :-)
+					'''
+					fast_pair_project = control_point_gen.generate_core(sub_pair_images)
+					out = ''
+					part_pair_index = 0
+					for line in fast_pair_project.__repr__().split('\n'):
+						if len(line) == 0:
+							new_line = ''
+						elif line[0] == 'c':
+							# c n0 N1 x1142.261719 y245.074757 X699.189408 Y426.042661 t0
+						
+							# Parse
+							parts = line.split()
+							x = float(parts[3][1:])
+							y = float(parts[4][1:])
+							X = float(parts[5][1:])
+							Y = float(parts[6][1:])
+						
+							#working_image_1_x_end = image_1.width()
+							#working_image_1_y_end = image_1.height()
+
+							# Adjust
+							# x was measured on opposite side of image
+							x += working_image_0_x_delta
+							# y is measured from top, where our measurement was
+							#y = y + working_image_0_y_delta
+							# X is already at left of coordinate system
+							# Y, however, needs adjustment
+							Y += working_image_1_y_real_start
+						
+							# Write
+							new_line = "c n0 N1 x%f y%f X%f Y%f t0" % (x, y, X, Y)
+							out += new_line + '\n'
+						elif line[0] == 'i':
+							# i w2816 h704 f0 a0 b-0.01 c0 d0 e0 p0 r0 v180 y0  u10 n"/tmp/pr0ntools_6691335AD228382E.jpg"
+							new_line = ''
+							for part in line.split():
+								t = part[0]
+								if t == 'i':
+									new_line += 'i'
+								elif t == 'w':
+									new_line += ' w%d' % image_0.width()
+								elif t == 'h':
+									new_line += ' w%d' % image_0.height()
+								elif t == 'n':
+									new_line += ' n%s' % pair_images[part_pair_index]
+									part_pair_index += 1
+								else:
+									new_line += ' %s' % part		
+						else:
+							new_line = line
+						out += new_line + '\n'
+					else:
+						out += line + '\n'
+
+					final_pair_project = PTOProject.from_text(out)
+				else:
+					final_pair_project = control_point_gen.generate_core(pair_images)
+					
+				#sys.exit(1)
+				
+				
+				temp_projects.append(final_pair_project)
+				
 		else:
 			temp_projects.append(PTOProject.from_file_name('/tmp/pr0ntools_7C81334361D9DD18.pto'))
 			temp_projects.append(PTOProject.from_file_name('/tmp/pr0ntools_CD6621CDA26236C8.pto'))
@@ -420,10 +586,11 @@ class PanoEngine:
 			temp_projects.append(PTOProject.from_file_name('/tmp/pr0ntools_7F7028C7785C197B.pto'))
 
 		print 'pairs done, found %d' % len(temp_projects)
-		#sys.exit(1)
 		
 		self.project.merge_into(temp_projects)
 		self.project.save()
+		print
+		print
 		print 'Master project file: %s' % self.project.file_name
 		
 		self.photometric_optimizer = PhotometricOptimizer(self.project)
