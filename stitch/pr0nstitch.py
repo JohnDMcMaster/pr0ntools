@@ -85,11 +85,11 @@ class ImageCoordinatePair:
 
 class ImageCoordinateMap:
 	'''
-	row  2		[0, 2]	[1, 2]	[2, 2]
-	y    1		[0, 1]	[1, 1]	[2, 1]
-	     0		[0, 0]	[1, 0]	[2, 0]
-		       	0		1		2
 				col/x
+		       	0		1		2
+	row  0		[0, 0]	[1, 0]	[2, 0]
+	y    1		[0, 1]	[1, 1]	[2, 1]
+	     2		[0, 2]	[1, 2]	[2, 2] 
 	'''
 	# The actual imageimage_file_names position mapping
 	# Maps rows and cols to image file names
@@ -404,7 +404,7 @@ class PanoEngine:
 	@staticmethod
 	def from_file_names(image_file_names):
 		engine = PanoEngine()
-		engine.coordinate_map = ImageCoordinateMap.from_file_names(image_file_names, True, True, True)
+		engine.coordinate_map = ImageCoordinateMap.from_file_names(image_file_names, False, True, True)
 		print engine.coordinate_map
 		return engine
 	
@@ -450,7 +450,7 @@ class PanoEngine:
 					'''
 					Just work on the overlap section, maybe even less
 					'''
-					overlap = 1.0 / 3.0
+					overlap = 1.0 / 6.0
 					
 					image_0 = PImage.from_file(pair_images[0])
 					image_1 = PImage.from_file(pair_images[1])
@@ -473,20 +473,19 @@ class PanoEngine:
 						working_image_0_x_delta = int(image_0.width() * (1.0 - overlap))
 						working_image_1_x_end = int(image_1.width() * overlap)
 					
-					# image 0 below image 1?
+					# image 0 above image 1?
 					if pair.first.row < pair.second.row:
 						# Keep image 0 top, image 1 bottom
 						working_image_0_y_delta = int(image_0.height() * (1.0 - overlap))
-						working_image_1_y_end = int(image_1.width() * overlap)
-						working_image_1_y_real_start = image_1.height() - working_image_1_y_end
+						working_image_1_y_end = int(image_1.height() * overlap)
 					
 					print 'x delta: %d' % working_image_0_x_delta
 					print 'y delta: %d' % working_image_0_y_delta
 					'''
 					Note y starts at top in PIL
 					'''
-					working_image_0 = image_0.subimage(working_image_0_x_delta, None, None, image_0.height() - working_image_0_y_delta)
-					working_image_1 = image_1.subimage(0, working_image_1_x_end, working_image_1_y_real_start, None)
+					working_image_0 = image_0.subimage(working_image_0_x_delta, None, working_image_0_y_delta, None)
+					working_image_1 = image_1.subimage(None, working_image_1_x_end, None, working_image_1_y_end)
 					working_image_0_file = ManagedTempFile.get(None, '.jpg')
 					working_image_1_file = ManagedTempFile.get(None, '.jpg')
 					print 'sub image 0: width=%d, height=%d, name=%s' % (working_image_0.width(), working_image_0.height(), working_image_0_file.file_name)
@@ -540,10 +539,10 @@ class PanoEngine:
 							# x was measured on opposite side of image
 							x += working_image_0_x_delta
 							# y is measured from top, where our measurement was
-							#y = y + working_image_0_y_delta
+							y += working_image_0_y_delta
 							# X is already at left of coordinate system
 							# Y, however, needs adjustment
-							Y += working_image_1_y_real_start
+							#Y += working_image_1_y_real_start
 						
 							# Write
 							new_line = "c n0 N1 x%f y%f X%f Y%f t0" % (x, y, X, Y)

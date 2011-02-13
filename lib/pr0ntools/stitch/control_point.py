@@ -50,7 +50,12 @@ class ControlPointGenerator:
 		command = "autopano-sift-c"
 		args = list()
 		
-		# ?
+		# Try to post process them to make them more accurate
+		args.append("--refine")
+		# Perform RANSAC to try to get bad control points out
+		args.append("--ransac")
+
+		# Unlimited matches
 		args.append("--maxmatches")
 		args.append("0")
 		
