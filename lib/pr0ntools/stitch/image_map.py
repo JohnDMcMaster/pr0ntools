@@ -19,7 +19,7 @@ class ImageMapPoint:
 
 class ImageMap:
 	points = list()
-	points_by_rowcol = map()
+	points_by_rowcol = dict()
 	
 	def add(self, image_map_point):
 		self.points.append(image_map_point)

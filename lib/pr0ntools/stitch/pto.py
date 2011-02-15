@@ -600,7 +600,7 @@ class PTOProject:
 		f = open(self.file_name, 'w')
 		f.write(self.text)
 
-	def save_as(self, file_name):
+	def save_as(self, file_name, is_new_filename = False):
 		if text:
 			f = os.open(file_name)
 			f.write(text)
@@ -609,6 +609,9 @@ class PTOProject:
 		# empty project?
 		else:
 			raise Exception("tried to save empty project")
+		
+		if is_new_filename:
+			self.file_name = file_name
 
 	# reload is a builtin...not sure if it would conflict
 	def reopen(self):

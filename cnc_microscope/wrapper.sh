@@ -13,7 +13,7 @@ then
 fi
 
 echo 'Uploading'
-#scp $TEMP_FILE mcmaster@$HOST:/home/mcmaster/NGC/wafer/cur.ngc
+scp $TEMP_FILE mcmaster@$HOST:/home/mcmaster/NGC/wafer/cur.ngc
 UPLOADED_DIR=$(python -c "import time; print '%s' % time.strftime('uploaded/%d_%m_%Y__%H_%M_%S')")
 echo "Copying data files to $UPLOADED_DIR"
 mkdir $UPLOADED_DIR

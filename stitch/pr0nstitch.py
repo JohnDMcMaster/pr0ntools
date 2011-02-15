@@ -390,13 +390,13 @@ class PTOClean:
 	
 class PanoEngine:
 	coordinate_map = None
-	output_image_name = None
+	output_image_file_name = None
 	project = None
 	stitcher = None
 	photometric_optimizer = None
 	cleaner = None
 	# Used before init, later ignore for project.file_name
-	project_file_name = None
+	output_project_file_name = None
 
 	def __init__(self):
 		pass
@@ -408,18 +408,18 @@ class PanoEngine:
 		print engine.coordinate_map
 		return engine
 	
-	def set_project_file_name(self, file_name):
-		self.project_file_name = file_name
+	def set_output_project_file_name(self, file_name):
+		self.output_project_file_name = file_name
 
-	def set_output_file_name(self, file_name):
-		self.output_file_name = file_name
+	def set_output_image_file_name(self, file_name):
+		self.output_image_file_name = file_name
 
 	def run(self):
-		if not self.project_file_name and not self.output_image_name:
+		if not self.output_project_file_name and not self.output_image_file_name:
 			raise Exception("need either project or image file")
-		if not self.project_file_name:
-			self.project_temp_file = MangedTempFile.get()
-			self.project_file_name = self.project_temp_file.file_name()
+		if not self.output_project_file_name:
+			self.project_temp_file = ManagedTempFile.get()
+			self.output_project_file_name = self.project_temp_file.file_name
 		
 		#sys.exit(1)
 		'''
@@ -450,7 +450,7 @@ class PanoEngine:
 					'''
 					Just work on the overlap section, maybe even less
 					'''
-					overlap = 1.0 / 6.0
+					overlap = 1.0 / 3.0
 					
 					image_0 = PImage.from_file(pair_images[0])
 					image_1 = PImage.from_file(pair_images[1])
@@ -588,6 +588,9 @@ class PanoEngine:
 		
 		self.project.merge_into(temp_projects)
 		self.project.save()
+		print 'Sub projects (full image):'
+		for project in temp_projects:
+			print '\t' + project.file_name
 		print
 		print
 		print 'Master project file: %s' % self.project.file_name
@@ -795,8 +798,9 @@ def help():
 	print 'pr0nstitch [args] <files>'
 	print 'files:'
 	print '\timage file: added to input images'
-	print '\tpto file: set as output project'
 	print '--result=<file_name>'
+	print '\t--result-image=<image file name>'
+	print '\t--result-project=<project file name>'
 	print '--cp-engine=<engine>'
 	print '\tautopano-sift-c: autopano-SIFT-c'
 	print '\t\t--autopano-sift-c=<path>'
@@ -815,8 +819,8 @@ def arg_fatal(s):
 
 if __name__ == "__main__":
 	input_image_file_names = list()
-	project_file_name = None
-	output_file_name = None
+	output_project_file_name = None
+	output_image_file_name = None
 	
 	for arg_index in range (1, len(sys.argv)):
 		arg = sys.argv[arg_index]
@@ -835,27 +839,34 @@ if __name__ == "__main__":
 			if arg_key == "help":
 				help()
 				sys.exit(0)
-			if arg_key == "at-optimized-parameters":
-				at_optmized_parameters = arg_values
+			if arg_key == "result":
+				if arg_value.find('.pto') > 0:
+					output_project_file_name = arg_value
+				elif PImage.is_image_filename(arg_value):
+					output_image_file_name = arg_value
+				else:
+					arg_fatal('unknown file type %s, use explicit version' % arg)
 			else:
 				arg_fatal('Unrecognized arg: %s' % arg)
 		else:
 			if arg.find('.pto') > 0:
-				project_file_name = arg
+				output_project_file_name = arg
 			elif os.path.isfile(arg) or os.path.isdir(arg):
 				input_image_file_names.append(arg)
 			else:
 				arg_fatal('unrecognized arg: %s' % arg)
 
 	print 'post arg'
+	print 'output image: %s' % output_image_file_name
+	print 'output project: %s' % output_project_file_name
 	
 	'''
 	Probably most intuitive is to have (0, 0) at lower left 
 	like its presented in many linear algebra works and XY graph
 	'''
 	engine = PanoEngine.from_file_names(input_image_file_names)
-	engine.set_project_file_name(project_file_name)
-	engine.set_output_file_name(output_file_name)
+	engine.set_output_project_file_name(output_project_file_name)
+	engine.set_output_image_file_name(output_image_file_name)
 	engine.run()
 	print 'Done!'
 

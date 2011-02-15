@@ -59,9 +59,39 @@ class ManagedTempFile:
 		except:
 			print 'WARNING: failed to delete temp file: %s' % self.file_name
 
+class ManagedTempDir(ManagedTempFile):
+	def __init__(self, temp_dir):
+		ManagedTempFile.__init__(self, temp_dir)
+
+	@staticmethod
+	def get(temp_dir = None):
+		return ManagedTempDir(temp_dir)
+
+	def get_file_name(self, prefix = '', suffix = None):
+		# Make it in this dir
+		return TempFile.get(os.path.join(self.file_name, prefix), suffix)
+
+	def __del__(self):
+		try:
+			if os.path.exists(self.file_name):
+				# shutil.rmtree(self.file_name)
+				print 'Deleted temp dir %s' % self.file_name
+			else:
+				print "Didn't delete inexistant temp dir %s" % self.file_name
+		# Ignore if it was never created
+		except:
+			print 'WARNING: failed to delete temp dir: %s' % self.file_name
+
 class TempFileSet:
 	prefix = None
+	files = list()
 	
+	def get_file(self):
+		pass
+	
+	def get_dir(self):
+		pass
+
 	@staticmethod
 	def get(prefix = None):
 		if not prefix:

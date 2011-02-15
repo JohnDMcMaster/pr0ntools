@@ -37,9 +37,11 @@ class AutopanoAj(ControlPointGenerator):
 from pr0ntools.temp_file import ManagedTempFile
 from pr0ntools.execute import Execute
 from pr0ntools.stitch.pto import PTOProject
+import shutil
 
-#class AutopanoSiftC : ControlPointGenerator:	
-class ControlPointGenerator:
+
+#class ControlPointGenerator:	
+class AutopanoSiftC:
 	'''
 	Example stitch command
 	"autopano-sift-c" "--maxmatches" "0" "--maxdim" "10000" "out.pto" "first.png" "second.png"
@@ -51,17 +53,19 @@ class ControlPointGenerator:
 		args = list()
 		
 		# Try to post process them to make them more accurate
-		args.append("--refine")
+		#args.append("--refine")
+		
 		# Perform RANSAC to try to get bad control points out
-		args.append("--ransac")
+		#args.append("--ransac")
+		#args.append("on")
 
 		# Unlimited matches
 		args.append("--maxmatches")
 		args.append("0")
 		
 		# ?
-		args.append("--maxdim")
-		args.append("10000")
+		#args.append("--maxdim")
+		#args.append("10000")
 
 		# Project file
 		args.append(project_file.file_name)
@@ -76,5 +80,53 @@ class ControlPointGenerator:
 			raise Exception('Bad rc: %d' % rc)
 		
 		# We return PTO object, not string
+		return PTOProject.from_temp_file(project_file)
+
+
+#class AutopanoAJ : ControlPointGenerator:	
+class ControlPointGenerator:
+	'''
+	autopano.exe /f /tmp/file1.jpg /tmp/file2.jpg /project:hugin 
+	Example stitch command
+	Will result in .pto in being in /tmp though
+	'''
+	def generate_core(self, image_file_names):
+		command = "autopanoaj"
+		args = list()
+		project_file = ManagedTempFile.get(None, ".pto")
+		
+		# default is .oto
+		args.append("/project:hugin")
+		# Use image args instead of dir
+		args.append("/f");
+		args.append('/path:Z:\\tmp')
+		
+		# Images
+		for image_file_name in image_file_names:
+			 args.append(image_file_name.replace("/tmp/", "Z:\\tmp\\"))
+
+		# go go go
+		(rc, output) = Execute.with_output(command, args)
+		if not rc == 0:
+			raise Exception('Bad rc: %d' % rc)
+		
+		# We return PTO object, not string
+		# Ditch the gen file because its unreliable
+		shutil.move("/tmp/panorama0.pto", project_file.file_name)
+		f = open(project_file.file_name, 'r')
+		project_text = f.read()
+		# Under WINE, do fixup
+		project_text = project_text.replace('Z:\\tmp\\', '/tmp/')
+		print
+		print
+		print
+		print project_text
+		print
+		print
+		print
+		#sys.exit(1)
+		f.close()
+		f = open(project_file.file_name, 'w')
+		f.write(project_text)
 		return PTOProject.from_temp_file(project_file)
 

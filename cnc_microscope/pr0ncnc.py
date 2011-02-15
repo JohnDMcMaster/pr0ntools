@@ -11,6 +11,8 @@ import math
 import numpy
 import json
 import os
+from pr0ntools.stitch.image_map import ImageMap 
+
 
 VERSION = '0.1'
 
