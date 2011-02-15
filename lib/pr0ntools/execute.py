@@ -8,7 +8,7 @@ import os
 
 class Execute:
 	@staticmethod
-	def simple(cmd):
+	def simple(cmd, working_dir = None):
 		'''Returns rc of process, no output'''
 		
 		print 'cmd in: %s' % cmd
@@ -34,19 +34,22 @@ class Execute:
 			return subp.returncode
 
 	@staticmethod
-	def with_output(program, args):
+	def with_output(program, args, working_dir = None):
 		'''Return (rc, output)'''
 		to_exec = program
 		for arg in args:
 			to_exec += ' "' + arg + '"'
-		return Execute.with_output_simple(to_exec)
+		return Execute.with_output_simple(to_exec, working_dir)
 		
 	@staticmethod
-	def with_output_simple(cmd):
+	def with_output_simple(cmd, working_dir = None):
 		'''Return (rc, output)'''
+		working_dir_str = ''
+		if working_dir:
+			working_dir_str = 'cd %s && ' % working_dir
 		# ugly...but simple
 		# ((false; true; true) 2>&1; echo "***RC_HACK: $?") |tee temp.txt
-		rc = Execute.simple('(' + cmd + ') 2>&1 |tee file.tmp; exit $PIPESTATUS')
+		rc = Execute.simple('(' + working_dir_str + cmd + ') 2>&1 |tee file.tmp; exit $PIPESTATUS')
 		output = open('file.tmp').read()
 		# print 'OUTPUT: %d, %s' % (rc, output)
 		return (rc, output)

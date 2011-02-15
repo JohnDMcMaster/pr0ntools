@@ -65,7 +65,9 @@ class ManagedTempDir(ManagedTempFile):
 
 	@staticmethod
 	def get(temp_dir = None):
-		return ManagedTempDir(temp_dir)
+		ret = ManagedTempDir(temp_dir)
+		os.mkdir(ret.file_name)
+		return ret
 
 	def get_file_name(self, prefix = '', suffix = None):
 		# Make it in this dir

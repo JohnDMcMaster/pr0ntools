@@ -4,6 +4,8 @@ Copyright 2011 John McMaster <JohnDMcMaster@gmail.com>
 Licensed under the terms of the LGPL V3 or later, see COPYING for details
 '''
 
+# clear; rm -f /tmp/*.pto /tmp/*.jpg; pr0nstitch --result=out.jpg *.jpg
+
 """
 class ControlPointGenerator:
 	@staticmethod
@@ -35,9 +37,12 @@ class AutopanoAj(ControlPointGenerator):
 """
 
 from pr0ntools.temp_file import ManagedTempFile
+from pr0ntools.temp_file import ManagedTempDir
 from pr0ntools.execute import Execute
 from pr0ntools.stitch.pto import PTOProject
 import shutil
+import os.path
+
 
 
 #class ControlPointGenerator:	
@@ -85,6 +90,90 @@ class AutopanoSiftC:
 
 #class AutopanoAJ : ControlPointGenerator:	
 class ControlPointGenerator:
+	'''
+	autopano.exe /f /tmp/file1.jpg /tmp/file2.jpg /project:hugin 
+	Example stitch command
+	Will result in .pto in being in /tmp though
+	
+	Eh its pretty unreliable (wine issue?) if we don't put pix in current dir
+	Easiest way to accomplish this without copying is to create temp dir and symlink
+	we are editing the files anyway, so not a big deal
+	'''
+	def generate_core(self, image_file_names):
+		command = "autopanoaj"
+		args = list()
+		final_project_file = ManagedTempFile.get(None, ".pto")
+		temp_dir = ManagedTempDir.get()
+		
+		# default is .oto
+		args.append("/project:hugin")
+		# Use image args instead of dir
+		
+		# Images
+		image_links = dict()
+		for image_file_name in image_file_names:
+			# args.append(image_file_name.replace("/tmp/", "Z:\\tmp\\"))
+
+			link_file_name = os.path.join(temp_dir.file_name, os.path.basename(image_file_name))
+			print 'Linking %s -> %s' % (link_file_name, image_file_name)
+			os.symlink(image_file_name, link_file_name)
+
+		#sys.exit(1)
+		# go go go
+		(rc, output) = Execute.with_output(command, args, temp_dir.file_name)
+		if not rc == 0:
+			raise Exception('Bad rc: %d' % rc)
+		
+		# We return PTO object, not string
+		# Ditch the gen file because its unreliable
+		shutil.move(os.path.join(temp_dir.file_name, "panorama0.pto"), final_project_file.file_name)
+		f = open(final_project_file.file_name, 'r')
+		project_text = f.read()
+		# Under WINE, do fixup
+		# #-imgfile 2816 704 "Z:\tmp\pr0ntools_471477ADA1679A2E\pr0ntools_3CD1C0B1BB218E40.jpg"
+		project_text = project_text.replace('Z:\\', '/').replace('\\', '/')
+		for image_file_name in image_file_names:
+			link_file_name = os.path.join(temp_dir.file_name, os.path.basename(image_file_name))
+			print 'Replacing %s -> %s' % (link_file_name, image_file_name)
+			project_text = project_text.replace(link_file_name, image_file_name)
+		print
+		print
+		print
+		print project_text
+		print
+		print
+		print
+		#sys.exit(1)
+		f.close()
+		f = open(final_project_file.file_name, 'w')
+		f.write(project_text)
+		return PTOProject.from_temp_file(final_project_file)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+class ControlPointGeneratorXX:
 	'''
 	autopano.exe /f /tmp/file1.jpg /tmp/file2.jpg /project:hugin 
 	Example stitch command
