@@ -7,10 +7,21 @@ Licensed under the terms of the LGPL V3 or later, see COPYING for details
 import random
 import os
 
+g_default_prefix_dir = None
+g_default_prefix = None
+PREFIX_BASE = "/tmp/pr0ntools_"
+
 class TempFile:
 	@staticmethod
 	def default_prefix():
-		return "/tmp/pr0ntools_"
+		global g_default_prefix_dir
+		global g_default_prefix
+		
+		if g_default_prefix is None:
+			g_default_prefix_dir = ManagedTempDir.get(TempFile.get(PREFIX_BASE))
+			g_default_prefix = os.path.join(g_default_prefix_dir.file_name, '')
+			print 'TEMP DIR: %s' % g_default_prefix
+		return g_default_prefix
 
 	@staticmethod
 	def rand_str(length):

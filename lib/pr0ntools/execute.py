@@ -13,6 +13,7 @@ class Execute:
 		
 		print 'cmd in: %s' % cmd
 		if True:
+			os.sys.stdout.flush()
 			return os.system(cmd)
 		else:
 			cmd = "/bin/bash " + cmd 

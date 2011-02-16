@@ -137,6 +137,7 @@ class ControlPointGenerator:
 			print 'Replacing %s -> %s' % (link_file_name, image_file_name)
 			project_text = project_text.replace(link_file_name, image_file_name)
 		print
+		print 'Raw control point project (after symbolic link and WINE file name substitution)'
 		print
 		print
 		print project_text

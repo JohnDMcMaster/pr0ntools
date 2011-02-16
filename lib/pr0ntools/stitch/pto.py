@@ -536,11 +536,13 @@ class PTOProject:
 		self.reparse()
 		return self.text
 
-	def get_a_file_name(self):
+	def get_a_file_name(self, prefix = None, postfix = None):
 		'''If doesn't have a real file, create a temp file'''
 		if self.file_name:
 			return self.file_name
-		self.temp_file = ManagedTempFile.get(None, ".pto")
+		if postfix is None:
+			postfix = ".pto"
+		self.temp_file = ManagedTempFile.get(prefix, postfix)
 		self.file_name = self.temp_file.file_name
 		self.save()
 		return self.file_name
