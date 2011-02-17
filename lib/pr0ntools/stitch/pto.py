@@ -460,6 +460,7 @@ class PTOProject:
 	text = None
 	# If this is a temporary project, have it delete upon destruction
 	temp_file = None
+	image_file_names = None
 	
 	# Those started with #hugin_
 	option_lines = None
@@ -622,4 +623,52 @@ class PTOProject:
 	def reopen(self):
 		f = open(self.file_name, 'r')
 		self.text = f.read()
+
+	def get_image_file_names(self):
+		return self.image_file_names
+
+	def optimize_xy_only(self):
+		# XXX: move this to earlier if possible
+		'''
+		Added by pto_merge or something
+		v Ra0 Rb0 Rc0 Rd0 Re0 Vb0 Vc0 Vd0
+		v Eb1 Eev1 Er1
+		v Eb2 Eev2 Er2
+		v Eb3 Eev3 Er3
+		v
+		
+		
+		Need something like (assume image 0 is anchor)
+		v d1 e1 
+		v d2 e2 
+		v d3 e3 
+		v 
+
+		
+		After saving, get huge i lines
+		#-hugin  cropFactor=1
+		i w2816 h2112 f-2 Eb1 Eev0 Er1 Ra0 Rb0 Rc0 Rd0 Re0 Va1 Vb0 Vc0 Vd0 Vx-0 Vy-0 a0 b0 c0 d-0 e-0 g-0 p0 r0 t-0 v51 y0  Vm5 u10 n"x00000_y00033.jpg"
+		'''
+		print 'Fixing up v (optimization variable) lines...'
+		new_project_text = ''
+		new_lines = ''
+		for i in range(1, len(self.get_image_file_names())):
+			# optimize d (x) and e (y) for all other than anchor
+			new_lines += 'v d%d e%d \n' % (i, i)
+		new_lines += 'v \n'
+		for line in self.text.split('\n'):
+			if line == '':
+				new_project_text += '\n'				
+			elif line[0] == 'v':
+				# Replace once, ignore others
+				new_project_text += new_lines
+				new_lines = ''
+			else:
+				new_project_text += line + '\n'
+		self.text = new_project_text
+		print
+		print
+		print self.text
+		print
+		print
 
