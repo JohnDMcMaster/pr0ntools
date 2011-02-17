@@ -586,7 +586,9 @@ class PTOProject:
 		
 		args.append("--output=%s" % pto_temp_file)
 
-		args.append(self.get_a_file_name())
+		# Possible this is still empty
+		if os.path.exists(self.file_name):
+			args.append(self.get_a_file_name())
 		for other in others:
 			 args.append(other.get_a_file_name())
 		
@@ -595,6 +597,7 @@ class PTOProject:
 		(rc, output) = Execute.with_output(command, args)
 		# go go go
 		if not rc == 0:
+			print 'rc: %d' % rc
 			raise Exception('failed pto_merge')
 		return PTOProject.from_temp_file(pto_temp_file)
 

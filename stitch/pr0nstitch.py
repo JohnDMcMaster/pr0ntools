@@ -25,6 +25,7 @@ VERSION = '0.1'
 
 project_file = 'panorama0.pto'
 temp_project_file = '/tmp/pr0nstitch.pto'
+allow_overwrite = True
 
 AUTOPANO_SIFT_C = 1
 autopano_sift_c = "autopano-sift-c"
@@ -132,7 +133,7 @@ class ImageCoordinateMap:
 		return file_names
 		
 	@staticmethod
-	def from_file_names(file_names_in, flip_col = False, flip_row = False, flip_colrow = False, depth = 1):
+	def from_file_names(file_names_in, flip_col = False, flip_row = False, flip_pre_transpose = False, flip_post_transpose = False, depth = 1):
 		file_names = ImageCoordinateMap.get_file_names(file_names_in, depth)
 		'''
 		Certain program take file names relative to the project file, others to working dir
@@ -142,10 +143,10 @@ class ImageCoordinateMap:
 		file_names_canonical = list()
 		for file_name in file_names:
 			file_names_canonical.append(os.path.realpath(file_name))
-		return ImageCoordinateMap.from_file_names_core(file_names_canonical, flip_col, flip_row, flip_colrow)
+		return ImageCoordinateMap.from_file_names_core(file_names_canonical, flip_col, flip_row, flip_pre_transpose, flip_post_transpose)
 	
 	@staticmethod
-	def from_file_names_core(file_names, flip_col, flip_row, flip_colrow):
+	def from_file_names_core(file_names, flip_col, flip_row, flip_pre_transpose, flip_post_transpose):
 		first_parts = set()
 		second_parts = set()
 		for file_name in file_names:
@@ -159,7 +160,22 @@ class ImageCoordinateMap:
 		rows = len(second_parts)
 		print 'cols / X dim / width: %d, rows / Y dim / height: %d' % (cols, rows)
 		
-		ret = ImageCoordinateMap(cols, rows)
+		# Make sure we end up with correct arrangement
+		flips = 0
+		if flip_pre_transpose:
+			flips += 1
+		if flip_post_transpose:
+			flips += 1
+		# Did we switch?
+		if flips % 2 == 0:
+			# No switch
+			effective_cols = cols
+			effective_rows = rows
+		else:
+			effective_cols = rows
+			effective_rows = cols
+		
+		ret = ImageCoordinateMap(effective_cols, effective_rows)
 		file_names = sorted(file_names)
 		file_names_index = 0		
 		'''
@@ -171,14 +187,20 @@ class ImageCoordinateMap:
 				file_name = file_names[file_names_index]
 				
 				effective_col = cur_col
+				effective_row = cur_row
+
+				if flip_pre_transpose:
+					temp = effective_row
+					effective_row = effective_col
+					effective_col = temp
+
 				if flip_col:
 					effective_col = cols - effective_col - 1
 					
-				effective_row = cur_row
 				if flip_row:
 					effective_row = rows - effective_row - 1
 				
-				if flip_colrow:
+				if flip_post_transpose:
 					temp = effective_row
 					effective_row = effective_col
 					effective_col = temp
@@ -387,14 +409,16 @@ class PanoEngine:
 	cleaner = None
 	# Used before init, later ignore for project.file_name
 	output_project_file_name = None
+	image_file_names = None
 
 	def __init__(self):
 		pass
 
 	@staticmethod
-	def from_file_names(image_file_names, flip_col = False, flip_row = False, flip_colrow = False, depth = 1):
+	def from_file_names(image_file_names, flip_col = False, flip_row = False, flip_pre_transpose = False, flip_post_transpose = False, depth = 1):
 		engine = PanoEngine()
-		engine.coordinate_map = ImageCoordinateMap.from_file_names(image_file_names, flip_col, flip_row, flip_colrow, depth)
+		engine.image_file_names = image_file_names
+		engine.coordinate_map = ImageCoordinateMap.from_file_names(image_file_names, flip_col, flip_row, flip_pre_transpose, flip_post_transpose, depth)
 		print engine.coordinate_map
 		if grid_only:
 			print 'Grid only, exiting'
@@ -410,9 +434,11 @@ class PanoEngine:
 	def run(self):
 		if not self.output_project_file_name and not self.output_image_file_name:
 			raise Exception("need either project or image file")
-		if not self.output_project_file_name:
-			self.project_temp_file = ManagedTempFile.get()
-			self.output_project_file_name = self.project_temp_file.file_name
+		#if not self.output_project_file_name:
+			#self.project_temp_file = ManagedTempFile.get()
+			#self.output_project_file_name = self.project_temp_file.file_name
+		print 'output project file name: %s' % self.output_project_file_name
+		print 'output image file name: %s' % self.output_image_file_name
 		
 		#sys.exit(1)
 		'''
@@ -424,7 +450,15 @@ class PanoEngine:
 		# How many rows and cols to go to each side
 		# If you hand took the pictures, this might suit you
 		self.project = PTOProject.from_blank()
-		self.project.get_a_file_name(None, "_master.pto")
+		if self.output_project_file_name:
+			self.project.set_file_name(self.output_project_file_name)
+			if os.path.exists(self.output_project_file_name):
+				# Otherwise, we merge into it
+				print 'WARNING: removing old project file: %s' % self.output_project_file_name
+				os.remove(self.output_project_file_name)
+		else:
+			self.project.get_a_file_name(None, "_master.pto")
+		
 		temp_projects = list()
 		subimage_control_points = True
 
@@ -614,7 +648,8 @@ class PanoEngine:
 								new_line += ' n%s' % pair_images[part_pair_index]
 								part_pair_index += 1
 							else:
-								new_line += ' %s' % part		
+								new_line += ' %s' % part
+						print 'new line: %s' % new_line
 					# These lines are generated by autopanoaj
 					# The comment line is literally part of the file format, some sort of bizarre encoding
 					# #-imgfile 2816 704 "/tmp/pr0ntools_2D24DE9F6CC513E0/pr0ntools_6575AA69EA66B3C3.jpg"
@@ -663,18 +698,137 @@ class PanoEngine:
 			print '\tSUB: ' + project.file_name
 		print
 		print
-		print 'Master project file: %s' % self.project.file_name
-		
-		self.photometric_optimizer = PhotometricOptimizer(self.project)
-		self.photometric_optimizer.run()
+		print 'Master project file: %s' % self.project.file_name		
+		print
+		print
+		print self.project.text
+		print
+		print
+
+		if False:
+			self.photometric_optimizer = PhotometricOptimizer(self.project)
+			self.photometric_optimizer.run()
 
 		# Remove statistically unpleasant points
-		self.cleaner = PTOClean(self.project)
-		self.cleaner.run()
+		if False:
+			self.cleaner = PTOClean(self.project)
+			self.cleaner.run()
+		
+		
+		# XXX: move this to earlier if possible
+		'''
+		Added by pto_merge or something
+		v Ra0 Rb0 Rc0 Rd0 Re0 Vb0 Vc0 Vd0
+		v Eb1 Eev1 Er1
+		v Eb2 Eev2 Er2
+		v Eb3 Eev3 Er3
+		v
+		
+		
+		Need something like (assume image 0 is anchor)
+		v d1 e1 
+		v d2 e2 
+		v d3 e3 
+		v 
+
+		
+		After saving, get huge i lines
+		#-hugin  cropFactor=1
+		i w2816 h2112 f-2 Eb1 Eev0 Er1 Ra0 Rb0 Rc0 Rd0 Re0 Va1 Vb0 Vc0 Vd0 Vx-0 Vy-0 a0 b0 c0 d-0 e-0 g-0 p0 r0 t-0 v51 y0  Vm5 u10 n"x00000_y00033.jpg"
+		'''
+		print 'Fixing up v (optimization variable) lines...'
+		new_project_text = ''
+		new_lines = ''
+		for i in range(1, len(self.image_file_names)):
+			# optimize d (x) and e (y) for all other than anchor
+			new_lines += 'v d%d e%d \n' % (i, i)
+		new_lines += 'v \n'
+		for line in self.project.text.split('\n'):
+			if line == '':
+				new_project_text += '\n'				
+			elif line[0] == 'v':
+				# Replace once, ignore others
+				new_project_text += new_lines
+				new_lines = ''
+			else:
+				new_project_text += line + '\n'
+		self.project.text = new_project_text
+		print
+		print
+		print self.project.text
+		print
+		print
+
+		print 'Fixing up i (image attributes) lines...'
+		new_project_text = ''
+		new_lines = ''
+		for line in self.project.text.split('\n'):
+			if line == '':
+				new_project_text += '\n'				
+			elif line[0] == 'i':
+				# before replace
+				# i Eb1 Eev0 Er1 Ra0.0111006880179048 Rb-0.00838561356067657 Rc0.0198899246752262 Rd0.0135543448850513 Re-0.0435801632702351 Va1 Vb0.366722181378024 Vc-1.14825880321425 Vd0.904996105280657 Vm5 Vx0 Vy0 a0 b0 c0 d0 e0 f0 g0 h2112 n"x00000_y00033.jpg" p0 r0 t0 v70 w2816 y0
+				new_line = ''
+				for part in line.split():
+					if part[0] == 'i':
+						new_line += part
+					# Keep image file name
+					elif part[0] == 'n':
+						new_line += ' ' + part
+					# Script is getting angry, try to slim it up
+					else:
+						print 'Skipping unknown garbage: %s' % part
+				new_project_text += new_line + '\n'
+			else:
+				new_project_text += line + '\n'
+		self.project.text = new_project_text
+		print
+		print
+		print self.project.text
+		print
+		print
+
+		'''
+		f0: rectilinear
+		f2: equirectangular
+		# p f2 w8000 h24 v179  E0 R0 n"TIFF_m c:NONE"
+		# p f0 w8000 h24 v179  E0 R0 n"TIFF_m c:NONE"
+		'''
+		print 'Fixing up single lines'
+		new_project_text = ''
+		for line in self.project.text.split('\n'):
+			if line == '':
+				new_project_text += '\n'				
+			elif line[0] == 'p':
+				new_line = ''
+				for part in line.split():
+					if part[0] == 'p':
+						new_line += 'p'
+					elif part[0] == 'f':
+						new_line += ' f0'
+					else:
+						new_line += ' ' + part
+
+				new_project_text += new_line + '\n'
+			else:
+				new_project_text += line + '\n'
+		self.project.text = new_project_text
+		print
+		print
+		print self.project.text
+		print
+		print
+		
 		
 		print
-		print '***PTO project final***'
+		print '***PTO project final (%s / %s)***' % (self.project.file_name, self.output_project_file_name)
 		print
+		
+		# Make dead sure its saved up to date
+		self.project.save()
+		# having issues with this..
+		if self.output_project_file_name and not self.project.file_name == self.output_project_file_name:
+			raise Exception('project file name changed %s %s', self.project.file_name, self.output_project_file_name)
 		
 		# Did we request an actual stitch?
 		if self.output_image_file_name:
@@ -895,7 +1049,9 @@ def help():
 	print '--grid-only[=<bool>]: only construct/print the grid map and exit'
 	print '--flip-col[=<bool>]: flip columns'
 	print '--flip-row[=<bool>]: flip rows'
-	print '--flip-colrow[=<bool>]: 180 degree rotation'
+	print '--flip-pre-transpose[=<bool>]: switch col/row before all other flips'
+	print '--flip-post-transpose[=<bool>]: switch col/row after all other flips'
+	print '--no-overwrite[=<bool>]: do not allow overwrite of existing files'
 
 def arg_fatal(s):
 	print s
@@ -908,7 +1064,8 @@ if __name__ == "__main__":
 	output_image_file_name = None
 	flip_col = False
 	flip_row = False
-	flip_colrow = False
+	flip_pre_transpose = False
+	flip_post_transpose = False
 	depth = 1
 	
 	for arg_index in range (1, len(sys.argv)):
@@ -941,8 +1098,12 @@ if __name__ == "__main__":
 				flip_row = arg_value_bool
 			elif arg_key == "flip-col":
 				flip_col = arg_value_bool
-			elif arg_key == "flip-colrow":
-				flip_colrow = arg_value_bool
+			elif arg_key == "flip-pre-transpose":
+				flip_pre_transpose = arg_value_bool
+			elif arg_key == "flip-post-transpose":
+				flip_post_transpose = arg_value_bool
+			elif arg_key == 'no-overwrite':
+				allow_overwrite = not arg_value_bool
 			else:
 				arg_fatal('Unrecognized arg: %s' % arg)
 		else:
@@ -961,9 +1122,17 @@ if __name__ == "__main__":
 	Probably most intuitive is to have (0, 0) at lower left 
 	like its presented in many linear algebra works and XY graph
 	'''
-	engine = PanoEngine.from_file_names(input_image_file_names, flip_col, flip_row, flip_colrow, depth)
+	engine = PanoEngine.from_file_names(input_image_file_names, flip_col, flip_row, flip_pre_transpose, flip_post_transpose, depth)
 	engine.set_output_project_file_name(output_project_file_name)
 	engine.set_output_image_file_name(output_image_file_name)
+	if not allow_overwrite:
+		if output_project_file_name and os.path.exists(output_project_file_name):
+			print 'ERROR: cannot overwrite existing project file: %s' % output_project_file_name
+			sys.exit(1)
+		if output_image_file_name and os.path.exists(output_image_file_name):
+			print 'ERROR: cannot overwrite existing image file: %s' % output_image_file_name
+			sys.exit(1)	
+	
 	engine.run()
 	print 'Done!'
 
