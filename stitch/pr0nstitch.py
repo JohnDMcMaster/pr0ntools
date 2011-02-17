@@ -16,6 +16,7 @@ import pr0ntools.pimage
 from pr0ntools.pimage import PImage
 from pr0ntools.pimage import TempPImage
 from pr0ntools.temp_file import ManagedTempFile
+from pr0ntools.temp_file import ManagedTempDir
 from pr0ntools.stitch.control_point import ControlPointGenerator
 from pr0ntools.stitch.pto import PTOProject
 from pr0ntools.execute import Execute
@@ -30,7 +31,7 @@ autopano_sift_c = "autopano-sift-c"
 AUTOPANO_AJ = 2
 # I use this under WINE, the Linux version doesn't work as well
 autopano_aj = "autopanoaj"
-
+grid_only = False
 
 CONTROL_POINT_ENGINE = AUTOPANO_AJ
 
@@ -349,17 +350,7 @@ class PositionOptimizer:
 		if not rc == 0:
 			raise Exception('failed position optimization')
 		self.project.reopen()
-	
-class Stitcher:
-	pto_project = None
-	file_name = None
-	
-	def __init__(self, pto_project, file_name):
-		pass
-	
-	def run(self):
-		pass
-	
+		
 '''
 Part of perl-Panotools-Script
 
@@ -391,7 +382,7 @@ class PanoEngine:
 	coordinate_map = None
 	output_image_file_name = None
 	project = None
-	stitcher = None
+	remapper = None
 	photometric_optimizer = None
 	cleaner = None
 	# Used before init, later ignore for project.file_name
@@ -401,10 +392,13 @@ class PanoEngine:
 		pass
 
 	@staticmethod
-	def from_file_names(image_file_names):
+	def from_file_names(image_file_names, flip_col = False, flip_row = False, flip_colrow = False, depth = 1):
 		engine = PanoEngine()
-		engine.coordinate_map = ImageCoordinateMap.from_file_names(image_file_names, False, False, False)
+		engine.coordinate_map = ImageCoordinateMap.from_file_names(image_file_names, flip_col, flip_row, flip_colrow, depth)
 		print engine.coordinate_map
+		if grid_only:
+			print 'Grid only, exiting'
+			sys.exit(0)
 		return engine
 	
 	def set_output_project_file_name(self, file_name):
@@ -678,11 +672,17 @@ class PanoEngine:
 		self.cleaner = PTOClean(self.project)
 		self.cleaner.run()
 		
+		print
+		print '***PTO project final***'
+		print
+		
 		# Did we request an actual stitch?
 		if self.output_image_file_name:
-			self.stitcher = Stitcher(self.project, self.output_image_file_name)
-			self.stitcher.run()
-
+			print 'Stitching...'
+			self.remapper = Remapper(self.project, self.output_image_file_name)
+			self.remapper.run()
+		else:
+			print 'NOT stitching'
 '''
 Each picture may have lens artifacts that make them not perfectly linear
 This distorts the images to match the final plane
@@ -816,10 +816,14 @@ Mask generation options:
 '''
 class Remapper:
 	pto_project = None
+	output_file_name = None
+	managed_temp_dir = None
 	
-	def __init__(self, pto_project):
+	def __init__(self, pto_project, output_file_name):
 		self.pto_project = pto_project
-		self.output_prefix = self.pto_project.get_a_file_name() + "__"
+		self.output_file_name = output_file_name
+		#self.output_managed_temp_dir = ManagedTempDir(self.pto_project.get_a_file_name() + "__")
+		self.managed_temp_dir = ManagedTempDir.get()
 		
 	def run(self):
 		self.remap()
@@ -874,19 +878,24 @@ def help():
 	print 'pr0nstitch [args] <files>'
 	print 'files:'
 	print '\timage file: added to input images'
-	print '--result=<file_name>'
+	print '--result=<file_name> or --out=<file_name>'
 	print '\t--result-image=<image file name>'
 	print '\t--result-project=<project file name>'
 	print '--cp-engine=<engine>'
 	print '\tautopano-sift-c: autopano-SIFT-c'
-	print '\t\t--autopano-sift-c=<path>'
+	print '\t\t--autopano-sift-c=<path>, default = autopano-sift-c'
 	print '\tautopano-aj: Alexandre Jenny\'s autopano'
-	print '\t\t--autopano-aj=<path>'
+	print '\t\t--autopano-aj=<path>, default = autopanoaj'
 	print '--pto-merger=<engine>'
 	print '\tdefault: use pto_merge if availible'
 	print '\tpto_merge: Hugin supported merge (Hugin 2010.2.0+)'
-	print '\t\t--pto_merge=<path>'
+	print '\t\t--pto_merge=<path>, default = pto_merge'
 	print '\tinternal: quick and dirty internal version'
+	print 'Grid formation options (col 0, row 0 should be upper left):'
+	print '--grid-only[=<bool>]: only construct/print the grid map and exit'
+	print '--flip-col[=<bool>]: flip columns'
+	print '--flip-row[=<bool>]: flip rows'
+	print '--flip-colrow[=<bool>]: 180 degree rotation'
 
 def arg_fatal(s):
 	print s
@@ -897,6 +906,10 @@ if __name__ == "__main__":
 	input_image_file_names = list()
 	output_project_file_name = None
 	output_image_file_name = None
+	flip_col = False
+	flip_row = False
+	flip_colrow = False
+	depth = 1
 	
 	for arg_index in range (1, len(sys.argv)):
 		arg = sys.argv[arg_index]
@@ -915,13 +928,21 @@ if __name__ == "__main__":
 			if arg_key == "help":
 				help()
 				sys.exit(0)
-			if arg_key == "result":
+			elif arg_key == "result" or arg_key == "out":
 				if arg_value.find('.pto') > 0:
 					output_project_file_name = arg_value
 				elif PImage.is_image_filename(arg_value):
 					output_image_file_name = arg_value
 				else:
 					arg_fatal('unknown file type %s, use explicit version' % arg)
+			elif arg_key == "grid-only":
+				grid_only = arg_value_bool
+			elif arg_key == "flip-row":
+				flip_row = arg_value_bool
+			elif arg_key == "flip-col":
+				flip_col = arg_value_bool
+			elif arg_key == "flip-colrow":
+				flip_colrow = arg_value_bool
 			else:
 				arg_fatal('Unrecognized arg: %s' % arg)
 		else:
@@ -940,7 +961,7 @@ if __name__ == "__main__":
 	Probably most intuitive is to have (0, 0) at lower left 
 	like its presented in many linear algebra works and XY graph
 	'''
-	engine = PanoEngine.from_file_names(input_image_file_names)
+	engine = PanoEngine.from_file_names(input_image_file_names, flip_col, flip_row, flip_colrow, depth)
 	engine.set_output_project_file_name(output_project_file_name)
 	engine.set_output_image_file_name(output_image_file_name)
 	engine.run()
