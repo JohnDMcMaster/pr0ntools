@@ -158,7 +158,7 @@ class ImageCoordinateMap:
 		# Assume X first so that files read x_y.jpg which seems most intuitive (to me FWIW)
 		cols = len(first_parts)
 		rows = len(second_parts)
-		print 'cols / X dim / width: %d, rows / Y dim / height: %d' % (cols, rows)
+		print 'initial cols / X dim / width: %d, rows / Y dim / height: %d' % (cols, rows)
 		
 		# Make sure we end up with correct arrangement
 		flips = 0
@@ -174,6 +174,7 @@ class ImageCoordinateMap:
 		else:
 			effective_cols = rows
 			effective_rows = cols
+		print 'effective initial cols / X dim / width: %d, rows / Y dim / height: %d' % (effective_cols, effective_rows)
 		
 		ret = ImageCoordinateMap(effective_cols, effective_rows)
 		file_names = sorted(file_names)
@@ -195,15 +196,19 @@ class ImageCoordinateMap:
 					effective_col = temp
 
 				if flip_col:
-					effective_col = cols - effective_col - 1
+					effective_col = effective_cols - effective_col - 1
 					
 				if flip_row:
-					effective_row = rows - effective_row - 1
+					effective_row = effective_rows - effective_row - 1
 				
 				if flip_post_transpose:
 					temp = effective_row
 					effective_row = effective_col
 					effective_col = temp
+				
+				if effective_col >= effective_cols or effective_row >= effective_rows:
+					print 'effective_col %d >= effective_cols %d or effective_row %d >= effective_rows %d' % (effective_col, effective_cols, effective_row, effective_rows)
+					raise Exception('die')
 				
 				ret.set_image(effective_col, effective_row, file_name)
 				file_names_index += 1
@@ -468,6 +473,9 @@ class PanoEngine:
 			pair_images = self.coordinate_map.get_images_from_pair(pair)
 			print 'pair images: ' + repr(pair_images)
 		'''
+		print
+		print '***Pairs: %d***' % len([x for x in self.coordinate_map.gen_pairs(1, 1)])
+		print
 		for pair in self.coordinate_map.gen_pairs(1, 1):				
 			print 'pair raw: ' + repr(pair)
 			# Image file names as list
@@ -575,6 +583,9 @@ class PanoEngine:
 				# :-)
 				'''
 				fast_pair_project = control_point_gen.generate_core(sub_pair_images)
+				if fast_pair_project is None:
+					print 'WARNING: failed to gen control points'
+					continue
 				out = ''
 				part_pair_index = 0
 				for line in fast_pair_project.__repr__().split('\n'):

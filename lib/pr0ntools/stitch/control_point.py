@@ -124,6 +124,18 @@ class ControlPointGenerator:
 		if not rc == 0:
 			raise Exception('Bad rc: %d' % rc)
 		
+		'''
+		Doesn't like the match:
+		PICTURE PAIRS VALIDATION 
+		  Pair (  0,  1)
+			Ransac (In : 21, Out : 4, Residu : 4.43799)
+			REMOVED
+		  Timing : 583.7 us
+		'''
+		if output.find('REMOVED') >= 0:
+			print 'WARNING: RANSAC invalidated control points'
+			return None
+		
 		# We return PTO object, not string
 		# Ditch the gen file because its unreliable
 		shutil.move(os.path.join(temp_dir.file_name, "panorama0.pto"), final_project_file.file_name)
