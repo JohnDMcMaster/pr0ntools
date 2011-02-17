@@ -584,7 +584,7 @@ class PanoEngine:
 				'''
 				fast_pair_project = control_point_gen.generate_core(sub_pair_images)
 				if fast_pair_project is None:
-					print 'WARNING: failed to gen control points'
+					print 'WARNING: failed to gen control points @ %s' % repr(pair)
 					continue
 				out = ''
 				part_pair_index = 0
@@ -686,16 +686,17 @@ class PanoEngine:
 			else:
 				final_pair_project = control_point_gen.generate_core(pair_images)
 				
-			print
-			print 'Final pair project'
-			print final_pair_project.get_a_file_name()
-			print
-			print
-			print final_pair_project
-			print
-			print
-			print
-			#sys.exit(1)
+			if False:
+				print
+				print 'Final pair project'
+				print final_pair_project.get_a_file_name()
+				print
+				print
+				print final_pair_project
+				print
+				print
+				print
+				#sys.exit(1)
 			
 			temp_projects.append(final_pair_project)
 			

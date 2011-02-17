@@ -5,6 +5,7 @@ Licensed under the terms of the LGPL V3 or later, see COPYING for details
 '''
 
 import os
+from temp_file import ManagedTempFile
 
 class Execute:
 	@staticmethod
@@ -13,8 +14,12 @@ class Execute:
 		
 		print 'cmd in: %s' % cmd
 		if True:
+			#print 'Executing'
 			os.sys.stdout.flush()
-			return os.system(cmd)
+			ret = os.system(cmd)
+			os.sys.stdout.flush()
+			#print 'Execute done'
+			return ret
 		else:
 			cmd = "/bin/bash " + cmd 
 			output = ''
@@ -46,12 +51,13 @@ class Execute:
 	def with_output_simple(cmd, working_dir = None):
 		'''Return (rc, output)'''
 		working_dir_str = ''
+		tmp_file = ManagedTempFile.get(None, '_exec.txt')
 		if working_dir:
 			working_dir_str = 'cd %s && ' % working_dir
 		# ugly...but simple
 		# ((false; true; true) 2>&1; echo "***RC_HACK: $?") |tee temp.txt
-		rc = Execute.simple('(' + working_dir_str + cmd + ') 2>&1 |tee file.tmp; exit $PIPESTATUS')
-		output = open('file.tmp').read()
+		rc = Execute.simple('(' + working_dir_str + cmd + ') 2>&1 |tee %s; exit $PIPESTATUS' % tmp_file.file_name)
+		output = open(tmp_file.file_name).read()
 		# print 'OUTPUT: %d, %s' % (rc, output)
 		return (rc, output)
 	

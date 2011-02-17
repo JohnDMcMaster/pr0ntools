@@ -121,6 +121,7 @@ class ControlPointGenerator:
 		#sys.exit(1)
 		# go go go
 		(rc, output) = Execute.with_output(command, args, temp_dir.file_name)
+		print 'Execution finished'
 		if not rc == 0:
 			raise Exception('Bad rc: %d' % rc)
 		
@@ -136,9 +137,16 @@ class ControlPointGenerator:
 			print 'WARNING: RANSAC invalidated control points'
 			return None
 		
+		output_file_name = os.path.join(temp_dir.file_name, "panorama0.pto")
+		
+		# This happens occassionally, not sure why
+		if not os.path.exists(output_file_name):
+			print 'WARNING: missing output pto file!'
+			return None
+		
 		# We return PTO object, not string
 		# Ditch the gen file because its unreliable
-		shutil.move(os.path.join(temp_dir.file_name, "panorama0.pto"), final_project_file.file_name)
+		shutil.move(output_file_name, final_project_file.file_name)
 		f = open(final_project_file.file_name, 'r')
 		project_text = f.read()
 		# Under WINE, do fixup
@@ -148,20 +156,23 @@ class ControlPointGenerator:
 			link_file_name = os.path.join(temp_dir.file_name, os.path.basename(image_file_name))
 			print 'Replacing %s -> %s' % (link_file_name, image_file_name)
 			project_text = project_text.replace(link_file_name, image_file_name)
-		print
-		print 'Raw control point project (after symbolic link and WINE file name substitution)'
-		print
-		print
-		print project_text
-		print
-		print
-		print
+
+		if False:
+			print
+			print 'Raw control point project (after symbolic link and WINE file name substitution)'
+			print
+			print
+			print project_text
+			print
+			print
+			print
 		#sys.exit(1)
 		f.close()
 		f = open(final_project_file.file_name, 'w')
 		f.write(project_text)
-		return PTOProject.from_temp_file(final_project_file)
-
+		project = PTOProject.from_temp_file(final_project_file)
+		print 'Returning project'
+		return project
 
 
 
