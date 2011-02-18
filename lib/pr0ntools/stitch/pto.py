@@ -511,7 +511,7 @@ class PTOProject:
 
 	def reparse(self):
 		if True:
-			print 'WARNING: pto parsing disabled'
+			#print 'WARNING: pto parsing disabled'
 			return
 		self.option_lines = dict()
 		self.variable_lines = list()
