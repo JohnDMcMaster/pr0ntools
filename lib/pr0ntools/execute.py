@@ -50,13 +50,19 @@ class Execute:
 	@staticmethod
 	def with_output_simple(cmd, working_dir = None):
 		'''Return (rc, output)'''
+		print_output = False
+		
 		working_dir_str = ''
 		tmp_file = ManagedTempFile.get(None, '_exec.txt')
 		if working_dir:
 			working_dir_str = 'cd %s && ' % working_dir
-		# ugly...but simple
-		# ((false; true; true) 2>&1; echo "***RC_HACK: $?") |tee temp.txt
-		rc = Execute.simple('(' + working_dir_str + cmd + ') 2>&1 |tee %s; exit $PIPESTATUS' % tmp_file.file_name)
+		if print_output:
+			# ugly...but simple
+			# ((false; true; true) 2>&1; echo "***RC_HACK: $?") |tee temp.txt
+			rc = Execute.simple('(' + working_dir_str + cmd + ') 2>&1 |tee %s; exit $PIPESTATUS' % tmp_file.file_name)
+		else:
+			rc = Execute.simple(working_dir_str + cmd + ' &> %s' % tmp_file.file_name)
+		
 		output = open(tmp_file.file_name).read()
 		# print 'OUTPUT: %d, %s' % (rc, output)
 		return (rc, output)

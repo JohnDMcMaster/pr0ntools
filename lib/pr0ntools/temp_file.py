@@ -59,6 +59,10 @@ class ManagedTempFile:
 	def from_existing(file_name):
 		return ManagedTempFile(file_name)
 
+	@staticmethod
+	def from_same_extension(reference_file_name, prefix = None):
+		return ManagedTempFile.get(prefix, '.' + reference_file_name.split(".")[-1])
+
 	def __del__(self):
 		try:
 			if os.path.exists(self.file_name):

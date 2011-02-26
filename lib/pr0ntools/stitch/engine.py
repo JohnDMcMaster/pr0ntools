@@ -1,4 +1,11 @@
+'''
+pr0ntools
+Copyright 2011 John McMaster <JohnDMcMaster@gmail.com>
+Licensed under the terms of the LGPL V3 or later, see COPYING for details
+'''
+
 from image_coordinate_map import ImageCoordinateMap
+from pr0ntools.image.soften import Softener
 from pr0ntools.stitch.control_point import ControlPointGenerator
 from pr0ntools.stitch.pto import PTOProject
 from pr0ntools.stitch.remapper import Remapper
@@ -6,6 +13,7 @@ import os
 from pr0ntools.pimage import PImage
 from pr0ntools.temp_file import ManagedTempFile
 from pr0ntools.temp_file import ManagedTempDir
+import sys
 
 class PanoEngine:
 	coordinate_map = None
@@ -17,6 +25,8 @@ class PanoEngine:
 	# Used before init, later ignore for project.file_name
 	output_project_file_name = None
 	image_file_names = None
+	subimage_control_points = True
+	control_point_gen = None
 
 	def __init__(self):
 		pass
@@ -34,6 +44,80 @@ class PanoEngine:
 
 	def set_output_image_file_name(self, file_name):
 		self.output_image_file_name = file_name
+
+	def try_control_points(self, pair, pair_images):
+		if self.subimage_control_points:
+			return self.control_points_by_subimage(pair, pair_images)
+		else:
+			return self.control_point_gen.generate_core(pair_images)
+
+	# Control point generator wrapper entry
+	def generate_control_points(self, pair, pair_images):
+		soften_iterations = 3
+	
+		if True:
+			# Try raw initially
+			ret_project = self.try_control_points(pair, pair_images)
+			if ret_project:
+				return ret_project
+		
+		print 'WARNING: bad project, attempting soften...'
+
+		soften_image_file_0_managed = ManagedTempFile.from_same_extension(pair_images[0])
+		soften_image_file_1_managed = ManagedTempFile.from_same_extension(pair_images[1])
+
+		softener = Softener()
+		first_run = True
+
+		for i in range(0, soften_iterations):
+			# And then start screwing with it
+			# Wonder if we can combine features from multiple soften passes?
+			# Or at least take the maximum
+			# Do features get much less accurate as the soften gets up there?
+		
+			print 'Attempting soften %d / %d' % (i + 1, soften_iterations)
+
+			if first_run:			
+				softener.run(pair_images[0], soften_image_file_0_managed.file_name)
+				softener.run(pair_images[1], soften_image_file_1_managed.file_name)
+			else:
+				softener.run(soften_image_file_0_managed.file_name)
+				softener.run(soften_image_file_1_managed.file_name)			
+			
+			pair_soften_image_file_names = (soften_image_file_0_managed.file_name, soften_image_file_1_managed.file_name)
+			ret_project = self.try_control_points(pair, pair_soften_image_file_names)
+			# Did we win?
+			if ret_project:
+				# Fixup the project to reflect the correct file names
+				text = ret_project.__repr__()
+				print
+				print 'Before sub'
+				print
+				print ret_project.__repr__()
+				print
+				print
+				print
+				print '%s => %s' % (soften_image_file_0_managed.file_name, pair_images[0])
+				text = text.replace(soften_image_file_0_managed.file_name, pair_images[0])
+				print '%s => %s' % (soften_image_file_1_managed.file_name, pair_images[1])
+				text = text.replace(soften_image_file_1_managed.file_name, pair_images[1])
+
+				ret_project.set_text(text)
+				print
+				print 'After sub'
+				print
+				print ret_project.__repr__()
+				print
+				print
+				print
+				#sys.exit(1)
+				return ret_project
+				
+			first_run = False
+
+		print 'WARNING: gave up on generating control points!' 
+		return None
+		#raise Exception('ERROR: still could not make a coherent project!')
 
 	def control_points_by_subimage(self, pair, pair_images):
 		'''
@@ -66,8 +150,8 @@ class PanoEngine:
 			sub_image_0_y_delta = int(images[0].height() * (1.0 - overlap))
 			sub_image_1_y_end = int(images[1].height() * overlap)
 		
-		print 'image 0 x delta: %d, y delta: %d' % (sub_image_0_x_delta, sub_image_0_y_delta)
 		'''
+		print 'image 0 x delta: %d, y delta: %d' % (sub_image_0_x_delta, sub_image_0_y_delta)
 		Note y starts at top in PIL
 		'''
 		sub_image_0 = images[0].subimage(sub_image_0_x_delta, None, sub_image_0_y_delta, None)
@@ -269,7 +353,6 @@ class PanoEngine:
 		self.project.image_file_names = self.image_file_names
 
 		temp_projects = list()
-		subimage_control_points = True
 
 		'''
 		for pair in self.coordinate_map.gen_pairs(1, 1):
@@ -286,13 +369,11 @@ class PanoEngine:
 			pair_images = self.coordinate_map.get_images_from_pair(pair)
 			print 'pair images: ' + repr(pair_images)
 
-			if subimage_control_points:
-				final_pair_project = self.control_points_by_subimage(pair, pair_images)
-			else:
-				final_pair_project = control_point_gen.generate_core(pair_images)
+
+			final_pair_project = self.generate_control_points(pair, pair_images)
 			
 			if not final_pair_project:
-				print 'WARNING: bad project'
+				print 'WARNING: bad project @ %s, %s' % (repr(pair), repr(pair_images))
 				continue
 			
 			if False:
@@ -351,6 +432,10 @@ class PanoEngine:
 				for part in line.split():
 					if part[0] == 'i':
 						new_line += part
+						# Force lense type 0 (rectilinear)
+						# Otherwise, it gets added as -2 if we are unlucky ("Error on line 6")
+						# or 2 (fisheye) if we are lucky (screwed up image)
+						new_line += ' f0'
 					# Keep image file name
 					elif part[0] == 'n':
 						new_line += ' ' + part
