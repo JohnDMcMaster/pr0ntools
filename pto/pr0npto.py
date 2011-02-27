@@ -57,6 +57,27 @@ if __name__ == "__main__":
 
 	project = PTOProject.from_file_name('out.pto')
 	project.parse()
+	
+	reset_photometrics = True
+	if reset_photometrics:
+		# Overall exposure
+		# *very* important
+		project.panorama_line.set_variable('E', 1)
+		# What about m's p and s?
+	
+		for image_line in project.image_lines:
+			# Don't adjust exposure
+			image_line.set_variable('Eev', 1)
+			# blue and red white balance correction at normal levels
+			image_line.set_variable('Eb', 1)
+			image_line.set_variable('Er', 1)
+			# Disable EMoR corrections
+			image_line.set_variable('Ra', 0)
+			image_line.set_variable('Rb', 0)
+			image_line.set_variable('Rc', 0)
+			image_line.set_variable('Rd', 0)
+			image_line.set_variable('Re', 0)
+	
 	project.regen()
 	print project.get_text()
 	project.save_as('out_reparsed.pto')
