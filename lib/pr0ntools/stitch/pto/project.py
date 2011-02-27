@@ -21,388 +21,24 @@ o f0 y+0.000000 r+0.000000 p+0.000000 u20 d0.000000 e0.000000 v70.000000 a0.0000
 '''
 
 import shutil
+import os
 from pr0ntools.temp_file import ManagedTempFile
 from pr0ntools.execute import Execute
-import os
+from control_point_line import ControlPointLine
+from image_line import ImageLine
+from variable_line import VariableLine
+from mode_line import ModeLine
+from panorama_line import PanoramaLine
 
-# I'm really tempted to write this as a map...but I dunno
-class Image:
-	'''
-	#-hugin  cropFactor=6.05334
-	i w2816 h2112 f0 Eb1 Eev0 Er1 Ra0 Rb0 Rc0 Rd0 Re0 Va1 Vb0 Vc0 Vd0 Vx0 Vy0 a0 b-0.01 c0 d0 e-964.732609921273 g0 p0 r90 t0 v18.6619860596508 y12  Vm5 u10 n"data/c0_r0.jpg"
-	
-	to script creation
-	"i w h f Eb Eev Er Ra Rb Rc Rd Re Va Vb Vc Vd Vx Vy a b c d e g p r t v y Vm u n".split()
-	'''
-	
-	# Parameters that I don't feel like tracking or haven't seen
-	other = map()
-	
-	# nona requires the width and height of input images wheras PTStitcher/mender don't
-	# Width, int
-	w = None
-	# Height, int
-	h = None
-	# f0           projection format,
-	# 0 - rectilinear (normal lenses)
-	f = None
-	
-	# Photometrics
-	# Eb           white balance factor for blue channel
-	Eb = None
-	# Eev          exposure of image in EV (exposure values)
-	Eev = None
-	# Er           white balance factor for red channel
-	Er = None
-
-	# EMoR photometrics
-	# ?, int
-	Ra = None
-	# ?, int
-	Rb = None
-	# ?, int
-	Rc = None
-	# ?, int
-	Rd = None
-	# ?, int
-	Re = None
-
-	# Vignetting
-	# ?, int
-	Va = None
-	# ?, int
-	Vb = None
-	# ?, int
-	Vc = None
-	# ?, int
-	Vd = None
-	# ?, int
-	Vx = None
-	# ?, int
-	Vy = None
-	
-	# a,b,c        lens correction coefficients (optional)
-	# ?, int
-	a = None
-	# ?, signed with decimal
-	b = None
-	# ?, int
-	c = None
-
-	# d,e          initial lens offset in pixels(defaults d0 e0, optional).
-	# ?, int
-	d = None
-	# ?, signed with decimal
-	e = None
-
-	# g,t          initial lens shear.  Use to remove slight misalignment
-	# ?, int
-	g = None
-	# ?, int
-	t = None
-
-	# j            stack number
-
-	# p43          pitch angle (required)
-	p = None
-	# r0           roll angle (required)
-	r = None
-	# v82          horizontal field of view of image (required)
-	'''
-	http://hugin.sourceforge.net/tutorials/scans/en.shtml
-	We don't know the FOV (Field of view) of this imaginary camera,
-	but it doesn't matter since the picture is the same regardless
-	(setting any mid-range value between 5 and 40 degrees would
-	probably be ok). Just enter 10 in the HFOV(v)	
-	'''
-	v = None
-	# y0           yaw angle (required)
-	y = None
-	# ?, int
-	Vm = None
-	# ?, int
-	u = None
-	# Image file name
-	n = None
-	
-	# Entire line
-	text = None
-
-	def __init__(self):
-		pass
 		
-	@staticmethod
-	def from_line(pto_project, line):
-		ret = Image()
-		ret.text = line
-		ret.reparse()
-		return ret
-
-	def reparse(self):
-		for token in self.text.split(' '):
-			t = token[0]
-			r = token[1:]
-			'''
-			if t == 'i':
-				# Ignore line identifier
-				pass
-			elif t == "w":
-				self.w = int(r)
-			elif t == "h":
-				self.h = int(r)
-			elif t == "f":
-				self.f = int(r)
-			elif t == "Eb":
-				self.Eb = int(r)
-			elif t == "Eev":
-				self.Eev = int(r)
-			elif t == "Er":
-				self.Er = int(r)
-			elif t == "Ra":
-				self.Ra = int(r)
-			elif t == "Rb":
-				self.Rb = int(r)
-			elif t == "Rc":
-				self.Rc = int(r)
-			elif t == "Rd":
-				self.Rd = int(r)
-			elif t == "Re":
-				self.Re = int(r)
-			elif t == "Va":
-				self.Va = int(r)
-			elif t == "Vb":
-				self.Vb = int(r)
-			elif t == "Vc":
-				self.Vc = int(r)
-			elif t == "Vd":
-				self.Vd = int(r)
-			elif t == "Vx":
-				self.Vx = int(r)
-			elif t == "Vy":
-				self.Vy = int(r)
-			elif t == "a":
-				self.a = int(r)
-			elif t == "b":
-				self.b = int(r)
-			elif t == "c":
-				self.c = int(r)
-			elif t == "d":
-				self.d = int(r)
-			elif t == "e":
-				self.e = int(r)
-			elif t == "g":
-				self.g = int(r)
-			elif t == "p":
-				self.p = int(r)
-			elif t == "r":
-				self.r = int(r)
-			elif t == "t":
-				self.t = int(r)
-			elif t == "v":
-				self.v = int(r)
-			elif t == "y":
-				self.y = int(r)
-			elif t == "Vm":
-				self.Vm = int(r)
-			elif t == "u":
-				self.u = int(r)
-			elif t == "n":
-				self.n = int(r)
-			else:
-				print 'WARNING: unrecognized image option: %s' % part
-				self.other[t] = r
-			'''
-		self.other[t] = r
-
-	def __repr__(self, pto_project, line):
-		'''
-		self.text = "i "
-		
-		# w2816 h2112
-		if self.w:
-			self.text += 'w%d' % self.w
-		if self.h:
-			self.text += 'h%d' % self.w
-		
-		# f0
-		if self.f:
-			self.text += 'f%d' % self.w
-		
-		# Eb1 Eev0 Er1 
-		if self.Eb:
-			self.text += 'Eb%d' % self.w
-		if self.Eev:
-			self.text += 'Eev%d' % self.w
-		if self.Er:
-			self.text += 'Er%d' % self.w
-
-		# Ra0 Rb0 Rc0 Rd0 Re0
-		if self.Ra:
-			self.text += 'Ra%d' % self.w
-		if self.Rb:
-			self.text += 'Rb%d' % self.w
-		if self.Rc:
-			self.text += 'Rc%d' % self.w
-		if self.Rd:
-			self.text += 'Rd%d' % self.w
-		if self.Re:
-			self.text += 'Re%d' % self.w
-		
-		# Va1 Vb0 Vc0 Vd0 Vx0 Vy0
-		if self.Va:
-			self.text += 'Va%d' % self.w
-		if self.Vb:
-			self.text += 'Vb%d' % self.w
-		if self.Vc:
-			self.text += 'Vc%d' % self.w
-		if self.Vd:
-			self.text += 'Vd%d' % self.w
-		if self.Vx:
-			self.text += 'Vx%d' % self.w
-		if self.Vy:
-			self.text += 'Vy%d' % self.w
-
-		# a0 b-0.01 c0 d0 e-964.732609921273 
-		if self.a:
-			self.text += 'a%d' % self.w
-		if self.b:
-			self.text += 'b%f' % self.w
-		if self.c:
-			self.text += 'c%d' % self.w
-		if self.d:
-			self.text += 'd%d' % self.w
-		if self.e:
-			self.text += 'e%f' % self.w
-
-		# g0 p0 r90 t0 v18.6619860596508
-		if self.g:
-			self.text += 'g%d' % self.w
-		if self.p:
-			self.text += 'p%d' % self.w
-		if self.r:
-			self.text += 'r%d' % self.w
-		if self.t:
-			self.text += 't%d' % self.w
-		if self.v:
-			self.text += 'v%f' % self.w
-		
-		# y12
-		if self.x:
-			self.text += 'x%d' % self.w
-		if self.y:
-			self.text += 'y%d' % self.w
-		
-		# Vm5
-		if self.Vm:
-			self.text += 'Vm%d' % self.w
-		# u10
-		if self.u:
-			self.text += 'u%d' % self.w
-		# n"data/c0_r0.jpg"
-		if self.n:
-			self.text += 'n%s' % self.n
-		'''
-		
-class ControlPointImage:
+'''
+class ControlPointLineImage:
 	image = None
 	x = None
 	y = None
 	# Index		
 	n = None
-	
-class ControlPoint:
-	# c n0 N1 x1444.778035 y233.742619 X1225.863118 Y967.737131 t0
-	# Both of type ControlPointImage
-	# Coordinates are increasing from upper left of image
-	lower_image = None
-	upper_image = None
-	# What is t?
-	t = None
-	# Original text
-	text = None
-
-	def __init__(self):
-		pass
-
-	@staticmethod
-	def from_line(pto_project, line):
-		ret = ControlPoint()
-		ret.text = line
-		ret.reparse()
-		return ret
-	
-	def reparse(self):
-		for token in self.text.split(' '):
-			t = token[0]
-			r = token[1:]
-			if t == 'c':
-				# Ignore line identifier
-				pass
-			elif t == "n":
-				self.lower_image.n = int(r)
-			elif t == "N":
-				self.upper_image.n = int(r)
-			elif t == "x":
-				self.lower_image.x = int(r)
-			elif t == "X":
-				self.upper_image.x = int(r)
-			elif t == "y":
-				self.lower_image.y = int(r)
-			elif t == "Y":
-				self.upper_image.y = int(r)
-			elif t == "t":
-				self.t = int(r)
-			else:
-				raise Exception('Unrecognized: %s' % part)
-
-	def __repr__(self):
-		self.text = 'c'
-		self.text += ' n%d N%d' % (self.lower_image.image.get_index(), self.lower_image.image.get_index())
-		self.text += ' x%f y%f' % (self.lower_image.x, self.lower_image.y)
-		self.text += ' X%f Y%f' % (self.upper_image.x, self.upper_image.y)
-		self.text += ' t0'
-		return self.text
-
-class VariableLine:
-	text = None
-	# Need to know image index to write these
-	image = None
-	d = None
-	e = None
-	p = None
-	r = None
-	x = None
-	y = None
-	
-	def __init__(self):
-		pass
-	
-	@staticmethod
-	def from_line(pto_project, line):
-		ret = VariableLine()
-		ret.text = line
-		return ret
-
-	def __repr__(self):
-		# v d1 e1 p1 r1 y1
-		if d is None and e is None and p is None and r is None and x is None and y is None:
-			return ''
-			
-		self.text = 'v '
-		if self.d:	
-			self.text += ' d%d' % (self.image.get_index())
-		if self.e:	
-			self.text += ' e%d' % (self.image.get_index())
-		if self.p:	
-			self.text += ' p%d' % (self.image.get_index())
-		if self.r:	
-			self.text += ' r%d' % (self.image.get_index())
-		if self.x:	
-			self.text += ' x%d' % (self.image.get_index())
-		if self.y:	
-			self.text += ' y%d' % (self.image.get_index())
-		return self.text
-
+'''
 
 '''
 "autopano-sift-c" "--maxmatches" "0" "--maxdim" "10000" test.pto data/c0_r0.jpg data/c0_r1.jpg
@@ -497,10 +133,17 @@ class PTOProject:
 	# Could be a mix of temp and non-temp, so don't make any ordering assumptions
 	temp_image_files = set()
 	
+	# 'p' line
+	panorama_line = None
+	# 'm' line
+	mode_line = None
 	# Those started with #hugin_
-	option_lines = None
+	# option_lines = None
+	# Raw strings
+	comment_lines = None
 	# c N1 X1225.863118 Y967.737131 n0 t0 x1444.778035 y233.74261
 	control_point_lines = None
+	image_lines = None
 	'''
 	I bet lone v lines can be omitted
 	# Variable lines
@@ -511,12 +154,17 @@ class PTOProject:
 	v
 	'''
 	variable_lines = None
+	# Raw strings, we don't know what these are
+	misc_lines = list()
 
 	def __init__(self):
 		pass
 	
 	def index_to_image(self, index):
-		return None
+		if index >= len(self.image_lines):
+			raise IndexError('index: %d, items: %d' % (index, len(self.image_lines)))
+		
+		return self.image_lines[index]
 	
 	@staticmethod
 	def from_file_name(file_name, is_temporary = False):
@@ -537,40 +185,103 @@ class PTOProject:
 	def from_text(text):
 		ret = PTOProject()
 		ret.text = text
-		ret.reparse()
+		#ret.reparse()
 		return ret
 
 	@staticmethod
 	def from_blank():
 		return PTOProject.from_text('')
 
-	def reparse(self):
-		if True:
-			#print 'WARNING: pto parsing disabled'
-			return
-		self.option_lines = dict()
-		self.variable_lines = list()
+	def parse(self):
+		'''Parse if not already parsed'''
+		self.reparse()
 
-		for line in self.text().split('\n'):
-			t = line[0]
-			if t == 'c':
-				# Ignore line identifier
-				pass
-			elif t == "n":
-				self.lower_image.n = int(r)
-			elif t == "N":
-				self.upper_image.n = int(r)
+	def reparse(self):
+		'''Force a parse'''
+		if False:
+			print 'WARNING: pto parsing disabled'
+			return
+
+		self.panorama_line = None
+		self.mode_line = None
+		self.comment_lines = list()
+		self.variable_lines = list()
+		self.control_point_lines = list()
+		self.image_lines = list()
+		self.misc_lines = list()
+
+		#print self.text
+		print 'Beginning split on text of len %d' % (len(self.get_text()))
+		for line in self.get_text().split('\n'):
+			print 'Processing line: %s' % line
+			self.parse_line(line)
+			print
+
+	def parse_line(self, line):
+		# Ignore empty lines
+		if len(line) == 0:
+			return
+			 
+		k = line[0]
+		if k == '#':
+			# Ignore comments and option lines for now
+			# They have position dependencies and usually can be ignored anyway for my purposes
+			print 'WARNING: ignoring comment line: %s' % line
+		# Panorama line
+		elif k == "p":
+			self.panorama_line = PanoramaLine(line, self)
+		# additional options
+		elif k == "m":
+			self.mode_line = ModeLine(line, self)
+		# Image line
+		elif k == "i":
+			self.image_lines.append(ImageLine(line, self))
+		# Optimization (variable) line
+		elif k == "v":
+			self.variable_lines.append(VariableLine(line, self))
+		# Control point line
+		elif k == "c":
+			self.control_point_lines.append(ControlPointLine(line, self))
+		else:
+			print 'WARNING: unknown line type: %s' % line
+			self.misc_lines.append(line)
 			
 	def regen(self):
 		self.text = ''
-		self.text += '# Generated by pr0ntools'
+		self.text += '# Generated by pr0ntools\n'
+
+		#print 'Pano line: %s' % self.panorama_line
+		self.regen_line(self.panorama_line)
+		self.regen_line(self.mode_line)
+			
+		for line in self.image_lines:
+			self.regen_line(line)
+
+		for line in self.variable_lines:
+			self.regen_line(line)
+
+		for line in self.control_point_lines:
+			self.regen_line(line)
+
+		for line in self.comment_lines:
+			self.regen_line(line)
+
+	def regen_line(self, line):
+		for comment_line in line.comments:
+			self.text += '%s\n' % comment_line
+		self.text += '%s\n' % line
 
 	def __repr__(self):
-		if self.text:
-			return self.text
-		self.text = open(self.file_name).read()
-		self.reparse()
+		# Might make this diff from get_text to show parser info at some point
+		return self.get_text()
+
+	def get_text(self):
+		self.ensure_text_loaded()
 		return self.text
+		
+	def ensure_text_loaded(self):
+		if not self.text:
+			self.text = open(self.file_name).read()
 
 	def get_a_file_name(self, prefix = None, postfix = None):
 		'''If doesn't have a real file, create a temp file'''
@@ -647,9 +358,9 @@ class PTOProject:
 		f.write(self.text)
 
 	def save_as(self, file_name, is_new_filename = False):
-		if text:
-			f = os.open(file_name)
-			f.write(text)
+		if self.text:
+			f = open(file_name, "w")
+			f.write(self.text)
 		elif self.file_name:
 			shutil.copyfile(self.file_name, file_name)
 		# empty project?
