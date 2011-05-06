@@ -3,6 +3,12 @@ pr0ntools
 Copyright 2011 John McMaster <JohnDMcMaster@gmail.com>
 Licensed under the terms of the LGPL V3 or later, see COPYING for details
 '''
+from pr0ntools.temp_file import ManagedTempFile
+from pr0ntools.temp_file import ManagedTempDir
+from pr0ntools.execute import Execute
+from pr0ntools.stitch.pto.project import PTOProject
+import shutil
+import os.path
 
 # clear; rm -f /tmp/*.pto /tmp/*.jpg; pr0nstitch --result=out.jpg *.jpg
 
@@ -35,15 +41,6 @@ class AutopanoAj(ControlPointGenerator):
 	os.system("autopanoaj /allinone /project:hugin '/ransac_dist:1.0'")
 	os.system("cat %s |sed 's@%s@%s@g' >/tmp/%s" % (project_file, original_dir, image_dir, temp_project_file))
 """
-
-from pr0ntools.temp_file import ManagedTempFile
-from pr0ntools.temp_file import ManagedTempDir
-from pr0ntools.execute import Execute
-from pr0ntools.stitch.pto import PTOProject
-import shutil
-import os.path
-
-
 
 #class ControlPointGenerator:	
 class AutopanoSiftC:
@@ -82,6 +79,10 @@ class AutopanoSiftC:
 		# go go go
 		(rc, output) = Execute.with_output(command, args)
 		if not rc == 0:
+			print
+			print
+			print
+			print 'output:\n%s' % output
 			raise Exception('Bad rc: %d' % rc)
 		
 		# We return PTO object, not string
@@ -113,6 +114,7 @@ class ControlPointGenerator:
 		image_links = dict()
 		for image_file_name in image_file_names:
 			# args.append(image_file_name.replace("/tmp/", "Z:\\tmp\\"))
+			image_file_name = os.path.realpath(image_file_name)
 
 			link_file_name = os.path.join(temp_dir.file_name, os.path.basename(image_file_name))
 			print 'Linking %s -> %s' % (link_file_name, image_file_name)
@@ -121,8 +123,12 @@ class ControlPointGenerator:
 		#sys.exit(1)
 		# go go go
 		(rc, output) = Execute.with_output(command, args, temp_dir.file_name)
-		print 'Execution finished'
+		print 'Finished control point pair execution'
 		if not rc == 0:
+			print
+			print
+			print
+			print 'output:\n%s' % output
 			raise Exception('Bad rc: %d' % rc)
 		
 		'''
@@ -171,8 +177,9 @@ class ControlPointGenerator:
 		f = open(final_project_file.file_name, 'w')
 		f.write(project_text)
 		project = PTOProject.from_temp_file(final_project_file)
-		print 'Returning project'
 		return project
+		
+		
 
 
 

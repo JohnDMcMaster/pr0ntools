@@ -15,7 +15,8 @@ import os.path
 import pr0ntools.pimage
 from pr0ntools.pimage import PImage
 from pr0ntools.pimage import TempPImage
-from pr0ntools.stitch.engine import PanoEngine
+from pr0ntools.stitch.wander_stitch import WanderStitch
+from pr0ntools.stitch.grid_stitch import GridStitch
 from pr0ntools.execute import Execute
 
 VERSION = '0.1'
@@ -126,14 +127,20 @@ if __name__ == "__main__":
 	print 'output image: %s' % output_image_file_name
 	print 'output project: %s' % output_project_file_name
 	
-	'''
-	Probably most intuitive is to have (0, 0) at lower left 
-	like its presented in many linear algebra works and XY graph
-	'''
-	engine = PanoEngine.from_file_names(input_image_file_names, flip_col, flip_row, flip_pre_transpose, flip_post_transpose, depth)
-	if grid_only:
-		print 'Grid only, exiting'
-		sys.exit(0)
+	if False:
+		'''
+		Probably most intuitive is to have (0, 0) at lower left 
+		like its presented in many linear algebra works and XY graph
+		'''
+		engine = GridStitch.from_file_names(input_image_file_names, flip_col, flip_row, flip_pre_transpose, flip_post_transpose, depth)
+		if grid_only:
+			print 'Grid only, exiting'
+			sys.exit(0)
+	elif True:
+		engine = WanderStitch.from_file_names(input_image_file_names)
+	else:
+		raise Exception('need an engine')
+
 	engine.set_output_project_file_name(output_project_file_name)
 	engine.set_output_image_file_name(output_image_file_name)
 	if not allow_overwrite:

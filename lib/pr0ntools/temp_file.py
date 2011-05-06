@@ -6,6 +6,7 @@ Licensed under the terms of the LGPL V3 or later, see COPYING for details
 
 import random
 import os
+import shutil
 
 g_default_prefix_dir = None
 g_default_prefix = None

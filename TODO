@@ -1,0 +1,9 @@
+Better conservations of file types (ie not assume .jpg)
+Photometric optimization improvements
+	Might just need to disable optimizing other variables
+Be able to handle manually taken images
+	Creep along maybe, trying to map it out
+	Scan row until a match failure
+	Scan linearly again until all rows constructed
+	Try to then estimate how many pictures in a row and fit them together
+

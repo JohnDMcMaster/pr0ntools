@@ -29,7 +29,7 @@ from image_line import ImageLine
 from variable_line import VariableLine
 from mode_line import ModeLine
 from panorama_line import PanoramaLine
-
+from util import print_debug
 		
 '''
 class ControlPointLineImage:
@@ -211,11 +211,11 @@ class PTOProject:
 		self.misc_lines = list()
 
 		#print self.text
-		print 'Beginning split on text of len %d' % (len(self.get_text()))
+		print_debug('Beginning split on text of len %d' % (len(self.get_text())))
 		for line in self.get_text().split('\n'):
-			print 'Processing line: %s' % line
+			print_debug('Processing line: %s' % line)
 			self.parse_line(line)
-			print
+			print_debug()
 
 	def parse_line(self, line):
 		# Ignore empty lines
@@ -344,11 +344,16 @@ class PTOProject:
 		for other in others:
 			 args.append(other.get_a_file_name())
 		
-		print args
+		print_debug(args)
 
 		(rc, output) = Execute.with_output(command, args)
 		# go go go
 		if not rc == 0:
+			print
+			print
+			print
+			print 'Output:'
+			print output
 			print 'rc: %d' % rc
 			raise Exception('failed pto_merge')
 		return PTOProject.from_temp_file(pto_temp_file)
@@ -400,7 +405,7 @@ class PTOProject:
 		#-hugin  cropFactor=1
 		i w2816 h2112 f-2 Eb1 Eev0 Er1 Ra0 Rb0 Rc0 Rd0 Re0 Va1 Vb0 Vc0 Vd0 Vx-0 Vy-0 a0 b0 c0 d-0 e-0 g-0 p0 r0 t-0 v51 y0  Vm5 u10 n"x00000_y00033.jpg"
 		'''
-		print 'Fixing up v (optimization variable) lines...'
+		print_debug('Fixing up v (optimization variable) lines...')
 		new_project_text = ''
 		new_lines = ''
 		for i in range(1, len(self.get_image_file_names())):
@@ -419,7 +424,71 @@ class PTOProject:
 		self.text = new_project_text
 		print
 		print
-		print self.text
+		print_debug(self.text)
 		print
 		print
+
+
+	def hugin_form(self):
+		'''
+		Something is causing pto_merge to hang, but NOT ptomerge
+		Only occurs if I wrap my commands in a script...
+		The script doesn't do any fancy I/O redirection			
+			clear
+			rm -rf /tmp/pr0ntools_*
+			pr0nstitch *.jpg out.pto
+		pto_merge produces nicer output than ptomerge
+		While ptomerge produces the fields I need, it leaves some other junk
+		I think pto_merge also calculates width/heigh attributes
+
+
+		part of Hugin
+		[mcmaster@gespenst first]$ pto_merge
+		Warning: pto_merge requires at least 2 project files
+
+		pto_merge: merges several project files
+		pto_merge version 2010.4.0.854952d82c8f
+
+
+		part of perl-Panotools-Script
+		[mcmaster@gespenst first]$ ptomerge  --help
+		cannot read-open --help at /usr/share/perl5/Panotools/Script.pm line 91.		
+		man ptomerge
+		...
+		ptomerge infile1.pto infile2.pto infile3.pto [...] outfile.pto
+		...
+		'''
+		
+		# However, this tool also generates an archaic .pto format that pto can parse, but I don't want to
+		# pretend to merge into an empty project to force Hugin to clean it up
+		# pto_merge --output=temp.pto /dev/null temp.pto
+		if False:
+			args = list()
+			args.append("%s" % self.get_a_file_name())
+			args.append("%s" % self.get_a_file_name())
+			args.append("%s" % self.get_a_file_name())
+		
+			(rc, output) = Execute.with_output("ptomerge", args)
+		else:
+			args = list()
+			args.append("--output=%s" % self.get_a_file_name())
+			args.append("%s" % self.get_a_file_name())
+		
+			if False:
+				args.append("/dev/null")
+			else:
+				empty_file = ManagedTempFile.get(None, ".pto")
+				open(empty_file.file_name, 'w').write('')
+				args.append(empty_file.file_name)
+
+			(rc, output) = Execute.with_output("pto_merge", args)
+			
+		if not rc == 0:
+			print
+			print
+			print
+			print 'output:%s' % output
+			raise Exception('Bad rc: %d' % rc)
+		
+		self.reopen()		
 

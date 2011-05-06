@@ -50,6 +50,7 @@ class Execute:
 	@staticmethod
 	def with_output_simple(cmd, working_dir = None):
 		'''Return (rc, output)'''
+		# Somehow the pipe seems to really slow down the shutdown...not sure why
 		print_output = False
 		
 		working_dir_str = ''
