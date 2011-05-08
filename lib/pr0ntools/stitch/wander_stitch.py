@@ -55,7 +55,7 @@ class WanderStitch(CommonStitch):
 		project = self.control_point_gen.generate_core(file_names_pair)
 		if project is None:
 			print 'Could not connect supposedly adjacent images, recovery is currently not supported'
-			raise Exception('Failed')
+			return None
 		self.sub_projects.append(project)
 		self.mark_tried_pair(file_names_pair[0], file_names_pair[1])
 		project.hugin_form()
@@ -68,6 +68,9 @@ class WanderStitch(CommonStitch):
 		'''
 		
 		project = self.stitch_images(file_names_pair)
+		if project is None:
+			print 'WARNING: failed to create image pair project'
+			return None
 		project.parse()
 
 		image_0_points = set()
@@ -140,15 +143,38 @@ class WanderStitch(CommonStitch):
 		print 'PHASE 1: adjacent images'
 		cur_x = 0.0
 		cur_y = 0.0
+		x_delta = None
+		y_delta = None
 		# Eliminate special case from main loop
 		for pair in self.linear_pairs_gen():
 			self.spatial_map.add_point(cur_y, cur_x, pair[0])
 			break
 		for pair in self.linear_pairs_gen():
 			print 'Working on %s' % repr(pair)
-			(x_delta, y_delta) = self.analyze_image_pair(pair)
+			result = self.analyze_image_pair(pair)
+			if result is None:
+				'''
+				Two situations:
+				Early on: best guess is to go direction of last
+					Also simple to implement, try always for now
+					If we are at an edge (turn point) we are in trouble
+						For large images this should be a minority if all images are equally likely to have issues
+						Edges might have easier feature detection?  Or worse since void
+				Better: calculate average length and see how far we are along in the row
+					Make a guess as to whether we should turn or not
+				'''
+				print 'Attempting error recovery'
+				# Leave values untouched to save from last loop value
+				# If we failed on the first pass give up
+				if x_delta is None or y_delta is None:
+					raise Exception('Die')
+				print 'Using last delta values: y=%f, x=%f' % (y_delta, x_delta)
+			else:
+				# Common / expected case
+				(x_delta, y_delta) = result
 			cur_x += x_delta
 			cur_y += y_delta
+			# Note we must add the estimate even if its not known
 			self.spatial_map.add_point(cur_y, cur_x, pair[1])
 		
 		print 'Created %d sub projects' % len(self.sub_projects)

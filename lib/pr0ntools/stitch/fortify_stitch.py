@@ -65,7 +65,10 @@ class FortifyStitch(CommonStitch):
 		print 'Checking images (%d)' % len(self.image_file_names)
 		for image_file_name in self.image_file_names:
 			overlap_set = self.spatial_map.find_overlap(image_file_name, True)
-			
+			# No previous data?
+			#if overlap_set is None:
+			#	raise Exception('die')
+				
 			print '%s: %d overlaps @ %s w/ %s' % (image_file_name, len(overlap_set), repr(self.spatial_map.points[image_file_name].coordinates), repr(self.spatial_map.points[image_file_name].sizes))
 			
 			for overlap in overlap_set:
@@ -88,6 +91,8 @@ class FortifyStitch(CommonStitch):
 		
 		#raise Exception('debug')
 		print 'Fortify project file name: ', self.project.get_a_file_name()
+		self.project.get_a_file_name()
+		#self.project.save()
 		self.project.merge_into(self.sub_projects + [self.input_project])
 		#self.project.merge_into(self.sub_projects)
 		#self.project.merge_into([self.input_project])

@@ -122,6 +122,9 @@ class SpatialMap:
 		
 		if not self.is_sorted:
 			self.sort()
+		# Can happen for failed generation where we estimate position and continue
+		#if not image_file_name in self.points:
+		#	return None
 		point = self.points[image_file_name]
 		y_intersection = self.y_list.intersection(point, ignore_upper)
 		x_intersection = self.x_list.intersection(point, ignore_upper)
