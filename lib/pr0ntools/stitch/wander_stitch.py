@@ -101,8 +101,14 @@ class WanderStitch(CommonStitch):
 		print 'x delta: %f' % x_delta
 		print 'y delta: %f' % y_delta
 		print 'delta ratio'
-		xy = x_delta / y_delta
-		yx = y_delta / x_delta
+		if y_delta == 0:
+			xy = x_delta
+		else:
+			xy = x_delta / y_delta
+		if x_delta == 0:
+			yx = y_delta
+		else:
+			yx = y_delta / x_delta
 		print '\tx/y: %f' % xy
 		print '\ty/x: %f' % yx
 

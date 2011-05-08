@@ -48,6 +48,17 @@ class FortifyStitch(CommonStitch):
 		engine.input_project = PTOProject.from_existing(project_file_name)
 		return engine
 	'''
+	
+	def gen_overlaps(self):
+		for image_file_name in self.image_file_names:
+			overlap_set = self.spatial_map.find_overlap(image_file_name, True)
+			# No previous data?
+			#if overlap_set is None:
+			#	raise Exception('die')
+				
+			#print '%s: %d overlaps @ %s w/ %s' % (image_file_name, len(overlap_set), repr(self.spatial_map.points[image_file_name].coordinates), repr(self.spatial_map.points[image_file_name].sizes))
+			for overlap in overlap_set:
+				yield (image_file_name, overlap)
 
 	def generate_control_points(self):
 		print
@@ -62,32 +73,28 @@ class FortifyStitch(CommonStitch):
 		# HACK: done
 				
 		# Find adjacent pairs and generate control points
-		print 'Checking images (%d)' % len(self.image_file_names)
-		for image_file_name in self.image_file_names:
-			overlap_set = self.spatial_map.find_overlap(image_file_name, True)
-			# No previous data?
-			#if overlap_set is None:
-			#	raise Exception('die')
-				
-			print '%s: %d overlaps @ %s w/ %s' % (image_file_name, len(overlap_set), repr(self.spatial_map.points[image_file_name].coordinates), repr(self.spatial_map.points[image_file_name].sizes))
+		n_overlaps = len(list(self.gen_overlaps()))
+		print 'Checking %d images with %d overlaps' % (len(self.image_file_names), n_overlaps)
+
+		cur_overlap = 0
+		for (image_file_name, overlap) in self.gen_overlaps():
+			cur_overlap += 1
+			print 'file name: %s, overlap: %s, %d / %d' % (image_file_name, overlap, cur_overlap, n_overlaps)
+			temp_s = set(self.tried_pairs)
+			if overlap[0] > overlap[1]:
+				raise Exception('die')
+			if overlap in temp_s:
+				print 'Skipping already tried pair %s' % repr(overlap)
+				continue
 			
-			for overlap in overlap_set:
-				print overlap
-				temp_s = set(self.tried_pairs)
-				if overlap[0] > overlap[1]:
-					raise Exception('die')
-				if overlap in temp_s:
-					print 'Skipping already tried pair %s' % repr(overlap)
-					continue
-				
-				print 'Trying pair %s' % repr(overlap)
-				project = self.control_point_gen.generate_core(overlap)
-				# Was just a guess, might not actually generate a match
-				if project is None:
-					continue
-				project.hugin_form()
-				self.sub_projects.append(project)
-				self.tried_pairs.add(overlap)
+			print 'Trying pair %s' % repr(overlap)
+			project = self.control_point_gen.generate_core(overlap)
+			# Was just a guess, might not actually generate a match
+			if project is None:
+				continue
+			project.hugin_form()
+			self.sub_projects.append(project)
+			self.tried_pairs.add(overlap)
 		
 		#raise Exception('debug')
 		print 'Fortify project file name: ', self.project.get_a_file_name()
