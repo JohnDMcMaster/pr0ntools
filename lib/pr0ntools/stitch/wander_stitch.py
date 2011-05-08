@@ -11,6 +11,9 @@ The positions aren't really
 import os
 import sys
 from common_stitch import CommonStitch
+from fortify_stitch import FortifyStitch
+import spatial_map
+from pr0ntools.stitch.pto.project import PTOProject
 
 class SubProject:
 	# A PTOProject
@@ -18,16 +21,17 @@ class SubProject:
 	# Maybe some position information?
 
 class WanderStitch(CommonStitch):
-	# So we don't compute the same match twice
-	# (file name 1 , file_name 2) pairs
-	# file name 1 < file_name 2
-	tried_pairs = set()
-	# of type SubProject
-	# The projects we've already generated
-	sub_projects = list()
-
 	def __init__(self):
 		CommonStitch.__init__(self)
+		# So we don't compute the same match twice
+		# (file name 1 , file_name 2) pairs
+		# file name 1 < file_name 2
+		self.tried_pairs = set()
+		# of type SubProject
+		# The projects we've already generated
+		self.sub_projects = list()
+		self.position_map = list()
+		self.spatial_map = spatial_map.SpatialMap()
 
 	@staticmethod
 	def from_file_names(image_file_names):
@@ -49,6 +53,9 @@ class WanderStitch(CommonStitch):
 
 	def stitch_images(self, file_names_pair):
 		project = self.control_point_gen.generate_core(file_names_pair)
+		if project is None:
+			print 'Could not connect supposedly adjacent images, recovery is currently not supported'
+			raise Exception('Failed')
 		self.sub_projects.append(project)
 		self.mark_tried_pair(file_names_pair[0], file_names_pair[1])
 		project.hugin_form()
@@ -130,24 +137,48 @@ class WanderStitch(CommonStitch):
 		Generate to all neighbors to start with
 		'''
 		
+		print 'PHASE 1: adjacent images'
+		cur_x = 0.0
+		cur_y = 0.0
+		# Eliminate special case from main loop
+		for pair in self.linear_pairs_gen():
+			self.spatial_map.add_point(cur_y, cur_x, pair[0])
+			break
 		for pair in self.linear_pairs_gen():
 			print 'Working on %s' % repr(pair)
 			(x_delta, y_delta) = self.analyze_image_pair(pair)
-			
-		print 'pairs done, found %d' % len(self.sub_projects)
+			cur_x += x_delta
+			cur_y += y_delta
+			self.spatial_map.add_point(cur_y, cur_x, pair[1])
 		
-		self.project.merge_into(self.sub_projects)
-		self.project.save()
+		print 'Created %d sub projects' % len(self.sub_projects)
+		
+		phase_1_project = PTOProject.from_blank()
 		print 'Sub projects (full image):'
 		for project in self.sub_projects:
 			# prefix so I can grep it for debugging
 			print '\tSUB: ' + project.file_name
+		phase_1_project.merge_into(self.sub_projects)
+		# Save is more of debug thing now...helps analyze crashes
+		phase_1_project.get_a_file_name()
+		phase_1_project.save()
 		print
 		print
-		print 'Master project file: %s' % self.project.file_name		
+		print
+		print phase_1_project.text
 		print
 		print
-		print self.project.text
 		print
-		print
+		print 'Master project file: %s' % phase_1_project.file_name		
+		print 'PHASE 1: done'
+		
+		
+		print 'PHASE 2: fortify'
+		fortify_stitch = FortifyStitch.from_wander(phase_1_project, self.image_file_names, self.tried_pairs, self.spatial_map)
+		fortify_stitch.set_output_project_file_name(self.project.file_name)
+		fortify_stitch.run()
+		self.project = fortify_stitch.project
+		print 'PHASE 2: done'
+
+
 

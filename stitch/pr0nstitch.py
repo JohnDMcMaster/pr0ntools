@@ -17,6 +17,7 @@ from pr0ntools.pimage import PImage
 from pr0ntools.pimage import TempPImage
 from pr0ntools.stitch.wander_stitch import WanderStitch
 from pr0ntools.stitch.grid_stitch import GridStitch
+from pr0ntools.stitch.fortify_stitch import FortifyStitch
 from pr0ntools.execute import Execute
 
 VERSION = '0.1'
@@ -41,9 +42,12 @@ def help():
 	print 'pr0nstitch [args] <files>'
 	print 'files:'
 	print '\timage file: added to input images'
+	print '\tdirectory: added to input image directories'
+	print '\t.pto file: assumed to be project file'
 	print '--result=<file_name> or --out=<file_name>'
 	print '\t--result-image=<image file name>'
 	print '\t--result-project=<project file name>'
+	print '--input-project=<project file name>'
 	print '--cp-engine=<engine>'
 	print '\tautopano-sift-c: autopano-SIFT-c'
 	print '\t\t--autopano-sift-c=<path>, default = autopano-sift-c'
@@ -54,6 +58,10 @@ def help():
 	print '\tpto_merge: Hugin supported merge (Hugin 2010.2.0+)'
 	print '\t\t--pto_merge=<path>, default = pto_merge'
 	print '\tinternal: quick and dirty internal version'
+	print '--algorithm=<algorithm>'
+	print '\tgrid: assume input is a regular grid'
+	print '\twander: assume input is contiguous. Use for back and forth pattern (default)'
+	print '\tfortify: use input-project and try to fill in additional control points'
 	print 'Grid formation options (col 0, row 0 should be upper left):'
 	print '--grid-only[=<bool>]: only construct/print the grid map and exit'
 	print '--flip-col[=<bool>]: flip columns'
@@ -67,8 +75,13 @@ def arg_fatal(s):
 	help()
 	sys.exit(1)
 
+ALGORITHM_GRID = "grid"
+ALGORITHM_WANDER = "wander"
+ALGORITHM_FORTIFY = "fortify"
+
 if __name__ == "__main__":
 	input_image_file_names = list()
+	input_project_file_name = None
 	output_project_file_name = None
 	output_image_file_name = None
 	flip_col = False
@@ -76,6 +89,7 @@ if __name__ == "__main__":
 	flip_pre_transpose = False
 	flip_post_transpose = False
 	depth = 1
+	algorithm = None
 	
 	for arg_index in range (1, len(sys.argv)):
 		arg = sys.argv[arg_index]
@@ -103,6 +117,8 @@ if __name__ == "__main__":
 					arg_fatal('unknown file type %s, use explicit version' % arg)
 			elif arg_key == "grid-only":
 				grid_only = arg_value_bool
+			elif arg_key == "algorithm":
+				algorithm = arg_value
 			elif arg_key == "flip-row":
 				flip_row = arg_value_bool
 			elif arg_key == "flip-col":
@@ -123,11 +139,14 @@ if __name__ == "__main__":
 			else:
 				arg_fatal('unrecognized arg: %s' % arg)
 
+	if algorithm is None:
+		algorithm = ALGORITHM_WANDER
+
 	print 'post arg'
 	print 'output image: %s' % output_image_file_name
 	print 'output project: %s' % output_project_file_name
 	
-	if False:
+	if algorithm == ALGORITHM_GRID:
 		'''
 		Probably most intuitive is to have (0, 0) at lower left 
 		like its presented in many linear algebra works and XY graph
@@ -136,10 +155,16 @@ if __name__ == "__main__":
 		if grid_only:
 			print 'Grid only, exiting'
 			sys.exit(0)
-	elif True:
+	elif algorithm == ALGORITHM_WANDER:
 		engine = WanderStitch.from_file_names(input_image_file_names)
+	elif algorithm == ALGORITHM_FORTIFY:
+		if len(input_image_file_names) > 0:
+			raise Exception('Cannot use old project and image files')
+		if input_project_file_name is None:
+			raise Exception('Requires input project')
+		engine = ForitfyStitch.from_existing_project_file_name(input_project_file_name)
 	else:
-		raise Exception('need an engine')
+		raise Exception('need an algorithm / engine')
 
 	engine.set_output_project_file_name(output_project_file_name)
 	engine.set_output_image_file_name(output_image_file_name)

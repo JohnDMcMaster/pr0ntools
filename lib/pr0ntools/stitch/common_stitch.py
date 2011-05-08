@@ -18,18 +18,16 @@ from pr0ntools.temp_file import ManagedTempDir
 import sys
 
 class CommonStitch:
-	output_image_file_name = None
-	project = None
-	remapper = None
-	photometric_optimizer = None
-	cleaner = None
-	# Used before init, later ignore for project.file_name
-	output_project_file_name = None
-	image_file_names = None
-	control_point_gen = None
-
 	def __init__(self):
-		pass
+		self.output_image_file_name = None
+		self.project = None
+		self.remapper = None
+		self.photometric_optimizer = None
+		self.cleaner = None
+		# Used before init, later ignore for project.file_name
+		self.output_project_file_name = None
+		self.image_file_names = None
+		self.control_point_gen = None
 
 	def set_output_project_file_name(self, file_name):
 		self.output_project_file_name = file_name
@@ -147,7 +145,7 @@ class CommonStitch:
 		
 		
 		print
-		print '***PTO project final (%s / %s)***' % (self.project.file_name, self.output_project_file_name)
+		print '***PTO project final (%s / %s) data length %d***' % (self.project.file_name, self.output_project_file_name, len(self.project.get_text()))
 		print
 		
 		# Make dead sure its saved up to date

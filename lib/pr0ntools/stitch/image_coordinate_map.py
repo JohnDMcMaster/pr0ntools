@@ -6,9 +6,6 @@ Grid coordinates
 Not an actual image
 '''
 class ImageCoordinateMapPairing:
-	col = None
-	row = None
-	
 	def __init__(self, col, row):
 		self.col = col
 		self.row = row
@@ -28,11 +25,8 @@ class ImageCoordinateMapPairing:
 		return 0
 		
 class ImageCoordinatePair:
-	# Of type ImageCoordinateMapPairing
-	first = None
-	second = None
-	
 	def __init__(self, first, second):
+		# Of type ImageCoordinateMapPairing
 		self.first = first
 		self.second = second
 
@@ -58,17 +52,15 @@ class ImageCoordinateMap:
 	y    1		[0, 1]	[1, 1]	[2, 1]
 	     2		[0, 2]	[1, 2]	[2, 2] 
 	'''
-	# The actual imageimage_file_names position mapping
-	# Maps rows and cols to image file names
-	# would like to change this to managed PImages or something
-	# layout[col/x][row/y]
-	layout = None
-	# ie x in range(0, cols)
-	cols = None
-	# ie y in range(0, rows)
-	rows = None
 	def __init__(self, cols, rows):
+		# The actual imageimage_file_names position mapping
+		# Maps rows and cols to image file names
+		# would like to change this to managed PImages or something
+		# layout[col/x][row/y]
+		layout = None
+		# ie x in range(0, cols)
 		self.cols = cols
+		# ie y in range(0, rows)
 		self.rows = rows
 		self.layout = [None] * (cols * rows)
 	

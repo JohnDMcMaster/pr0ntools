@@ -123,42 +123,41 @@ Example file
 	v 
 '''
 class PTOProject:
-	# File name, if one exists
-	file_name = None
-	# Raw project text, None is not loaded
-	text = None
-	# If this is a temporary project, have it delete upon destruction
-	temp_file = None
-	image_file_names = None
-	# Could be a mix of temp and non-temp, so don't make any ordering assumptions
-	temp_image_files = set()
-	
-	# 'p' line
-	panorama_line = None
-	# 'm' line
-	mode_line = None
-	# Those started with #hugin_
-	# option_lines = None
-	# Raw strings
-	comment_lines = None
-	# c N1 X1225.863118 Y967.737131 n0 t0 x1444.778035 y233.74261
-	control_point_lines = None
-	image_lines = None
-	'''
-	I bet lone v lines can be omitted
-	# Variable lines
-	v
-	v d1 e1 p1 r1 y1
-	v d2 e2 p2 r2 y2
-	v d3 e3 p3 r3 y3
-	v
-	'''
-	variable_lines = None
-	# Raw strings, we don't know what these are
-	misc_lines = list()
-
 	def __init__(self):
-		pass
+		# File name, if one exists
+		self.file_name = None
+		# Raw project text, None is not loaded
+		self.text = None
+		# If this is a temporary project, have it delete upon destruction
+		self.temp_file = None
+		# FIXME: not loaded?
+		self.image_file_names = None
+		# Could be a mix of temp and non-temp, so don't make any ordering assumptions
+		self.temp_image_files = set()
+	
+		# 'p' line
+		self.panorama_line = None
+		# 'm' line
+		self.mode_line = None
+		# Those started with #hugin_
+		# option_lines = None
+		# Raw strings
+		self.comment_lines = None
+		# c N1 X1225.863118 Y967.737131 n0 t0 x1444.778035 y233.74261
+		self.control_point_lines = None
+		self.image_lines = None
+		'''
+		I bet lone v lines can be omitted
+		# Variable lines
+		v
+		v d1 e1 p1 r1 y1
+		v d2 e2 p2 r2 y2
+		v d3 e3 p3 r3 y3
+		v
+		'''
+		self.variable_lines = None
+		# Raw strings, we don't know what these are
+		self.misc_lines = list()
 	
 	def index_to_image(self, index):
 		if index >= len(self.image_lines):
@@ -307,7 +306,9 @@ class PTOProject:
 		print 'others: %d' % len(others)
 		temp = self.merge(others)
 		self.text = temp.__repr__()
+		print 'text len: %d' % len(self.text)
 		if self.file_name:
+			print 'saving'
 			self.save()	
 
 	def merge(self, others):
@@ -328,9 +329,12 @@ class PTOProject:
 		'''
 		if len(others) == 0:
 			print 'WARNING: skipping merge due to no other files'
-			raise Exception('die')
-			return
+			raise Exception('Nothing to merge')
+			return None
+			
+		return self.do_merge(others)
 		
+	def do_merge(self, others):
 		pto_temp_file = ManagedTempFile.get(None, ".pto")
 
 		command = "pto_merge"
@@ -339,8 +343,8 @@ class PTOProject:
 		args.append("--output=%s" % pto_temp_file)
 
 		# Possible this is still empty
-		if os.path.exists(self.file_name):
-			args.append(self.get_a_file_name())
+		if self.file_name and os.path.exists(self.file_name):
+			args.append(self.file_name)
 		for other in others:
 			 args.append(other.get_a_file_name())
 		
@@ -359,6 +363,15 @@ class PTOProject:
 		return PTOProject.from_temp_file(pto_temp_file)
 
 	def save(self):
+		'''
+		import traceback
+		import sys
+		sys.stdout.flush()
+		sys.stderr.flush()
+		traceback.print_stack()
+		sys.stdout.flush()
+		sys.stderr.flush()
+		'''
 		f = open(self.file_name, 'w')
 		f.write(self.text)
 
