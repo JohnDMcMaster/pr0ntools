@@ -58,7 +58,7 @@ class FortifyStitch(CommonStitch):
 				
 			#print '%s: %d overlaps @ %s w/ %s' % (image_file_name, len(overlap_set), repr(self.spatial_map.points[image_file_name].coordinates), repr(self.spatial_map.points[image_file_name].sizes))
 			for overlap in overlap_set:
-				yield (image_file_name, overlap)
+				yield overlap
 
 	def generate_control_points(self):
 		print
@@ -77,9 +77,11 @@ class FortifyStitch(CommonStitch):
 		print 'Checking %d images with %d overlaps' % (len(self.image_file_names), n_overlaps)
 
 		cur_overlap = 0
-		for (image_file_name, overlap) in self.gen_overlaps():
+		for (overlap) in self.gen_overlaps():
 			cur_overlap += 1
-			print 'file name: %s, overlap: %s, %d / %d' % (image_file_name, overlap, cur_overlap, n_overlaps)
+			point0 = self.spatial_map.points[overlap[0]]
+			point1 = self.spatial_map.points[overlap[1]]
+			print '%d / %d overlap: %s, %s' % (cur_overlap, n_overlaps, point0, point1)
 			temp_s = set(self.tried_pairs)
 			if overlap[0] > overlap[1]:
 				raise Exception('die')

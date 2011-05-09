@@ -17,6 +17,21 @@ class SpatialPoint:
 		self.coordinates = (y, x)
 		self.sizes = (y_width, x_width)
 
+	def __repr__(self):
+		return "%s is %dh X %dw @ (%dy, %dx)" % (self.image_file_name, self.sizes[0], self.sizes[1], self.coordinates[0], self.coordinates[1])
+
+	def height(self):
+		return self.sizes[0]
+
+	def width(self):
+		return self.sizes[1]
+	
+	def y(self):
+		return self.coordinates[0]
+	
+	def x(self):
+		return self.coordinates[1]
+		
 class SpatialAxisList:
 	def __init__(self, index):
 		self.axis_index = index
@@ -62,20 +77,33 @@ class SpatialAxisList:
 		index = self.indexes[point]
 
 		# Creep down
-		print 'Looking from index %d on size %d'% (index, len(self.points))
+		#print 'Looking from index %d on size %d'% (index, len(self.points))
 		#print self.points
 		for cur_index in range(index - 1, -1, -1):
 			cur_point = self.points[cur_index]
-			print '%s vs %s' % (repr(point), repr(cur_point))
+			#print '%s vs %s' % (repr(point), repr(cur_point))
+			
+			min_overlap = max(point.sizes[self.axis_index], cur_point.sizes[self.axis_index]) * 0.1
 			
 			# Still in range?
 			# CCCCC 
 			#    PPPPP
-			if cur_point.coordinates[self.axis_index] + cur_point.sizes[self.axis_index] <= point.coordinates[self.axis_index]:
+			overlap = cur_point.coordinates[self.axis_index] + cur_point.sizes[self.axis_index] - point.coordinates[self.axis_index]
+
+			was_rejected = overlap < min_overlap
+			if was_rejected:
+				rejected_str = 'REJECTED'
+			else:
+				rejected_str = 'KEEP'
+			print 'overlap %d is %f from %s and %s: %s' % (self.axis_index, overlap, point, cur_point, rejected_str)
+			
+			if was_rejected:
+				# Sorted so not continue
 				break
-			print ret
-			print cur_point.image_file_name
-			print point.image_file_name
+				
+			#print ret
+			#print cur_point.image_file_name
+			#print point.image_file_name
 			ret.add(cur_point.image_file_name)
 			
 		# Creep up
@@ -105,8 +133,8 @@ class SpatialMap:
 		if image_file_name in self.points:
 			raise Exception("duplicate key")
 		self.points[image_file_name] = point
-		print self.x_list
-		print self.y_list
+		#print self.x_list
+		#print self.y_list
 		self.y_list.add(point)
 		self.x_list.add(point)
 		self.is_sorted = False
@@ -118,7 +146,7 @@ class SpatialMap:
 
 	# Ignoring upper is automatic de-duplication and less work
 	def find_overlap(self, image_file_name, ignore_upper = False):
-		print self.points
+		#print self.points
 		
 		if not self.is_sorted:
 			self.sort()
@@ -128,8 +156,8 @@ class SpatialMap:
 		point = self.points[image_file_name]
 		y_intersection = self.y_list.intersection(point, ignore_upper)
 		x_intersection = self.x_list.intersection(point, ignore_upper)
-		print 'insersection y raw: %d, x raw: %d' % (len(y_intersection), len(x_intersection)) 
-		intersection = y_intersection and x_intersection
+		intersection = y_intersection.intersection(x_intersection)
+		print 'insersection y raw: %d, x raw: %d, full: %d' % (len(y_intersection), len(x_intersection), len(intersection))
 		# Now convert to pair list
 		ret = list()
 		for name in intersection:
