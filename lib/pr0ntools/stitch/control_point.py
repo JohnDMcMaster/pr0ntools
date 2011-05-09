@@ -83,6 +83,7 @@ class AutopanoSiftC:
 			print
 			print
 			print 'output:\n%s' % output
+
 			raise Exception('Bad rc: %d' % rc)
 		
 		# We return PTO object, not string
@@ -129,6 +130,11 @@ class ControlPointGenerator:
 			print
 			print
 			print 'output:\n%s' % output
+
+			if output.find('This application has requested the Runtime to terminate it in an unusual way'):
+				print 'WARNING: skipping crash'
+				return None
+			
 			raise Exception('Bad rc: %d' % rc)
 		
 		'''
