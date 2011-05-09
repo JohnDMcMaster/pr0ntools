@@ -155,8 +155,11 @@ class WanderStitch(CommonStitch):
 		for pair in self.linear_pairs_gen():
 			self.spatial_map.add_point(cur_y, cur_x, pair[0])
 			break
+		n_pairs = len(set(self.linear_pairs_gen()))
+		cur_pair_index = 0
 		for pair in self.linear_pairs_gen():
-			print 'Working on %s' % repr(pair)
+			cur_pair_index += 1
+			print 'Working on %s (%d / %d)' % (repr(pair), cur_pair_index, n_pairs)
 			result = self.analyze_image_pair(pair)
 			if result is None:
 				'''
