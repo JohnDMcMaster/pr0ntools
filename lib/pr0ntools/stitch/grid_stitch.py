@@ -49,10 +49,13 @@ class GridStitch(CommonStitch):
 			print 'pair images: ' + repr(pair_images)
 		'''
 		print
-		print '***Pairs: %d***' % len([x for x in self.coordinate_map.gen_pairs(1, 1)])
+		n_pairs = len(list(self.coordinate_map.gen_pairs(1, 1)))
+		print '***Pairs: %d***' % n_pairs
 		print
+		pair_index = 0
 		for pair in self.coordinate_map.gen_pairs(1, 1):				
-			print 'pair raw: ' + repr(pair)
+			pair_index += 1
+			print 'pair raw: %s (%d / %d)' % (repr(pair), pair_index, n_pairs)
 			# Image file names as list
 			pair_images = self.coordinate_map.get_images_from_pair(pair)
 			print 'pair images: ' + repr(pair_images)
