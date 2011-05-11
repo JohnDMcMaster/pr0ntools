@@ -44,6 +44,10 @@ class ImageCoordinatePair:
 	def __repr__(self):
 		return '%s vs %s' % (self.first, self.second)
 
+	@staticmethod
+	def from_spatial_points(first, second):
+		return ImageCoordinatePair(ImageCoordinateMapPairing(first.coordinates[1], first.coordinates[0]), ImageCoordinateMapPairing(second.coordinates[1], second.coordinates[0]))
+
 class ImageCoordinateMap:
 	'''
 				col/x
@@ -90,7 +94,8 @@ class ImageCoordinateMap:
 		return file_names
 		
 	@staticmethod
-	def from_file_names(file_names_in, flip_col = False, flip_row = False, flip_pre_transpose = False, flip_post_transpose = False, depth = 1):
+	def from_file_names(file_names_in, flip_col = False, flip_row = False, flip_pre_transpose = False, flip_post_transpose = False, depth = 1,
+			alt_rows = False, alt_cols = False, rows = None, cols = None):
 		file_names = ImageCoordinateMap.get_file_names(file_names_in, depth)
 		'''
 		Certain program take file names relative to the project file, others to working dir
@@ -100,21 +105,39 @@ class ImageCoordinateMap:
 		file_names_canonical = list()
 		for file_name in file_names:
 			file_names_canonical.append(os.path.realpath(file_name))
-		return ImageCoordinateMap.from_file_names_core(file_names_canonical, flip_col, flip_row, flip_pre_transpose, flip_post_transpose)
+		return ImageCoordinateMap.from_file_names_core(file_names_canonical, flip_col, flip_row, flip_pre_transpose, flip_post_transpose,
+				alt_rows, alt_cols, rows, cols)
 	
 	@staticmethod
-	def from_file_names_core(file_names, flip_col, flip_row, flip_pre_transpose, flip_post_transpose):
-		first_parts = set()
-		second_parts = set()
-		for file_name in file_names:
-			basename = os.path.basename(file_name)
-			core_file_name = basename.split('.')[0]
-			first_parts.add(core_file_name.split('_')[0])
-			second_parts.add(core_file_name.split('_')[1])
+	def from_file_names_core(file_names, flip_col, flip_row, flip_pre_transpose, flip_post_transpose,
+			alt_rows = False, alt_cols = False, rows = None, cols = None):
+		'''
+		rows: hard code number input rows
+		cols: hard code number input cols
+		alt_rows: alternate second row and each other after
+		alt_cols: alternate second col and each other after
+		'''
+		print rows
+		print cols
+		if rows is None and not cols is None:
+			rows = len(file_names) / cols
+		if rows is None and not cols is None:
+			cols = len(file_names) / rows
 		
-		# Assume X first so that files read x_y.jpg which seems most intuitive (to me FWIW)
-		cols = len(first_parts)
-		rows = len(second_parts)
+		if rows is None or cols is None:
+			first_parts = set()
+			second_parts = set()
+			for file_name in file_names:
+				basename = os.path.basename(file_name)
+				core_file_name = basename.split('.')[0]
+				first_parts.add(core_file_name.split('_')[0])
+				second_parts.add(core_file_name.split('_')[1])
+		
+			# Assume X first so that files read x_y.jpg which seems most intuitive (to me FWIW)
+			if cols is None:
+				cols = len(first_parts)
+			if rows is None:
+				rows = len(second_parts)
 		print 'initial cols / X dim / width: %d, rows / Y dim / height: %d' % (cols, rows)
 		
 		# Make sure we end up with correct arrangement
@@ -139,8 +162,8 @@ class ImageCoordinateMap:
 		'''
 		Since x/col is first, y/row will increment first and must be the inner loop
 		'''
-		for cur_col in range(0, cols):
-			for cur_row in range(0, rows):
+		for cur_row in range(0, rows):
+			for cur_col in range(0, cols):
 				# Not canonical, but resolved well enough
 				file_name = file_names[file_names_index]
 				
@@ -152,23 +175,33 @@ class ImageCoordinateMap:
 					effective_row = effective_col
 					effective_col = temp
 
-				if flip_col:
-					effective_col = effective_cols - effective_col - 1
-					
-				if flip_row:
+				flip_col_cur = flip_col
+				flip_row_cur = flip_col
+				if alt_cols and cur_row % 2 == 1:
+					flip_col_cur = not flip_col_cur
+				if alt_rows and cur_col % 2 == 1:
+					flip_row_cur = not flip_row_cur
+
+				if flip_col_cur:
+					print 'flip col1: %d on %d' % (effective_col, effective_cols)
+					effective_col = effective_cols - effective_col - 1					
+					print 'flip col2: %d' % effective_col
+				if flip_row_cur:
 					effective_row = effective_rows - effective_row - 1
 				
 				if flip_post_transpose:
 					temp = effective_row
 					effective_row = effective_col
 					effective_col = temp
-				
+						
 				if effective_col >= effective_cols or effective_row >= effective_rows:
 					print 'effective_col %d >= effective_cols %d or effective_row %d >= effective_rows %d' % (effective_col, effective_cols, effective_row, effective_rows)
 					raise Exception('die')
 				
 				ret.set_image(effective_col, effective_row, file_name)
 				file_names_index += 1
+		
+		
 		return ret
 	
 	def gen_pairs(self, row_spread = 1, col_spread = 1):

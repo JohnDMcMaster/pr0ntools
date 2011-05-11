@@ -129,6 +129,10 @@ class PImage:
 			y_max = self.height()
 		#print 'subimage: start.  x_min: %d: x_max: %d, y_min: %d, y_max: %d' % (x_min, x_max, y_min, y_max)
 
+		if x_min < 0 or y_min < 0 or x_max < 0 or y_max < 0:
+			print x_min, y_min, x_max, y_max
+			raise Exception('out of bounds')
+
 		# Did we truncate the whole image?
 		if x_min > x_max or y_min > y_max:
 			return self.from_array([], self.get_mode(), self.get_mode())

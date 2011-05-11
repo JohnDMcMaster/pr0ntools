@@ -12,6 +12,7 @@ import os
 import sys
 from common_stitch import CommonStitch
 from fortify_stitch import FortifyStitch
+from image_coordinate_map import ImageCoordinatePair
 import spatial_map
 from pr0ntools.stitch.pto.project import PTOProject
 
@@ -52,7 +53,8 @@ class WanderStitch(CommonStitch):
 			self.tried_pairs.add((file_name_1, file_name_0)) 
 
 	def stitch_images(self, file_names_pair):
-		project = self.control_point_gen.generate_core(file_names_pair)
+		#project = self.control_point_gen.generate_core(file_names_pair)
+		project = self.generate_control_points_by_pair(ImageCoordinatePair.from_spatial_points(self.spatial_map.points[file_names_pair[0]], self.spatial_map.points[file_names_pair[1]]), file_names_pair)
 		if project is None:
 			print 'Could not connect supposedly adjacent images, recovery is currently not supported'
 			return None

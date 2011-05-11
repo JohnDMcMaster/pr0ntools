@@ -61,7 +61,10 @@ def help():
 	print '--algorithm=<algorithm>'
 	print '\tgrid: assume input is a regular grid'
 	print '\twander: assume input is contiguous. Use for back and forth pattern (default)'
-	print '\tfortify: use input-project and try to fill in additional control points'
+	# Did hacks, not supported externally
+	#print '\tfortify: use input-project and try to fill in additional control points'
+	# Consider supporting
+	#print '\tauto: poke around at images and then do stitch after figuring out layout (computationally expensive!)'
 	print 'Grid formation options (col 0, row 0 should be upper left):'
 	print '--grid-only[=<bool>]: only construct/print the grid map and exit'
 	print '--flip-col[=<bool>]: flip columns'
@@ -69,6 +72,7 @@ def help():
 	print '--flip-pre-transpose[=<bool>]: switch col/row before all other flips'
 	print '--flip-post-transpose[=<bool>]: switch col/row after all other flips'
 	print '--no-overwrite[=<bool>]: do not allow overwrite of existing files'
+	print '--regular[=<bool>]: images are separated by regular intervals like CNC would produce'
 
 def arg_fatal(s):
 	print s
@@ -84,12 +88,20 @@ if __name__ == "__main__":
 	input_project_file_name = None
 	output_project_file_name = None
 	output_image_file_name = None
+	alt_rows = False
+	alt_cols = False
+	n_rows = None
+	n_cols = None
 	flip_col = False
 	flip_row = False
 	flip_pre_transpose = False
 	flip_post_transpose = False
 	depth = 1
 	algorithm = None
+	# CNC like precision?
+	regular = False
+	x_overlap = None
+	y_overlap = None
 	
 	for arg_index in range (1, len(sys.argv)):
 		arg = sys.argv[arg_index]
@@ -119,6 +131,14 @@ if __name__ == "__main__":
 				grid_only = arg_value_bool
 			elif arg_key == "algorithm":
 				algorithm = arg_value
+			elif arg_key == "n-rows":
+				n_rows = int(arg_value)
+			elif arg_key == "n-cols":
+				n_cols = int(arg_value)
+			elif arg_key == "alt-rows":
+				alt_rows = arg_value_bool
+			elif arg_key == "alt-cols":
+				alt_cols = arg_value_bool
 			elif arg_key == "flip-row":
 				flip_row = arg_value_bool
 			elif arg_key == "flip-col":
@@ -129,6 +149,12 @@ if __name__ == "__main__":
 				flip_post_transpose = arg_value_bool
 			elif arg_key == 'no-overwrite':
 				allow_overwrite = not arg_value_bool
+			elif arg_key == 'regular':
+				regular = arg_value_bool
+			elif arg_key == 'x-overlap':
+				x_overlap = float(arg_value)
+			elif arg_key == 'y-overlap':
+				y_overlap = float(arg_value)
 			else:
 				arg_fatal('Unrecognized arg: %s' % arg)
 		else:
@@ -150,8 +176,11 @@ if __name__ == "__main__":
 		'''
 		Probably most intuitive is to have (0, 0) at lower left 
 		like its presented in many linear algebra works and XY graph
+		...but image stuff tends to to upper left, so thats what things use
 		'''
-		engine = GridStitch.from_file_names(input_image_file_names, flip_col, flip_row, flip_pre_transpose, flip_post_transpose, depth)
+
+		engine = GridStitch.from_file_names(input_image_file_names, flip_col, flip_row, flip_pre_transpose, flip_post_transpose, depth,
+				alt_rows, alt_cols, n_rows, n_cols)
 		if grid_only:
 			print 'Grid only, exiting'
 			sys.exit(0)
@@ -168,6 +197,13 @@ if __name__ == "__main__":
 
 	engine.set_output_project_file_name(output_project_file_name)
 	engine.set_output_image_file_name(output_image_file_name)
+	engine.set_regular(regular)
+	
+	if x_overlap:
+		engine.x_overlap = x_overlap
+	if y_overlap:
+		engine.y_overlap = y_overlap
+	
 	if not allow_overwrite:
 		if output_project_file_name and os.path.exists(output_project_file_name):
 			print 'ERROR: cannot overwrite existing project file: %s' % output_project_file_name
