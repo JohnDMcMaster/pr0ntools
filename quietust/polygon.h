@@ -1,3 +1,9 @@
+/*
+Copyright 2011 Quietust
+Released under 2 clause BSD license, see COPYING for details
+Minor modifications by John McMaster <JohnDMcMaster@gmail.com>
+*/
+
 #ifndef POLYGON_H
 #define POLYGON_H
 
@@ -9,6 +15,8 @@ using namespace std;
 typedef __int64 int64_t;
 #else
 #include <inttypes.h>
+#include <limits.h>
+#include <stdlib.h>
 #endif
 
 struct rect
@@ -55,7 +63,7 @@ public:
 	polygon() {}
 	polygon (const polygon &copy)
 	{
-		for (int i = 0; i < copy.vertices.size(); i++)
+		for (vector<vertex>::size_type i = 0; i < copy.vertices.size(); i++)
 			add(copy.vertices[i].x, copy.vertices[i].y);
 	}
 	void add (const int x, const int y)
@@ -73,7 +81,7 @@ public:
 		// distant point at a slight angle
 		const vertex inf(v.x + 100000, v.y + 100);
 
-		for (int i = 1; i < vertices.size(); i++)
+		for (vector<vertex>::size_type i = 1; i < vertices.size(); i++)
 		{
 			const vertex &q1 = vertices[i-1];
 			const vertex &q2 = vertices[i];
@@ -86,16 +94,16 @@ public:
 	bool overlaps (const polygon &other) const
 	{
 		// first, check if any of the target polygon's vertices are inside me
-		for (int i = 1; i < other.vertices.size(); i++)
+		for (vector<vertex>::size_type i = 1; i < other.vertices.size(); i++)
 			if (isInside(other.vertices[i]))
 				return true;
 
 		// if not, then see if any of its vertices intersect with any of mine
-		for (int i = 1; i < vertices.size(); i++)
+		for (vector<vertex>::size_type i = 1; i < vertices.size(); i++)
 		{
 			const vertex &p1 = vertices[i-1];
 			const vertex &p2 = vertices[i];
-			for (int j = 1; j < other.vertices.size(); j++)
+			for (vector<vertex>::size_type j = 1; j < other.vertices.size(); j++)
 			{
 				const vertex &q1 = other.vertices[j-1];
 				const vertex &q2 = other.vertices[j];
@@ -108,7 +116,7 @@ public:
 
 	void move (const int x, const int y)
 	{
-		for (int i = 0; i < vertices.size(); i++)
+		for (vector<vertex>::size_type i = 0; i < vertices.size(); i++)
 		{
 			vertices[i].x += x;
 			vertices[i].y += y;
@@ -119,7 +127,7 @@ public:
 	{
 		bbox.xmin = INT_MAX;	bbox.xmax = INT_MIN;
 		bbox.ymin = INT_MAX;	bbox.ymax = INT_MIN;
-		for (int i = 1; i < vertices.size(); i++)
+		for (vector<vertex>::size_type i = 1; i < vertices.size(); i++)
 		{
 			bbox.xmin = min(bbox.xmin, vertices[i].x);
 			bbox.ymin = min(bbox.ymin, vertices[i].y);
@@ -133,7 +141,7 @@ public:
 		char buf[256];
 		sprintf(buf, "%i,%i", vertices[1].x, vertices[1].y);
 		output += buf;
-		for (int i = 2; i < vertices.size(); i++)
+		for (vector<vertex>::size_type i = 2; i < vertices.size(); i++)
 		{
 			sprintf(buf, ",%i,%i", vertices[i].x, vertices[i].y);
 			output += buf;

@@ -1,3 +1,8 @@
+/*
+Copyright 2011 Quietust
+Released under 2 clause BSD license, see COPYING for details
+*/
+
 #include <stdio.h>
 #include "polygon.h"
 
@@ -5,7 +10,7 @@ int main (int argc, char **argv)
 {
 	vector<node *> nodes, vias;
 	node *via, *cur;
-	int i, j;
+	int j;
 
 	int metal_start, metal_end;
 	int poly_start, poly_end;
@@ -33,7 +38,7 @@ int main (int argc, char **argv)
 	readnodes<node>("vias.dat", vias, LAYER_SPECIAL);
 
 	printf("Checking for bad vias (%i total)\n", vias.size());
-	for (i = 0; i < vias.size(); i++)
+	for (unsigned int i = 0; i < vias.size(); i++)
 	{
 //		printf("%i     \r", i);
 		int hits = 0;
@@ -57,7 +62,7 @@ int main (int argc, char **argv)
 	readnodes<node>("buried_contacts.dat", vias, LAYER_SPECIAL);
 
 	printf("Checking for bad buried contacts (%i total)\n", vias.size());
-	for (i = 0; i < vias.size(); i++)
+	for (unsigned int i = 0; i < vias.size(); i++)
 	{
 //		printf("%i     \r", i);
 		int hits = 0;

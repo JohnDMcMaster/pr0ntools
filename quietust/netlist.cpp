@@ -1,4 +1,8 @@
-// Visual 2A03 Netlist Generator
+/*
+Visual 2A03 Netlist Generator
+Copyright 2011 Quietust
+Released under 2 clause BSD license, see COPYING for details
+*/
 
 #include <stdio.h>
 #include "polygon.h"
@@ -10,10 +14,10 @@ int main (int argc, char **argv)
 {
 	vector<node *> nodes;
 	vector<transistor *> transistors;
-
-	int metal_start, metal_end;
-	int poly_start, poly_end;
-	int diff_start, diff_end;
+	
+	unsigned int metal_start, metal_end;
+	unsigned int poly_start, poly_end;
+	unsigned int diff_start, diff_end;
 	readnodes<node>("metal_vcc.dat", nodes, LAYER_METAL);
 	if (nodes.size() != 1)
 	{
@@ -40,7 +44,6 @@ int main (int argc, char **argv)
 
 	vector<node *> vias, matched, unmatched;
 	node *via, *cur, *sub;
-	int i, j, k;
 
 	readnodes<node>("vias.dat", vias, LAYER_SPECIAL);
 
@@ -48,7 +51,7 @@ int main (int argc, char **argv)
 	{
 		cur = nodes[0];
 		cur->id = vcc;
-		for (i = 0; i < vias.size(); i++)
+		for (unsigned int i = 0; i < vias.size(); i++)
 		{
 			via = vias[i];
 			if (cur->collide(via))
@@ -60,7 +63,7 @@ int main (int argc, char **argv)
 //			printf("%i    \r", matched.size());
 			via = matched.back();
 			matched.pop_back();
-			for (i = poly_start; i < diff_end; i++)
+			for (unsigned int i = poly_start; i < diff_end; i++)
 			{
 				sub = nodes[i];
 				if (sub->collide(via))
@@ -82,7 +85,7 @@ int main (int argc, char **argv)
 	{
 		cur = nodes[1];
 		cur->id = gnd;
-		for (i = 0; i < vias.size(); i++)
+		for (unsigned int i = 0; i < vias.size(); i++)
 		{
 			via = vias[i];
 			if (cur->collide(via))
@@ -94,7 +97,7 @@ int main (int argc, char **argv)
 //			printf("%i    \r", matched.size());
 			via = matched.back();
 			matched.pop_back();
-			for (i = poly_start; i < diff_end; i++)
+			for (unsigned int i = poly_start; i < diff_end; i++)
 			{
 				sub = nodes[i];
 				if (sub->collide(via))
@@ -113,13 +116,13 @@ int main (int argc, char **argv)
 	}
 
 	printf("Parsing metal nodes %i thru %i - %i vias remaining\n", metal_start, metal_end - 1, vias.size());
-	for (i = metal_start; i < metal_end; i++)
+	for (unsigned int i = metal_start; i < metal_end; i++)
 	{
 //		printf("%i        \r", i);
 		cur = nodes[i];
 		if (!cur->id)
 			cur->id = nextNode++;
-		for (j = 0; j < vias.size(); j++)
+		for (unsigned int j = 0; j < vias.size(); j++)
 		{
 			via = vias[j];
 			if (cur->collide(via))
@@ -131,7 +134,7 @@ int main (int argc, char **argv)
 //			printf("%i.%i\r", i, matched.size());
 			via = matched.back();
 			matched.pop_back();
-			for (j = poly_start; j < diff_end; j++)
+			for (unsigned int j = poly_start; j < diff_end; j++)
 			{
 				sub = nodes[j];
 				if (sub->collide(via))
@@ -146,7 +149,7 @@ int main (int argc, char **argv)
 //							nextNode--;
 						int oldid = cur->id;
 						int newid = sub->id;
-						for (k = 0; k < nodes.size(); k++)
+						for (unsigned int k = 0; k < nodes.size(); k++)
 							if (nodes[k]->id == oldid)
 								nodes[k]->id = newid;
 					}
@@ -174,13 +177,13 @@ int main (int argc, char **argv)
 	readnodes<node>("buried_contacts.dat", vias, LAYER_SPECIAL);
 
 	printf("Parsing polysilicon nodes %i thru %i - %i buried contacts remaining\n", poly_start, poly_end - 1, vias.size());
-	for (i = poly_start; i < poly_end; i++)
+	for (unsigned int i = poly_start; i < poly_end; i++)
 	{
 //		printf("%i        \r", i);
 		cur = nodes[i];
 		if (!cur->id)
 			cur->id = nextNode++;
-		for (j = 0; j < vias.size(); j++)
+		for (unsigned int j = 0; j < vias.size(); j++)
 		{
 			if (cur->collide(vias[j]))
 				matched.push_back(vias[j]);
@@ -191,7 +194,7 @@ int main (int argc, char **argv)
 //			printf("%i.%i\r", i, matched.size());
 			via = matched.back();
 			matched.pop_back();
-			for (j = diff_start; j < diff_end; j++)
+			for (unsigned int j = diff_start; j < diff_end; j++)
 			{
 				sub = nodes[j];
 				if (sub->collide(via))
@@ -206,7 +209,7 @@ int main (int argc, char **argv)
 //							nextNode--;
 						int oldid = cur->id;
 						int newid = sub->id;
-						for (k = 0; k < nodes.size(); k++)
+						for (unsigned int k = 0; k < nodes.size(); k++)
 							if (nodes[k]->id == oldid)
 								nodes[k]->id = newid;
 					}
@@ -234,7 +237,7 @@ int main (int argc, char **argv)
 	}
 
 	printf("Parsing diffusion nodes %i thru %i\n", diff_start, diff_end - 1);
-	for (i = diff_start; i < diff_end; i++)
+	for (unsigned int i = diff_start; i < diff_end; i++)
 	{
 		cur = nodes[i];
 		if (!cur->id)
@@ -258,12 +261,12 @@ int main (int argc, char **argv)
 	node *t4 = new node;
 
 	printf("Parsing %i transistors\n", transistors.size());
-	for (i = 0; i < transistors.size(); i++)
+	for (unsigned int i = 0; i < transistors.size(); i++)
 	{
 //		printf("%i     \r", i);
 		cur_t = transistors[i];
 		cur_t->id = nextNode++;
-		for (j = poly_start; j < poly_end; j++)
+		for (unsigned int j = poly_start; j < poly_end; j++)
 		{
 			sub = nodes[j];
 			if (sub->collide(cur_t))
@@ -284,7 +287,7 @@ int main (int argc, char **argv)
 		t2->poly.bRect(t2->bbox);
 		t3->poly.bRect(t3->bbox);
 		t4->poly.bRect(t4->bbox);
-		for (j = diff_start; j < diff_end; j++)
+		for (unsigned int j = diff_start; j < diff_end; j++)
 		{
 			sub = nodes[j];
 			if (sub->collide(t1) || sub->collide(t2) || sub->collide(t3) || sub->collide(t4))
@@ -311,7 +314,7 @@ int main (int argc, char **argv)
 				if ((cur_t->c2 == vcc) && (cur_t->c1 != gnd))
 				{
 					// assign pull-up state
-					for (j = metal_start; j < diff_end; j++)
+					for (unsigned int j = metal_start; j < diff_end; j++)
 					{
 						if (nodes[j]->id == cur_t->gate)
 							nodes[j]->pullup = '+';
@@ -339,7 +342,7 @@ int main (int argc, char **argv)
 	delete t3;
 	delete t4;
 
-	for (i = 0; i < transistors.size(); i++)
+	for (unsigned int i = 0; i < transistors.size(); i++)
 	{
 		cur_t = transistors[i];
 		cur_t->poly.move(-1, -1);
@@ -356,7 +359,7 @@ int main (int argc, char **argv)
 		return 1;
 	}
 //	fprintf(out, "var transdefs = [\n");
-	for (i = 0; i < transistors.size(); i++)
+	for (unsigned int i = 0; i < transistors.size(); i++)
 	{
 		cur_t = transistors[i];
 		// skip pullups
@@ -377,7 +380,7 @@ int main (int argc, char **argv)
 	}
 //	fprintf(out, "var segdefs = [\n");
 	// skip the main VCC and GND nodes, since those are huge and we don't really need them
-	for (i = 2; i < nodes.size(); i++)
+	for (unsigned int i = 2; i < nodes.size(); i++)
 	{
 		cur = nodes[i];
 		fprintf(out, "[%i,'%c',%i,%s],\n", cur->id, cur->pullup, cur->layer, cur->poly.toString().c_str());

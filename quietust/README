@@ -8,3 +8,33 @@ so expect differences.  However, I'd like a place to hack on the tools and share
 my changes at the same time so here they are regardless of whether or not they
 get merged into the original toolchain.
 
+
+Web site has this comment:
+
+Tools
+
+These are the tools I used to make the Visual 2A03. 
+They may not be fully versatile and efficient, but they get the job done.
+
+
+* GIMP - select all segments in the layer image (Alpha to Selection), then
+convert Selection to Path with advanced settings "Corner Surround:3"
+(optional), "Corner Threshold:150", "Line Reversion Threshold:0.200", and "Line
+Threshold:2.00", then export to SVG.
+
+* convertsvg.php - convert the exported SVG files into lists of vertices more
+easily readable by the programs below. If the SVG happened to contain any
+non-straight lines, it'll complain - go back into GIMP and fix the problem
+segments to make them more square, or recreate the Path with more strict settings.
+
+* check.cpp - make sure that each via and buried contact connects exactly two
+nodes together (since otherwise the tool below will get confused).
+
+* netlist.cpp - read in all of the layers, figure out which segments are
+connected to each other (and assign node IDs appropriately), and build
+segdefs.js and transdefs.js files for ChipSim.
+
+* polygon.h - used by the above two programs, keeps track of the shape and
+location of each segment and quickly determines whether or not two arbitrary
+ segments intersect.
+

@@ -1,4 +1,10 @@
 <?php
+/*
+Copyright 2011 Quietust
+Released under 2 clause BSD license, see COPYING for details
+Minor modifications by John McMaster <JohnDMcMaster@gmail.com>
+*/
+
 function convert_svg ($in, $out)
 {
     if (filemtime($in) <= filemtime($out))
@@ -8,12 +14,20 @@ function convert_svg ($in, $out)
     }
     echo "Parsing $in...\n";
     $data = '';
+	//Apparantly SVG files are pure XML
     $raw = file_get_contents($in);
+
+	/*
+    echo '\n';
+    echo $raw;
+    echo '\n';
+    */
+    
     $xml = new XMLReader();
     $xml->XML($raw);
     while (1)
     {
-        $xml->read() or die('Unable to locate image data!');
+        $xml->read() or die("Unable to locate image data!\n");
         if ($xml->name != 'path')
             continue;
         $raw = $xml->getAttribute('d');
@@ -55,18 +69,25 @@ function convert_svg ($in, $out)
     file_put_contents($out, $data);
 }
 
-$layers = array(
-    'metal_vcc',
-    'metal_gnd',
-    'metal',
-    'vias',
-    'polysilicon',
-    'buried_contacts',
-    'diffusion',
-    'transistors',
-);
+if (count($argv) > 1) {
+	$layers = array_slice($argv, 1);
+} else {
+	//Original hard coded file list
+	$layers = array(
+		'metal_vcc',
+		'metal_gnd',
+		'metal',
+		'vias',
+		'polysilicon',
+		'buried_contacts',
+		'diffusion',
+		'transistors',
+	);
+}
 foreach ($layers as $layer)
-    convert_svg($layer .'.svg', $layer .'.dat');
+	$src_file_name = $layer .'.svg';
+	$dst_file_name = $layer .'.dat';
+    convert_svg($src_file_name, $dst_file_name);
 ?>
 
 
