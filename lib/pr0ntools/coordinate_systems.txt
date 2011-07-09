@@ -1,0 +1,21 @@
+PIL
+	Standard coordinate format
+	Upper left
+
+JSSim
+	Lower left
+
+SVG
+	Upper left
+
+Inkscape
+	Lower left
+	Not a data format...generally
+
+Kolourpaint
+	Upper left
+	Not a data format...generally
+
+Tkinter
+	Upper left
+	
