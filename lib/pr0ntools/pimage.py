@@ -246,6 +246,9 @@ class PImage:
 		#return PImage.get_default_mode()
 		return self.image.mode
 
+	def file_name(self):
+		return self.image.fp.name
+
 	@staticmethod
 	def from_file(path):
 		'''
