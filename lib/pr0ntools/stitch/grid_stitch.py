@@ -1,7 +1,7 @@
 '''
 pr0ntools
 Copyright 2011 John McMaster <JohnDMcMaster@gmail.com>
-Licensed under the terms of the LGPL V3 or later, see COPYING for details
+Licensed under a 2 clause BSD license, see COPYING for details
 
 This is a stitching strategy where a regular input grid is assumed
 I get this using my CNC microscope because the pictures *are* taken as fairly precise intervals

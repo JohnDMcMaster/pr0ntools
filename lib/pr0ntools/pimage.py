@@ -2,7 +2,7 @@
 This file is part of pr0ntools
 Image utility class
 Copyright 2010 John McMaster <JohnDMcMaster@gmail.com>
-Licensed under the terms of the LGPL V3 or later, see COPYING for details
+Licensed under a 2 clause BSD license, see COPYING for details
 '''
 
 import Image

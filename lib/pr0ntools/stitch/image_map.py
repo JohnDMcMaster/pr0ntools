@@ -1,7 +1,7 @@
 '''
 pr0ntools
 Copyright 2010 John McMaster <johnDMcMaster@gmail.com>
-Licensed under the terms of the LGPL V3 or later, see COPYING for details
+Licensed under a 2 clause BSD license, see COPYING for details
 
 Manages a spacial layout of a collection of images
 '''

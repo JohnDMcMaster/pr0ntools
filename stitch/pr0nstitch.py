@@ -2,7 +2,7 @@
 '''
 pr0nstitch: IC die image stitching
 Copyright 2010 John McMaster <johnDMcMaster@gmail.com>
-Licensed under the terms of the LGPL V3 or later, see COPYING for details
+Licensed under a 2 clause BSD license, see COPYING for details
 
 Command refernece:
 http://wiki.panotools.org/Panorama_scripting_in_a_nutshell

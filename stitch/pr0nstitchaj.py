@@ -2,7 +2,7 @@
 '''
 pr0nstitchaj: AJ's autopano WINE wrapper for Hugin
 Copyright 2011 John McMaster <johnDMcMaster@gmail.com>
-Licensed under the terms of the LGPL V3 or later, see COPYING for details
+Licensed under a 2 clause BSD license, see COPYING for details
 '''
 
 from pr0ntools.stitch.pto.project import PTOProject
