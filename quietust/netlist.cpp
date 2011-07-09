@@ -6,9 +6,25 @@ Released under 2 clause BSD license, see COPYING for details
 
 #include <stdio.h>
 #include "polygon.h"
+#include "files.h"
 
 #include <vector>
 using namespace std;
+
+void help(const char *prog_name) {
+	printf("%s: run design rule check (DRC)\n", prog_name);
+	printf("Usage: %s\n", prog_name);
+	printf("(no args...yet)\n");
+	printf("Input files:\n");
+	printf("\t%s\n", DAT_FILE_METAL_VCC);
+	printf("\t%s\n", DAT_FILE_METAL_GND);
+	printf("\t%s\n", DAT_FILE_METAL);
+	printf("\t%s\n", DAT_FILE_POLYSILICON);
+	printf("\t%s\n", DAT_FILE_DIFFUSION);
+	printf("\t%s\n", DAT_FILE_VIAS);
+	printf("\t%s\n", DAT_FILE_BURIED_CONTACTS);
+	printf("\t%s\n", DAT_FILE_TRANSISTORS);
+}
 
 int main (int argc, char **argv)
 {
@@ -18,24 +34,30 @@ int main (int argc, char **argv)
 	unsigned int metal_start, metal_end;
 	unsigned int poly_start, poly_end;
 	unsigned int diff_start, diff_end;
-	readnodes<node>("metal_vcc.dat", nodes, LAYER_METAL);
+
+	if (argc > 1) {
+		help(argv[0]);
+		exit(1);
+	}
+	
+	readnodes<node>(DAT_FILE_METAL_VCC, nodes, LAYER_METAL);
 	if (nodes.size() != 1)
 	{
 		fprintf(stderr, "Error: VCC plane contains more than one node!\n");
 		return 1;
 	}
-	readnodes<node>("metal_gnd.dat", nodes, LAYER_METAL);
+	readnodes<node>(DAT_FILE_METAL_GND, nodes, LAYER_METAL);
 	if (nodes.size() != 2)
 	{
 		fprintf(stderr, "Error: GND plane contains more than one node!\n");
 		return 1;
 	}
 	metal_start = nodes.size();
-	readnodes<node>("metal.dat", nodes, LAYER_METAL);
+	readnodes<node>(DAT_FILE_METAL, nodes, LAYER_METAL);
 	metal_end = poly_start = nodes.size();
-	readnodes<node>("polysilicon.dat", nodes, LAYER_POLY);
+	readnodes<node>(DAT_FILE_POLYSILICON, nodes, LAYER_POLY);
 	poly_end = diff_start = nodes.size();
-	readnodes<node>("diffusion.dat", nodes, LAYER_DIFF);
+	readnodes<node>(DAT_FILE_DIFFUSION, nodes, LAYER_DIFF);
 	diff_end = nodes.size();
 
 	int vcc = 10000;
@@ -45,7 +67,7 @@ int main (int argc, char **argv)
 	vector<node *> vias, matched, unmatched;
 	node *via, *cur, *sub;
 
-	readnodes<node>("vias.dat", vias, LAYER_SPECIAL);
+	readnodes<node>(DAT_FILE_VIAS, vias, LAYER_SPECIAL);
 
 	printf("Parsing VCC plane - %i vias remaining\n", vias.size());
 	{
@@ -174,7 +196,7 @@ int main (int argc, char **argv)
 		}
 	}
 
-	readnodes<node>("buried_contacts.dat", vias, LAYER_SPECIAL);
+	readnodes<node>(DAT_FILE_BURIED_CONTACTS, vias, LAYER_SPECIAL);
 
 	printf("Parsing polysilicon nodes %i thru %i - %i buried contacts remaining\n", poly_start, poly_end - 1, vias.size());
 	for (unsigned int i = poly_start; i < poly_end; i++)
@@ -248,7 +270,7 @@ int main (int argc, char **argv)
 			cur->layer = LAYER_DIFF_GND;
 	}
 
-	readnodes<transistor>("transistors.dat", transistors, LAYER_SPECIAL);
+	readnodes<transistor>(DAT_FILE_TRANSISTORS, transistors, LAYER_SPECIAL);
 	transistor *cur_t;
 	nextNode = 10000;
 
@@ -351,11 +373,11 @@ int main (int argc, char **argv)
 
 	FILE *out;
 
-	printf("Writing transdefs.js\n");
-	out = fopen("transdefs.js", "wt");
+	printf("Writing %s\n", JS_FILE_TRANSDEFS);
+	out = fopen(JS_FILE_TRANSDEFS, "wt");
 	if (!out)
 	{
-		fprintf(stderr, "Unable to create transdefs.js!\n");
+		fprintf(stderr, "Unable to create %s!\n", JS_FILE_TRANSDEFS);
 		return 1;
 	}
 //	fprintf(out, "var transdefs = [\n");
@@ -371,11 +393,11 @@ int main (int argc, char **argv)
 	fclose(out);
 	transistors.clear();
 
-	printf("Writing segdefs.js\n");
-	out = fopen("segdefs.js", "wt");
+	printf("Writing %s\n", JS_FILE_SEGDEFS);
+	out = fopen(JS_FILE_SEGDEFS, "wt");
 	if (!out)
 	{
-		fprintf(stderr, "Unable to create segdefs.js!\n");
+		fprintf(stderr, "Unable to create %s!\n", JS_FILE_SEGDEFS);
 		return 1;
 	}
 //	fprintf(out, "var segdefs = [\n");

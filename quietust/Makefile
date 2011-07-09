@@ -4,14 +4,21 @@
 
 CFLAGS=-Wall -Werror
 
-all: qtchk qtnl
+QTDRC=qtdrc
+QTNL=qtnl
+EXES=$(QTDRC) $(QTNL)
 
-qtchk:
-	g++ check.cpp $(CFLAGS) -o qtchk
+all: $(EXES) example
 
-qtnl:
-	g++ netlist.cpp $(CFLAGS) -o qtnl
+$(QTDRC): check.cpp
+	g++ check.cpp $(CFLAGS) -o $(QTDRC)
+
+$(QTNL): netlist.cpp
+	g++ netlist.cpp $(CFLAGS) -o $(QTNL)
+
+example:
+	convertsvg.php 
 	
 clean:
-	rm -f qtchk qtnk *.o
+	rm -f $(EXES) *.o
 

@@ -1,3 +1,4 @@
+#!/usr/bin/env php
 <?php
 /*
 Copyright 2011 Quietust
@@ -7,11 +8,14 @@ Minor modifications by John McMaster <JohnDMcMaster@gmail.com>
 
 function convert_svg ($in, $out)
 {
-    if (filemtime($in) <= filemtime($out))
-    {
-        echo "$out is up to date, skipping.\n";
-        return;
-    }
+	# Hmm this is what make is for...might remove
+	if (file_exists($out)) {
+		if (filemtime($in) <= filemtime($out))
+		{
+		    echo "$out is up to date, skipping.\n";
+		    return;
+		}
+	}
     echo "Parsing $in...\n";
     $data = '';
 	//Apparantly SVG files are pure XML
@@ -27,7 +31,23 @@ function convert_svg ($in, $out)
     $xml->XML($raw);
     while (1)
     {
-        $xml->read() or die("Unable to locate image data!\n");
+		/*
+		libxml_use_internal_errors(true);
+        if (!$xml->read() && false) {
+        	print "Read failed\n";
+			$errors = libxml_get_errors();
+			print $errors . ", " . count($errors) . "\n";
+			foreach ($errors as $error) {
+        		// handle errors here
+				print "error: " . $error . "\n";
+			}
+			libxml_clear_errors();
+        	//print xml_error_string(xml_get_error_code($xml)) . "\n";
+			die("Unable to locate image data!\n");
+		}
+		*/
+		$xml->read() or die("Unable to locate image data!\n");
+		print $xml->name . "\n";
         if ($xml->name != 'path')
             continue;
         $raw = $xml->getAttribute('d');
@@ -72,7 +92,7 @@ function convert_svg ($in, $out)
 if (count($argv) > 1) {
 	$layers = array_slice($argv, 1);
 } else {
-	//Original hard coded file list
+	//Original hard coded file list	
 	$layers = array(
 		'metal_vcc',
 		'metal_gnd',
@@ -84,10 +104,26 @@ if (count($argv) > 1) {
 		'transistors',
 	);
 }
-foreach ($layers as $layer)
+
+//Pre-check that all files are present
+$abort = false;
+foreach ($layers as $layer) {
+	$src_file_name = $layer .'.svg';
+	if (!file_exists($src_file_name)) {
+		print 'File ' . $src_file_name . " is missing\n";
+		$abort = true;
+	}
+}
+if ($abort) {
+	print "Errors, aborting\n";
+	exit(1);
+}
+
+foreach ($layers as $layer) {
 	$src_file_name = $layer .'.svg';
 	$dst_file_name = $layer .'.dat';
     convert_svg($src_file_name, $dst_file_name);
+}
 ?>
 
 
