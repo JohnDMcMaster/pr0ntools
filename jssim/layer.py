@@ -1,5 +1,10 @@
+using_tkinter = True
+
 import xml.parsers.expat
 from shapely.geometry import Polygon
+if using_tkinter:
+	from Tkinter import *
+
 
 '''
 Net should not know anything about polygons
@@ -27,6 +32,9 @@ class Net:
 		
 	def add_member(self, member):
 		self.members.add(member)
+	
+	def remove_member(self, member):
+		self.members.remove(member)
 		
 	def merge(self, other):
 		for member in other.members:
@@ -44,19 +52,23 @@ class Net:
 			UNKNOWN and X: X
 		'''
 		# Expect most common case
+		print 'net merge, potential = (self: %u, other: %u)' %(self.potential, other.potential)
 		if self.potential == Net.UNKNOWN:
-			self.potential == other.potential
+			self.potential = other.potential
 		else:
 			p1 = self.potential
 			p2 = other.potential
-			# Sort to reduce cases (p1 lower)
+			# Sort to reduce cases (want p1 lower)
 			if p1 > p2:
 				p = p1
 				p1 = p2
 				p2 = p
-			# Expect most common case
-			if p1 == Net.UNKNOWN:
+			# Expect most common case: both unknown
+			if p2 == Net.UNKNOWN:
 				pass
+			# One known but not the other?
+			elif p1 == Net.UNKNOWN:
+				self.potential = p2
 			elif p1 == Net.VDD and t2 == Net.GND:
 				raise Exception("Supply shorted")
 			elif (p1 == Net.VDD or p1 == Net.GND) and (p2 == Net.PU or p2 == Net.PD):
@@ -66,6 +78,7 @@ class Net:
 				print p1
 				print p2
 				raise Exception('Unaccounted for net potential merge')
+		print 'End potential: %u' % self.potential
 		
 	def get_pullup(self):
 		if self.potential == Net.PU:
@@ -145,8 +158,9 @@ class PolygonRenderer:
 		
 	# Call after setup
 	def render(self):
-		from Tkinter import *
-
+		if not using_tkinter:
+			raise Exception("require tkinter")
+			
 		root = Tk()
 
 		root.title('Canvas')
@@ -197,12 +211,14 @@ class UVPolygon:
 		
 		if points:
 			self.points = points
-		
-			self.polygon = Polygon([(point.x, point.y) for point in points])
-			self.rebuild_xpolygon()
+			self.set_polygon(Polygon([(point.x, point.y) for point in points]))
+	
+	def set_polygon(self, polygon):
+		self.polygon = polygon
+		self.rebuild_xpolygon()
 	
 	def coordinates(self):
-		'''return (JSSim style) single dimensional array of coordinates'''
+		'''return (JSSim style) single dimensional array of coordinates (WARNING: UL coordinate system)'''
 		# return [i for i in [point.x,point.y) for point in self.points]
 		# l = [(1, 2), (3, 4), (50, 32)]
 		# print [i for i in [(x[0],x[1]) for x in l]]
@@ -290,7 +306,18 @@ class UVPolygon:
 		FIXME
 	
 	def show(self):
-		from Tkinter import *
+		'''
+		r = PolygonRenderer()
+		points = list()
+		for point in self.points:
+			points.append(point.x)
+			points.append(point.y)
+		r.add_polygon(points, 'white')
+		r.render()
+		'''
+		
+		if not using_tkinter:
+			raise Exception("require tkinter")
 
 		root = Tk()
 
@@ -307,7 +334,6 @@ class UVPolygon:
 
 		canvas.pack()
 		root.mainloop()
-		
 
 	def points(self):
 		ret = list()
@@ -376,6 +402,7 @@ class Layer:
 		# Default color if polygon doesn't have one
 		self.color = None
 		self.potential = Net.UNKNOWN
+		#self.virtual = False
 
 	@staticmethod
 	def is_valid(layer_index):
@@ -384,11 +411,26 @@ class Layer:
 	@staticmethod
 	def from_layers(layers, name=None):
 		ret = Layer()
+		#ret.virtual = True
 		for layer in layers:
 			for polygon in layer.polygons:
 				ret.polygons.add(polygon)
 		ret.name = name
 		return ret
+	
+	def show(self):
+		r = PolygonRenderer()
+		r.add_layer(self)
+		r.render()
+
+	def gen_polygons(self):
+		for polygon in self.polygons:
+			yield polygon
+		
+	def remove_polygon(self, polygon):
+	
+		print self.polygons
+		self.polygons.remove(polygon)
 		
 	def assign_nets(self, netgen):
 		for polygon in self.polygons:
@@ -398,11 +440,14 @@ class Layer:
 				polygon.net.add_member(polygon)
 				# If the layer has a potential defined to it, propagate it
 				polygon.net.potential = self.potential
+				print 'self potential: %u' % self.potential
 
 	def __repr__(self):
 		ret = ''
+		sep = ''
 		for polygon in self.polygons:
-			ret += polygon.__repr__() + '\n'
+			ret += polygon.__repr__() + sep
+			sep = ', '
 		return ret
 		
 	def get_name(self):
@@ -412,28 +457,48 @@ class Layer:
 		# list of intersecting polygons
 		xintersections = list()
 		print 'Checking intersection of %s (%u) and %s (%u)' % (self.name, len(self.polygons), other.name, len(other.polygons))
-		for self_polygon in self.polygons:
-			for other_polygon in other.polygons:
-				if do_xintersection:
-					poly1 = self_polygon.xpolygon
-					poly2 = other_polygon.xpolygon
-				else:
-					poly1 = self_polygon.polygon
-					poly2 = other_polygon.polygon
-				
-				if False:
-					print 'Checking:'
-					print '\t%s: %s' % (self.name, poly1)
-					print '\t%s: %s' % (other.name, poly2)
-				
-				if poly1.intersects(poly2):
-					print 'Intersection!'
-					print '%s %s vs %s %s' % (self.name, poly1, other.name, poly2)
-					xintersection = UVPolygon.from_polygon(poly1).intersection(UVPolygon.from_polygon(poly2))
-					# Tack on some intersection data
-					xintersection.poly1 = self_polygon
-					xintersection.poly2 = other_polygon
-					xintersections.append(xintersection)
+		
+		def gen_pairs_normal():
+			'''Normal polygon generator where polygons don't repeat'''
+			for self_polygon in self.polygons:
+				for other_polygon in other.polygons:
+					yield (self_polygon, other_polygon)
+		
+		def gen_pairs_same():
+			'''Avoid comparing against self'''
+			tried = set()
+			polygons = list(self.polygons)
+			# Trim off i = 0 case (range(0, 0) = [])
+			for i in range(1, len(polygons)):
+				for j in range(0, i):
+					yield (polygons[i], polygons[j])
+					
+		if self == other:
+			polygen = gen_pairs_same()
+		else:
+			polygen = gen_pairs_normal()
+		
+		for (self_polygon, other_polygon) in polygen:
+			if do_xintersection:
+				poly1 = self_polygon.xpolygon
+				poly2 = other_polygon.xpolygon
+			else:
+				poly1 = self_polygon.polygon
+				poly2 = other_polygon.polygon
+			
+			if False:
+				print 'Checking:'
+				print '\t%s: %s' % (self.name, poly1)
+				print '\t%s: %s' % (other.name, poly2)
+			
+			if poly1.intersects(poly2):
+				print 'Intersection!'
+				print '%s %s vs %s %s' % (self.name, poly1, other.name, poly2)
+				xintersection = UVPolygon.from_polygon(poly1).intersection(UVPolygon.from_polygon(poly2))
+				# Tack on some intersection data
+				xintersection.poly1 = self_polygon
+				xintersection.poly2 = other_polygon
+				xintersections.append(xintersection)
 		return LayerI(self, other, xintersections)
 
 	@staticmethod

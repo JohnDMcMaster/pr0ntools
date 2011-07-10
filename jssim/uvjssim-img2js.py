@@ -46,6 +46,7 @@ DEFAULT_IMAGE_FILE_DIFFUSION = "diffusion" + DEFAULT_IMAGE_EXTENSION
 DEFAULT_IMAGE_FILE_VIAS = "vias" + DEFAULT_IMAGE_EXTENSION
 DEFAULT_IMAGE_FILE_BURIED_CONTACTS = "buried_contacts" + DEFAULT_IMAGE_EXTENSION
 DEFAULT_IMAGE_FILE_TRANSISTORS = "transistors" + DEFAULT_IMAGE_EXTENSION
+DEFAULT_IMAGE_FILE_LABELS = "labels" + DEFAULT_IMAGE_EXTENSION
 
 JS_FILE_TRANSDEFS = "transdefs.js"
 JS_FILE_SEGDEFS = "segdefs.js"
@@ -62,8 +63,59 @@ Assume visual6502 coordinate system
 
 from layer import Layer
 
+class NodeName:
+	def __init__(self, name=None, net=None):
+		# string
+		self.name = name
+		# int
+		self.net = net
+
+	def run_DRC(self):
+		pass
+	
+	def __repr__(self):
+		# clk0: 4,
+		return '%s: %u' % (self.name, self.net)
+
+class NodeNames:
+	def __init__(self):
+		self.nodenames = list()
+	
+	def run_DRC(self):
+		pass
+		
+	def __repr__(self):
+		'''Return nodenames.js content'''
+
+		'''
+		var nodenames ={
+		gnd: 2,
+		vcc: 1,
+		out1: 3,
+		in1: 4,
+		clk0: 4,
+		}
+		'''
+
+		ret = ''
+		ret += 'var nodenames = {\n'
+		
+		for nodename in self.nodenames:
+			# Having , at end is acceptable
+			ret += rep(nodename) + ',\n'
+		
+		ret += '}\n'
+		return ret
+
+	def write(self):
+		f = open(JS_FILE_SEGDEFS, 'w')
+		f.write(self.__repr__())
+		f.close()
+
 class Segdef:
 	'''
+	WARNING: needs coordinates in lower left, standard is upper left
+	
 	defines an array segdefs[], with a typical element 
 	[4,'+',1,4351,8360,4351,8334,4317,8334,4317,8360], 
 	giving the 
@@ -124,7 +176,7 @@ class Segdef:
 
 	def __repr__(self):
 		ret = ''
-		print 'net: ' + repr(self.net)
+		#print 'net: ' + repr(self.net)
 		ret += "[%u,'%c',%u" % (self.net, self.pullup, self.layer_index)
 		for coordinate in self.coordinates:
 			ret += ',%u' % coordinate
@@ -170,6 +222,8 @@ class Segdefs:
 	
 class Transdef:
 	'''
+	WARNING: needs coordinates in lower left, standard is upper left
+	
 	(Ijor's?) comment from 6800's transdefs:
 	/*
 	 * The format here is
@@ -293,6 +347,7 @@ class UVJSSimGenerator:
 			src_images['polysilicon'] = DEFAULT_IMAGE_FILE_POLYSILICON
 			src_images['diffusion'] = DEFAULT_IMAGE_FILE_DIFFUSION
 			src_images['vias'] = DEFAULT_IMAGE_FILE_VIAS
+			src_images['labels'] = DEFAULT_IMAGE_FILE_LABELS
 		
 		# visual6502 net numbers seem to start at 1, not 0
 		self.min_net_number = 1
@@ -326,11 +381,14 @@ class UVJSSimGenerator:
 		self.diffusion = Layer.from_svg(src_images['diffusion'])		
 		#self.diffusion.index = Layer.UNKNOWN_DIFFUSION
 
+		self.labels = Layer.from_svg(src_images['labels'])
+
 		#self.buried_contacts = Layer(DEFAULT_IMAGE_FILE_BURIED_CONTACTS)
 		#self.transistors = Layer(DEFAULT_IMAGE_FILE_TRANSISTORS)
 		self.transistors = Transistors()
 
 		self.layers = [self.polysilicon, self.diffusion, self.vias, self.metal_vcc, self.metal_gnd, self.metal]
+		self.verify_layer_sizes_after_load()
 		
 		# net to set of polygons
 		# Used for merging nets
@@ -341,6 +399,17 @@ class UVJSSimGenerator:
 	def reset_net_number(self):
 		self.last_net = self.min_net_number - 1
 
+	def verify_layer_sizes_after_load(self):
+		self.width = self.metal.width
+		self.height = self.metal.height
+		#self.metal.show()
+		
+		for layer in self.layers:
+			if layer.width != self.width:
+				raise Exception('layer width mismatch')
+			if layer.height != self.height:
+				raise Exception('layer height mismatch')
+	
 	def verify_layer_sizes(self, images):
 		width = None
 		height = None
@@ -426,6 +495,7 @@ class UVJSSimGenerator:
 			for polygon in layer.polygons:
 				net = polygon.net
 				self.nets.add(net)
+				print 'post potential: %u' % polygon.net.potential
 					
 	def reassign_nets(self):
 		'''
@@ -530,8 +600,85 @@ class UVJSSimGenerator:
 			
 			print 'Adding transistor'
 			self.transistors.add(transistor)
+	
+	def all_layers(self):
+		'''All polygon layers including virtual layers but not metadata layers'''
+		return self.layers + [self.metals]
+
+	def remove_polygon(self, polygon):
+		# TODO: for now this is for poly merge and we won't get a zombie net
+		# we may need to delete the net entirely at some point in the future
+		self.nets[polygon.net.number].remove_member(polygon)
+		# Invalidate references?
+		# del polygon
+		#print
+		for layer in self.all_layers():
+			print 'Checking ' + layer.name
+			if polygon in layer.polygons:
+				print '***Removing polygon from ' + layer.name
+				layer.remove_polygon(polygon)
+		#print
+
+	def merge_polygons(self, layeri):		
+		# And now we must make a single polygon
+		# poly1 will be the new polygon
+		# we must keep track of successors or we lose merge info
+		# union will only work on true intersection, we must work with the xplogyons?
+		# actually we only care about overlap so no we don't
+		# [old] = new
+		successors = dict()
 		
+		print
+		print
+		print
+		print 'Checking polygons for self merge...'
+		for polygon in layeri.polygons:
+			poly1 = polygon.poly1
+			poly2 = polygon.poly2
+			
+			# Avoid merging against self (should be optimized out of intersection)
+			if poly1 == poly2:
+				raise Exception('equal early')
+				
+			# Only worry if the actual polygons overlap, not the xpolygons
+			# Note that we can safely do this check on the original polygon and not the new polygon (if applicable)
+			if not poly1.polygon.intersects(poly2.polygon):
+				print 'Rejecting xpolygon only match'
+				continue
+			
+			# May have been merged, figure out what polygon it currently belongs to
+			while poly1 in successors:
+				poly1 = successors[poly1]
+			while poly2 in successors:
+				poly2 = successors[poly2]
+			
+			union = poly1.polygon.union(poly2.polygon)
+			print 'union: ' + repr(union)
+			# Replace poly1's polygon and get rid of poly2
+			# We may have 
+			if poly1 == poly2:
+				raise Exception('equal late')
+			successors[poly2] = poly1
+			poly1.set_polygon(union)
+			self.remove_polygon(poly2)
+	
+		if True:
+			print 'Polygon intersections: %u' % len(layeri.polygons)
+			print
+			print 'metals:'
+			print self.metals
+			#self.metals.show()
+			print
+			
+			print 'metals polygons: %u' % len(self.metals.polygons)
+			if len(self.metals.polygons) != 4:
+				print 'FAILED'
+			#sys.exit(1)
+
 	def merge_nets(self, layeri):
+#		self.merge_nets_core(layeri, False)
+		
+#	def merge_nets_core(self, layeri, same_layer):
 		'''
 		At the beginning of this function we have computed intersections (layeri)
 		but not yet started a marge
@@ -556,11 +703,17 @@ class UVJSSimGenerator:
 					polygon.net = new_net
 				self.nets.merge(new_net.number, old_net.number)
 						
-	def condense_layers(self):
-		'''Merge nets on same layer, needed if multiple polygons when could have done single'''
-		for layer in self.layers:
+	def condense_polygons(self):
+		'''Merge polygons on same layer if they intersect'''
+		return
+		
+		#for layer in self.layers:
+		for layer in [self.metal]:
 			layeri = layer.intersection(layer)
+			# Electically connect them
 			self.merge_nets(layeri)
+			# and visually merge them
+			self.merge_polygons(layeri)
 		
 	def merge_poly_vias_layers(self):		
 		print 'Metal polygons: %u' % len(self.metals.polygons)
@@ -601,7 +754,7 @@ class UVJSSimGenerator:
 		# Combine polygons at a net level on the same layer
 		# Only needed if you have bad input polygons
 		# Really would be better to pre-process input to combine them
-		self.condense_layers()
+		self.condense_polygons()
 		
 		# Note that you cannot have diffusion and poly, via is for one or the other		
 		self.merge_metal_vias()
@@ -609,6 +762,12 @@ class UVJSSimGenerator:
 		self.merge_poly_vias_layers()
 		# Connect diffusion to metal
 		self.merge_diffusion_vias_layers()
+		
+	def polygon_coordinates(self, polygon):
+		ret = polygon.coordinates()
+		for i in range(1, len(ret), 2):
+			ret[i] = self.y2jssim(ret[i])
+		return ret
 		
 	def build_segdefs(self):
 		segdefs = Segdefs()
@@ -618,7 +777,8 @@ class UVJSSimGenerator:
 			net = polygon.net
 			
 			pullup = net.get_pullup()
-						
+			
+			print 'Diffusion net potential: %u' % net.potential
 			if net.potential == Net.VDD:
 				layer_index = Layer.POWERED_DIFFUSION
 			elif net.potential == Net.GND:
@@ -627,9 +787,9 @@ class UVJSSimGenerator:
 			else:
 				layer_index = Layer.DIFFUSION
 				
-			coordinates = polygon.coordinates()
+			coordinates = self.polygon_coordinates(polygon)
 				
-			print 'early ' + repr(net.number)
+			#print 'early ' + repr(net.number)
 			segdef = Segdef(net.number, pullup, layer_index, coordinates)
 			segdefs.segdefs.append(segdef)
 
@@ -640,20 +800,21 @@ class UVJSSimGenerator:
 						
 			layer_index = Layer.POLYSILICON
 				
-			coordinates = polygon.coordinates()
+			coordinates = self.polygon_coordinates(polygon)
 				
 			segdef = Segdef(net.number, pullup, layer_index, coordinates)
 			segdefs.segdefs.append(segdef)
 			
 			
 		# Must be last
-		for polygon in self.metals.polygons:
+		for polygon in self.metals.gen_polygons():
+			
 			net = polygon.net
 			pullup = net.get_pullup()
 						
 			layer_index = Layer.METAL
 				
-			coordinates = polygon.coordinates()
+			coordinates = self.polygon_coordinates(polygon)
 				
 			segdef = Segdef(net.number, pullup, layer_index, coordinates)
 			segdefs.segdefs.append(segdef)
@@ -668,6 +829,15 @@ class UVJSSimGenerator:
 	def reset_transistor_names(self):
 		self.last_transistor_name_index = 0
 	
+	'''
+	Coordinate system convention transforms
+	'''
+	def x2jssim(self, x):
+		return int(x)
+	def y2jssim(self, y):
+		#return int(y)
+		return self.height - int(y)
+		
 	def build_transdefs(self):
 		'''
 		Find poly with two intersecting diffusion areas
@@ -691,8 +861,9 @@ class UVJSSimGenerator:
 			xmin = min(x1, x2)
 			xmax = max(x1, x2)
 				
-			y1 = int(transistor.rect_p1.y)
-			y2 = int(transistor.rect_p2.y)
+			# Convert from UL to LL corrdinates
+			y1 = self.y2jssim(transistor.rect_p1.y)
+			y2 = self.y2jssim(transistor.rect_p2.y)
 			ymin = min(y1, y2)
 			ymax = max(y1, y2)
 			
