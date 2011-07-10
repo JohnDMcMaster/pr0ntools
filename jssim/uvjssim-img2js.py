@@ -34,7 +34,7 @@ TODO:
 
 from pr0ntools.pimage import PImage
 import sys
-from layer import UVPolygon, Net, Nets, PolygonRenderer
+from layer import UVPolygon, Net, Nets, PolygonRenderer, Point
 
 
 DEFAULT_IMAGE_EXTENSION = ".svg"
@@ -237,15 +237,19 @@ class Transdefs:
 		
 		for transdef in self.transdefs:
 			# Having , at end is acceptable
-			ret += transdef + ',\n'
+			ret += repr(transdef) + ',\n'
 			
 		ret += ']\n'
 		return ret
+	
+	def add(self, transdef):
+		self.transdefs.append(transdef)
 	
 	def write(self):
 		f = open(JS_FILE_TRANSDEFS, 'w')
 		f.write(self.__repr__())
 		f.close()
+	
 class Transistor:
 	'''
 	JSSim likes c1 more "interesting" than c2
@@ -253,17 +257,31 @@ class Transistor:
 	'''
 	
 	def __init__(self, g=None, c1=None, c2=None):
+		# These should be Net objects, not numbers
 		# gate
 		self.g = g
 		# connection1
 		self.c1 = c1
 		# connection2
 		self.c2 = c2
+		
+		# Rectangle (two Point's)
+		self.rect_p1 = None
+		self.rect_p2 = None
+		self.weak = None
+	
+	def set_bb(self, point1, point2):
+		self.rect_p1 = point1
+		self.rect_p2 = point2
+		
 	
 class Transistors:
 	def __init__(self):
 		# no particular order
 		self.transistors = set()
+	
+	def add(self, transistor):
+		self.transistors.add(transistor)
 
 class UVJSSimGenerator:
 	def __init__(self, src_images = None):
@@ -279,7 +297,7 @@ class UVJSSimGenerator:
 		# visual6502 net numbers seem to start at 1, not 0
 		self.min_net_number = 1
 				
-		self.transdefs = list()
+		self.transdefs = Transdefs()
 		
 		self.reset_net_number()
 		
@@ -310,6 +328,7 @@ class UVJSSimGenerator:
 
 		#self.buried_contacts = Layer(DEFAULT_IMAGE_FILE_BURIED_CONTACTS)
 		#self.transistors = Layer(DEFAULT_IMAGE_FILE_TRANSISTORS)
+		self.transistors = Transistors()
 
 		self.layers = [self.polysilicon, self.diffusion, self.vias, self.metal_vcc, self.metal_gnd, self.metal]
 		
@@ -437,6 +456,11 @@ class UVJSSimGenerator:
 				polygon.net = net
 			self.nets.add(net)
 	
+	def find_pullups(self):
+		'''Find pullup transistors, mark net as pullup, and remove from transistor list'''
+		# FIXME
+		pass
+				
 	def find_transistors(self):
 		'''
 		Find / connect transistors
@@ -446,13 +470,66 @@ class UVJSSimGenerator:
 		These will form the sides of the transistor and maybe can take the extremes of that area to form the transistor
 		polygon
 		
+		Notice that any funky split polysilicon polygons won't be detected correctly
+		Could match at the net level?
+		Complicated if multi poly gates
+		Use this until it breaks
+		
 		Low priority since harder and not really used in simulation
 		''' 
 		
+		print 'Finding transistors...'
 		print 'Poly polygons: %u' % len(self.polysilicon.polygons)
 		print 'Diff polygons: %u' % len(self.diffusion.polygons)
 		layeri = self.polysilicon.intersection(self.diffusion)
 		#layeri.show()
+
+		# [polysilicon polygon objecty] = diffusion set
+		# Try to find the two diffusion to each poly
+		candidates = dict()
+		for polygon in layeri.polygons:
+			# poly1 is polysilicon, poly2 diffusion
+			polysilicon_polygon = polygon.poly1
+			diffusion_polygon = polygon.poly2
+			if polysilicon_polygon in candidates:
+				s = candidates[polysilicon_polygon]
+			else:
+				s = set()
+			s.add(diffusion_polygon)
+			candidates[polysilicon_polygon] = s
+			
+		print '%u transistor candidates' % len(candidates)
+		# Now create transistor objects for each valid transistor
+		for polysilicon_polygon in candidates:
+			diffusion_polygons = candidates[polysilicon_polygon]
+			if len(diffusion_polygons) != 2:
+				raise Exception("Unexpected number of diffusion polygons intersecting polysilicon polygon")
+			# Merge should have already ran
+			
+			transistor = Transistor()
+			transistor.g = polysilicon_polygon.net
+			cs = list(diffusion_polygons)
+			transistor.c1 = cs[0].net
+			transistor.c2 = cs[1].net
+			# Try to optimize connections to make pullup / pulldown easier to detect (JSSim will also want this)
+			if transistor.c2.potential == Net.VDD or transistor.c2.potential == Net.GND:
+				temp = transistor.c1
+				transistor.c1 = transistor.c2
+				transistor.c2 = temp
+			
+			# rough approximation hack assuming square...fix later
+			# we need to truncate to the region inside the bound box
+			# slightly better: take points from opposite ends of the intersection to make a rectangle, intersection with poly
+			transistor.set_bb(polysilicon_polygon.points[0], polysilicon_polygon.points[2])
+			
+			'''
+			Pullup if c1 is high and c2 is connected to g
+			(weak and pullup are treated identically)
+			'''
+			transistor.weak = transistor.c1 == Net.VDD and (transistor.c2 == transistor.g)
+			
+			print 'Adding transistor'
+			self.transistors.add(transistor)
 		
 	def merge_nets(self, layeri):
 		'''
@@ -533,11 +610,6 @@ class UVJSSimGenerator:
 		# Connect diffusion to metal
 		self.merge_diffusion_vias_layers()
 		
-	def find_pullups(self):
-		'''Find pullup transistors, mark net as pullup, and remove from transistor list'''
-		# FIXME
-		pass
-				
 	def build_segdefs(self):
 		segdefs = Segdefs()
 		# Everything that needs rendering
@@ -589,6 +661,13 @@ class UVJSSimGenerator:
 		print segdefs
 		segdefs.write()
 	
+	def get_transistor_name(self):
+		self.last_transistor_name_index += 1
+		return 't%u' % self.last_transistor_name_index
+	
+	def reset_transistor_names(self):
+		self.last_transistor_name_index = 0
+	
 	def build_transdefs(self):
 		'''
 		Find poly with two intersecting diffusion areas
@@ -597,8 +676,35 @@ class UVJSSimGenerator:
 		''' 
 		
 		transdefs = Transdefs()
-		
-		
+		self.reset_transistor_names()
+		print 'Building transdefs for %u transistors...' % len(self.transistors.transistors)
+		for transistor in self.transistors.transistors:
+			name = self.get_transistor_name()
+			gate = transistor.g.number
+			c1 = transistor.c1.number
+			c2 = transistor.c2.number
+			
+			
+			# [xmin, xmax, ymin, ymax]
+			x1 = int(transistor.rect_p1.x)
+			x2 = int(transistor.rect_p2.x)
+			xmin = min(x1, x2)
+			xmax = max(x1, x2)
+				
+			y1 = int(transistor.rect_p1.y)
+			y2 = int(transistor.rect_p2.y)
+			ymin = min(y1, y2)
+			ymax = max(y1, y2)
+			
+			bb = (xmin, xmax, ymin, ymax)
+			
+			# RFU, completly ignored
+			geometry = [0, 0, 0, 0, 0]
+			weak = transistor.weak
+			
+			transdef = Transdef(name, gate, c1, c2, bb, geometry, weak)
+			transdefs.add(transdef)
+			
 		print transdefs
 		transdefs.write()
 
@@ -619,8 +725,6 @@ class UVJSSimGenerator:
 		r.render()
 
 	def run(self):
-		print 'Vaporware'
-		
 		# Loop until we can't combine nets
 		iteration = 0
 		
@@ -632,16 +736,16 @@ class UVJSSimGenerator:
 		
 		self.assign_nets()
 		self.find_and_merge_nets()
+		self.find_transistors()
 		self.find_pullups()
 		# Now make them linearly ordered
 		self.reassign_nets()
 		# This wasn't needed because we can figure it out during build
 		#self.mark_diffusion()
-		self.find_transistors()
 		
-		print 'Nets: %u, expecting 4' % self.last_net
+		#print 'Nets: %u, expecting 4' % self.last_net
 		#self.show_nets()
-		sys.exit(1)
+		#sys.exit(1)
 		
 		self.build_segdefs()
 		self.build_transdefs()
