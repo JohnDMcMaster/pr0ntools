@@ -163,7 +163,7 @@ class PolygonRenderer:
 			
 		root = Tk()
 
-		root.title('Canvas')
+		root.title(self.title)
 		canvas = Canvas(root, width =400, height=400)
 
 		# Upper left origin origin just like us
@@ -187,7 +187,7 @@ class PolygonRenderer:
 			canvas.create_polygon(points, fill=color)
 
 		canvas.pack()
-		root.title(self.title)
+		#root.title(self.title)
 		root.mainloop()
 
 '''
@@ -210,12 +210,13 @@ class UVPolygon:
 		self.net = None
 		
 		if points:
-			self.points = points
 			self.set_polygon(Polygon([(point.x, point.y) for point in points]))
 	
 	def set_polygon(self, polygon):
 		self.polygon = polygon
+		self.rebuild_points()
 		self.rebuild_xpolygon()
+		#self.show("show self")
 	
 	def coordinates(self):
 		'''return (JSSim style) single dimensional array of coordinates (WARNING: UL coordinate system)'''
@@ -256,6 +257,10 @@ class UVPolygon:
 			first = False
 		ret += '" />'
 		return ret
+		
+	def union(self, other):
+		poly = self.polygon.union(other.polygon)
+		return UVPolygon.from_polygon(poly)
 
 	def rebuild_xpolygon(self):
 		'''
@@ -305,7 +310,7 @@ class UVPolygon:
 	def show_polygons(polygons):
 		FIXME
 	
-	def show(self):
+	def show(self, title='Polygon'):
 		'''
 		r = PolygonRenderer()
 		points = list()
@@ -321,7 +326,7 @@ class UVPolygon:
 
 		root = Tk()
 
-		root.title('Canvas')
+		root.title(title)
 		canvas = Canvas(root, width =400, height=400)
 
 		# Upper left origin origin just like us
@@ -360,9 +365,9 @@ class LayerI:
 		self.layer2 = layer2
 		self.polygons = polygons
 
-	def show(self):
+	def show(self, title=None):
 		#UVPolygon.show_polygons(xintersections)
-		r = PolygonRenderer()
+		r = PolygonRenderer(title)
 		r.add_layer(self.layer1, 'red')
 		r.add_layer(self.layer2, 'green')
 		# Render intersection last
@@ -418,8 +423,8 @@ class Layer:
 		ret.name = name
 		return ret
 	
-	def show(self):
-		r = PolygonRenderer()
+	def show(self, title=None):
+		r = PolygonRenderer(title)
 		r.add_layer(self)
 		r.render()
 

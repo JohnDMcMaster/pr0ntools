@@ -23,13 +23,6 @@ For now assume all data is rectangular
 Maybe use Inkscape .svg or 
 
 
-
-TODO:
--Generate transistor polygons
--Compute pullups
--Remove pullups from transistors
--Give a .txt input file that specifies a point to node name
-	(assumes each node has at least one unique spot which seems reasonable, there should be at least one via)
 '''
 
 from pr0ntools.pimage import PImage
@@ -327,7 +320,9 @@ class Transistor:
 	def set_bb(self, point1, point2):
 		self.rect_p1 = point1
 		self.rect_p2 = point2
-		
+
+	def __repr__(self):
+		return 'c1: %u, g: %u, c2: %u, weak: %s' % (self.c1.number, self.g.number, self.c2.number, repr(self.weak))
 	
 class Transistors:
 	def __init__(self):
@@ -395,6 +390,9 @@ class UVJSSimGenerator:
 		# number to net object
 		self.nets = Nets()
 		#self.polygon_nets = dict()
+		
+		self.vdd = None
+		self.vss = None
 
 	def reset_net_number(self):
 		self.last_net = self.min_net_number - 1
@@ -525,12 +523,33 @@ class UVJSSimGenerator:
 			for polygon in net.members:
 				polygon.net = net
 			self.nets.add(net)
+			
+			'''
+			if net.potential == Net.VDD:
+				self.vdd = net
+			elif net.potential == Net.GND:
+				self.vss = net
+			'''
 	
 	def find_pullups(self):
 		'''Find pullup transistors, mark net as pullup, and remove from transistor list'''
 		# FIXME
-		pass
-				
+		for transistor in self.transistors.transistors:
+			pass
+			#if transistor.c2 == Net.VDD and 
+	
+	def print_important_nets(self):
+		for net_number in self.nets.nets:
+			net = self.nets.nets[net_number]
+			
+			if net.potential == Net.VDD:
+				self.vdd = net
+			elif net.potential == Net.GND:
+				self.vss = net
+
+		print 'VDD: %u' % self.vdd.number
+		print 'GND: %u' % self.vss.number
+	
 	def find_transistors(self):
 		'''
 		Find / connect transistors
@@ -582,7 +601,7 @@ class UVJSSimGenerator:
 			transistor.c1 = cs[0].net
 			transistor.c2 = cs[1].net
 			# Try to optimize connections to make pullup / pulldown easier to detect (JSSim will also want this)
-			if transistor.c2.potential == Net.VDD or transistor.c2.potential == Net.GND:
+			if transistor.c1.potential == Net.VDD or transistor.c1.potential == Net.GND:
 				temp = transistor.c1
 				transistor.c1 = transistor.c2
 				transistor.c2 = temp
@@ -596,7 +615,12 @@ class UVJSSimGenerator:
 			Pullup if c1 is high and c2 is connected to g
 			(weak and pullup are treated identically)
 			'''
-			transistor.weak = transistor.c1 == Net.VDD and (transistor.c2 == transistor.g)
+			self.print_important_nets()
+			transistor.weak = transistor.c2.potential == Net.VDD and (transistor.c1 == transistor.g)
+			print 'trans: ' + repr(transistor)
+			print 'direct weak: ' + repr(transistor.weak)
+			#if transistor.weak:
+			#	raise Exception('weak')
 			
 			print 'Adding transistor'
 			self.transistors.add(transistor)
@@ -616,10 +640,13 @@ class UVJSSimGenerator:
 			print 'Checking ' + layer.name
 			if polygon in layer.polygons:
 				print '***Removing polygon from ' + layer.name
+				#polygon.show('Removing')
+				#layer.show('Before (%s)' % layer.name)
 				layer.remove_polygon(polygon)
+				#layer.show('After (%s)' % layer.name)
 		#print
 
-	def merge_polygons(self, layeri):		
+	def merge_polygons(self, layeri):
 		# And now we must make a single polygon
 		# poly1 will be the new polygon
 		# we must keep track of successors or we lose merge info
@@ -628,10 +655,12 @@ class UVJSSimGenerator:
 		# [old] = new
 		successors = dict()
 		
+		#layeri.show()
+		
 		print
 		print
 		print
-		print 'Checking polygons for self merge...'
+		#print 'Checking polygons for self merge...'
 		for polygon in layeri.polygons:
 			poly1 = polygon.poly1
 			poly2 = polygon.poly2
@@ -652,14 +681,22 @@ class UVJSSimGenerator:
 			while poly2 in successors:
 				poly2 = successors[poly2]
 			
-			union = poly1.polygon.union(poly2.polygon)
+			#union = poly1.polygon.union(poly2.polygon)
+			union = poly1.union(poly2)
+			# nets should be identical since we should have done net merge before
+			#union.show('Union of %u and %u' % (poly1.net.number, poly2.net.number))
 			print 'union: ' + repr(union)
 			# Replace poly1's polygon and get rid of poly2
 			# We may have 
 			if poly1 == poly2:
 				raise Exception('equal late')
 			successors[poly2] = poly1
-			poly1.set_polygon(union)
+
+			#poly1.show("pre poly1")
+			poly1.set_polygon(union.polygon)			
+			#poly1.show("tranformed poly1")
+			#sys.exit(1)
+			
 			self.remove_polygon(poly2)
 	
 		if True:
@@ -687,33 +724,70 @@ class UVJSSimGenerator:
 		Arbitrarily favor the lower net,
 		we will probably have to renumber anyway, but it could help debugging and could make generally more predictable
 		'''
+
+
 		# Merge each intersection
+		
+		# We may eliminate a net and won't be able to merge into without following what it became
+		successors = dict()
 		for polygon in layeri.polygons:
+			# Since these are real polygons their nets get updated as part of the merge
 			poly1 = polygon.poly1
 			poly2 = polygon.poly2
 			
+			n1 = poly1.net
+			n2 = poly2.net
+			'''
+			while n1 in successors:
+				n1 = successors[n1]
+			while n2 in successors:
+				n2 = successors[n2]
+			'''
+			if n1 in successors:
+				raise Exception('bad net')
+			if n2 in successors:
+				raise Exception('bad net')
+			
 			# But only if they weren't already merged
-			if not poly1.net == poly2.net:
+			if not n1 == n2:
 				# Add them to the 
-				new_net = poly1.net
-				old_net = poly2.net
+				new_net = n1
+				old_net = n2
 				
 				# Net knows nothing of polygon so we must copy ourself
 				for polygon in self.nets[old_net.number].members:
 					polygon.net = new_net
 				self.nets.merge(new_net.number, old_net.number)
-						
+				successors[old_net] = new_net
 	def condense_polygons(self):
 		'''Merge polygons on same layer if they intersect'''
-		return
+		#return
 		
+		print
+		print
+		print
+
+		#for polygon in self.metal.polygons:
+		#	self.show_net(polygon.net.number)
+
 		#for layer in self.layers:
+		#self.metal.show()
+		# FIXME: to simplify debugging
 		for layer in [self.metal]:
+		#for layer in [self.metals]:
 			layeri = layer.intersection(layer)
+			print layeri
+			if False:
+				layeri.show()
+				sys.exit(1)
 			# Electically connect them
 			self.merge_nets(layeri)
 			# and visually merge them
 			self.merge_polygons(layeri)
+		
+		#for polygon in self.metal.polygons:
+		#	self.show_net(polygon.net.number)
+		#sys.exit(1)
 		
 	def merge_poly_vias_layers(self):		
 		print 'Metal polygons: %u' % len(self.metals.polygons)
