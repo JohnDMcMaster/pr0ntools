@@ -1,0 +1,31 @@
+TODO:
+-Compute pullups
+	FIXME: the computation is suppose to be in there
+-Remove pullups transistors?
+	Maybe add an option whether to omit them or not
+-Give a .txt input file that specifies a point to node name
+	(assumes each node has at least one unique spot which seems reasonable, there should be at least one via)
+	Instead I'm doing it as layer labels
+-Generate transistor polygons
+	FIXME: using the whole poly as the transistor
+-Add support for p-mos
+	Needed for 4004 and friends
+-Add command line options
+-Smooth same layer polygons if points are very close
+	Uncessarily increases rendering complexity
+-Be able to parse all layers from a single SVG
+-Streamline converting at least basic images to SVG
+-Add support for GIMP / potrace path style export as used in various FPGA-netlist tools SVGs
+	<path d="M301 2660 c-1 0 -1 -11 -1 -50 l1 -49 14 -1 c8 0 14 0 14 0 0 0 1 12
+	1 26 l1 26 11 0 c10 0 12 0 13 2 1 2 2 2 8 2 6 0 6 0 7 3 0 3 -1 40 -2 41 0 1
+	-65 1 -67 0z"/>
+-Look over FPGA-netlist-tools some more to see what I can leverage
+	In particular FPGA-netlist-tools/masks/hp35-bitmap-tools/masks_to_netlist.py is very short and seems to do a lot
+-Only img2js tool is currently maintained, others are more of placeholders
+	Deleted, remake if needed
+	uvjssim-img2polygon.py
+	uvjssim-polygon2js.py
+
+-Merge same layer polygons
+	DONE
+
