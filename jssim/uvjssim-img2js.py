@@ -556,10 +556,16 @@ class UVJSSimGenerator:
 	
 	def find_pullups(self):
 		'''Find pullup transistors, mark net as pullup, and remove from transistor list'''
-		# FIXME
 		for transistor in self.transistors.transistors:
-			pass
-			#if transistor.c2 == Net.VDD and 
+			if not transistor.weak:
+				continue
+			# c1/g should be active and C2 on VCC
+			if not transistor.c2.potential == Net.VDD:
+				raise Exception('inconsistent state')
+			if not transistor.c1 == transistor.g:
+				raise Exception('inconsistent state')
+			
+			transistor.c1.pull_up()
 	
 	def print_important_nets(self):
 		for net_number in self.nets.nets:

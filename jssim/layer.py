@@ -85,6 +85,21 @@ class Net:
 				raise Exception('Unaccounted for net potential merge')
 		print 'End potential: %u' % self.potential
 		
+	def pull_up(self):
+		if self.potential == Net.UNKNOWN:
+			self.potential = Net.PU
+		# If alreayd at VCC pullup does nothing
+		elif self.potential == Net.VDD:
+			print 'WARNING: discarding pullup since at VDD'
+			return
+		elif self.potential == Net.GND:
+			print 'WARNING: discarding pullup since at ground'
+			return
+		elif self.potential == Net.PD:
+			raise Exception('Should not pull up and down')
+		else:
+			raise Exception('Unknown potential')
+	
 	def get_pullup(self):
 		if self.potential == Net.PU:
 			return '+'
