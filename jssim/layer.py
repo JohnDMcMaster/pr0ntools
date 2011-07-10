@@ -29,12 +29,17 @@ class Net:
 		
 		self.number = number
 		self.potential = Net.UNKNOWN
+		# Nets can have multiple names
+		self.names = set()
 		
 	def add_member(self, member):
 		self.members.add(member)
 	
 	def remove_member(self, member):
 		self.members.remove(member)
+		
+	def add_name(self, name):
+		self.names.add(name)
 		
 	def merge(self, other):
 		for member in other.members:
@@ -281,10 +286,10 @@ class UVPolygon:
 			#print self.polygon.exterior.coords.xy
 			x = self.polygon.exterior.coords.xy[0][i]
 			y = self.polygon.exterior.coords.xy[1][i]
-			
+		
 			#print x
 			#print y
-			
+		
 			if x - centroid.x < 0:
 				x -= increase
 			if x - centroid.x > 0:
@@ -304,12 +309,19 @@ class UVPolygon:
 		return self.polygon.intersects(polygon.polygon)
 
 	def intersection(self, polygon):
-		return UVPolygon.from_polygon(self.polygon.intersection(polygon.polygon))
+		intersected = self.polygon.intersection(polygon.polygon)
+		if intersected.is_empty:
+			return None
+		return UVPolygon.from_polygon(intersected)
 
 	@staticmethod
 	def show_polygons(polygons):
-		FIXME
-	
+		r = PolygonRenderer(title='Polygons')
+		colors = ['red', 'blue', 'green', 'yellow']
+		for i in range(0, len(polygons)):
+			r.add_polygon(polygons[i], colors[i % len(colors)])
+		r.render()
+		
 	def show(self, title='Polygon'):
 		'''
 		r = PolygonRenderer()
@@ -384,6 +396,153 @@ class LayerI:
 		layer.color = 'blue'
 		return layer
 
+class LayerSVGParser:
+	@staticmethod
+	def parse(layer, file_name):
+		parser = LayerSVGParser()
+		parser.layer = layer
+		parser.file_name = file_name
+		parser.do_parse()
+
+	def process_transform(self, transform):
+		x_delta = float(transform.split(',')[0].split('(')[1])
+		y_delta = float(transform.split(',')[1].split(')')[0])
+		self.x_deltas.append(x_delta)
+		self.y_deltas.append(y_delta)
+
+		self.x_delta += x_delta
+		self.y_delta += y_delta
+		
+	def pop_transform(self):
+		self.x_delta -= self.x_deltas.pop()
+		self.y_delta -= self.y_deltas.pop()
+		
+	def do_parse(self):
+		'''
+		Need to figure out a better parse algorithm...messy
+		'''
+		
+		'''
+		<rect
+		   y="261.16562"
+		   x="132.7981"
+		   height="122.4502"
+		   width="27.594412"
+		   id="rect3225"
+		   style="fill:#999999" />
+		'''
+		print self.file_name
+		raw = open(self.file_name).read()
+		
+		print 'set vars'
+		self.x_delta = 0.0
+		self.x_deltas = list()
+		self.y_delta = 0.0
+		self.y_deltas = list()
+		self.flow_root = False
+		self.text = None
+
+		# 3 handler functions
+		def start_element(name, attrs):
+			print 'Start element:', name, attrs
+			if name == 'rect':				
+				#print 'Got one!'
+				# Origin at upper left hand corner, same as PIL
+				# Note that inkscape displays origin as lower left hand corner...weird
+				# style="fill:#00ff00"
+				color = None
+				if 'style' in attrs:
+					style = attrs['style']
+					color = style.split(':')[1]
+				#if self.flow_root and self.text is None:
+				#	raise Exception('Missing text')
+				self.last_polygon = self.layer.add_rect(float(attrs['x']) + self.x_delta, float(attrs['y']) + self.y_delta, float(attrs['width']), float(attrs['height']), color=color)
+			elif name == 'g':
+				#transform="translate(0,-652.36218)"
+				if 'transform' in attrs:
+					transform = attrs['transform']
+					self.process_transform(transform)
+					self.g_transform = True
+				else:
+					self.g_transform = False
+			elif name == 'svg':
+			   self.layer.width = int(attrs['width'])
+			   self.layer.height = int(attrs['height'])
+			   print 'Width ' + str(self.layer.width)
+			   print 'Height ' + str(self.layer.height)
+			# Text entry
+			elif name == 'flowRoot':
+				'''
+				<flowRoot
+					transform="translate(15.941599,-0.58989212)"
+					xml:space="preserve"
+					id="flowRoot4100"
+					style="font-size:12px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;display:inline;font-family:Bitstream Vera Sans;-inkscape-font-specification:Bitstream Vera Sans">
+					<flowRegion id="flowRegion4102">
+						<rect
+							id="rect4104"
+							width="67.261375"
+							height="14.659531"
+							x="56.913475"
+							y="189.59261"
+							style="fill:#000000" />
+					</flowRegion>
+					<flowPara id="flowPara4106">
+						clk0
+					</flowPara>
+				</flowRoot>
+				'''
+				self.flow_root = True
+				self.text = None
+				
+				if 'transform' in attrs:
+					transform = attrs['transform']
+					self.flowRoot_transform = True
+					self.process_transform(transform)
+				else:
+					self.flowRoot_transform = False
+					
+			elif name == 'flowPara':
+				#self.text = attrs
+				#print 'TEXT: ' + repr(self.text)
+				#sys.exit(1)
+		   		pass
+		   	else:
+		   		print 'Skipping %s' % name
+				pass
+		   
+			
+		def end_element(name):
+			#print 'End element:', name
+			
+			if name == 'flowRoot':
+				self.last_polygon.text = self.text
+
+				self.flow_root = False
+				self.text = None
+				self.last_polygon = None
+				if self.flowRoot_transform:
+					self.pop_transform()
+					self.flowRoot_transform = False
+			elif name == 'g':
+				if self.g_transform:
+					self.pop_transform()
+					self.g_transform = False
+			pass
+		def char_data(data):
+			#print 'Character data:', repr(data)
+			self.text = data
+			pass
+
+	 	p = xml.parsers.expat.ParserCreate()
+
+		p.StartElementHandler = start_element
+		p.EndElementHandler = end_element
+		p.CharacterDataHandler = char_data
+
+		p.Parse(raw, 1)
+
+
 # (Mask) layer
 # In practice for now this is simply an SVG image
 class Layer:
@@ -448,7 +607,7 @@ class Layer:
 				print 'self potential: %u' % self.potential
 
 	def __repr__(self):
-		ret = ''
+		ret = 'Layer: '
 		sep = ''
 		for polygon in self.polygons:
 			ret += polygon.__repr__() + sep
@@ -514,73 +673,22 @@ class Layer:
 		return p
 				
 	def do_from_svg(self, file_name):
-		'''
-		<rect
-		   y="261.16562"
-		   x="132.7981"
-		   height="122.4502"
-		   width="27.594412"
-		   id="rect3225"
-		   style="fill:#999999" />
-		'''
-		raw = open(file_name).read()
-		print file_name
-		
-		print 'set vars'
-		self._x_delta = 0.0
-		self._y_delta = 0.0
-
-		# 3 handler functions
-		def start_element(name, attrs):
-			print 'Start element:', name, attrs
-			if name == 'rect':				
-				#print 'Got one!'
-				# Origin at upper left hand corner, same as PIL
-				# Note that inkscape displays origin as lower left hand corner...weird
-				# style="fill:#00ff00"
-				color = None
-				if 'style' in attrs:
-					style = attrs['style']
-					color = style.split(':')[1]
-				self.add_rect(float(attrs['x']) + self._x_delta, float(attrs['y']) + self._y_delta, float(attrs['width']), float(attrs['height']), color=color)
-			elif name == 'g':
-				#transform="translate(0,-652.36218)"
-				if 'transform' in attrs:
-					transform = attrs['transform']
-					self._x_delta = float(transform.split(',')[0].split('(')[1])
-					self._y_delta = float(transform.split(',')[1].split(')')[0])
-				else:
-					self._x_delta = 0.0
-					self._y_delta = 0.0
-			elif name == 'svg':
-			   self.width = int(attrs['width'])
-			   self.height = int(attrs['height'])
-			   print 'Width ' + str(self.width)
-			   print 'Height ' + str(self.height)
-		   	else:
-		   		print 'Skipping %s' % name
-				pass
-		   
-			
-		def end_element(name):
-			#print 'End element:', name
-			pass
-		def char_data(data):
-			#print 'Character data:', repr(data)
-			pass
-
-	 	p = xml.parsers.expat.ParserCreate()
-
-		p.StartElementHandler = start_element
-		p.EndElementHandler = end_element
-		p.CharacterDataHandler = char_data
-
-		p.Parse(raw, 1)
+		LayerSVGParser.parse(self, file_name)
 	
 	def add_rect(self, x, y, width, height, color=None):
-		self.add_polygon(list([Point(x, y), Point(x + width, y), Point(x + width, y + height), Point(x, y + height)]), color=color)
+		return self.add_polygon(list([Point(x, y), Point(x + width, y), Point(x + width, y + height), Point(x, y + height)]), color=color)
 		
 	def add_polygon(self, points, color=None):
-		self.polygons.add(UVPolygon(points, color=color))
-
+		polygon = UVPolygon(points, color=color)
+		self.polygons.add(polygon)
+		return polygon
+		
+	@staticmethod
+	def show_layers(layers):
+		r = PolygonRenderer(title='Layers')
+		colors = ['red', 'blue', 'green', 'yellow']
+		print 'item: ' + repr(layers.__class__)
+		for i in range(0, len(layers)):
+			r.add_layer(layers[i], colors[i % len(colors)])
+		r.render()
 

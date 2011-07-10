@@ -43,6 +43,7 @@ DEFAULT_IMAGE_FILE_LABELS = "labels" + DEFAULT_IMAGE_EXTENSION
 
 JS_FILE_TRANSDEFS = "transdefs.js"
 JS_FILE_SEGDEFS = "segdefs.js"
+JS_FILE_NODENAMES = "nodenames.js"
 
 '''
 Are these x,y or y.x?
@@ -75,8 +76,30 @@ class NodeNames:
 		self.nodenames = list()
 	
 	def run_DRC(self):
+		names = set(['gnd', 'vcc', 'clk0', 'reset'])
+		found = set()
+		for nodename in self.nodenames:
+			name = nodename.name
+			print 'Node %s => %u' % (name, nodename.net)
+			if name in names:
+				found.add(name)
+		
+		if not 'gnd' in found:
+			raise Exception('Missing gnd node name')
+		if not 'vcc' in found:
+			raise Exception('Missing vcc node name')
+		# Not strictly necessary but in all the designs I've done so far
+		if not 'clk0' in found:
+			raise Exception('Missing clk0 node name')
+		if not 'reset' in found:
+			print 'WARNING: missing reset node name'
+			#raise Exception('Missing reset node name')
+		
 		pass
 		
+	def add(self, nodename):
+		self.nodenames.append(nodename)
+	
 	def __repr__(self):
 		'''Return nodenames.js content'''
 
@@ -95,13 +118,13 @@ class NodeNames:
 		
 		for nodename in self.nodenames:
 			# Having , at end is acceptable
-			ret += rep(nodename) + ',\n'
+			ret += repr(nodename) + ',\n'
 		
 		ret += '}\n'
 		return ret
 
 	def write(self):
-		f = open(JS_FILE_SEGDEFS, 'w')
+		f = open(JS_FILE_NODENAMES, 'w')
 		f.write(self.__repr__())
 		f.close()
 
@@ -912,6 +935,18 @@ class UVJSSimGenerator:
 		#return int(y)
 		return self.height - int(y)
 		
+	def build_nodenames(self):
+		nodenames = NodeNames()
+		for net_number in self.nets.nets:
+			net = self.nets[net_number]
+			for name in net.names:
+				nodename = NodeName(name, net_number)
+				nodenames.add(nodename)
+		nodenames.run_DRC()
+
+		print nodenames
+		nodenames.write()
+
 	def build_transdefs(self):
 		'''
 		Find poly with two intersecting diffusion areas
@@ -953,6 +988,51 @@ class UVJSSimGenerator:
 		print transdefs
 		transdefs.write()
 
+	def gen_conductive_polygons(self):
+		for layer in self.conductive_layers():
+			for polygon in layer.polygons:
+				yield polygon
+	
+	def conductive_layers(self):
+		return list([self.polysilicon, self.diffusion, self.metal_vcc, self.metal_gnd, self.metal])
+
+	def assign_node_names(self):
+		'''Assign labels to nets by looking at label text box intersection with conductive areas'''
+		# Try to match up each label
+		# keep look after a match to look for collisions
+		print 'labels: ' + repr(self.labels.__class__)
+		print self.labels.polygons
+		#Layer.show_layers(self.conductive_layers() + [self.labels])
+		for label_polygon in self.labels.polygons:
+			net_name = label_polygon.text
+			matched = False
+			#if net_name == 'vcc':
+			#	label_polygon.show()
+			for polygon in self.gen_conductive_polygons():
+				if net_name == 'vcc':
+					#UVPolygon.show_polygons([label_polygon, polygon])
+					'''
+					intersection = label_polygon.intersection(polygon)
+					if intersection:
+						intersection.show()
+					else:
+					'''
+					pass
+				if not label_polygon.intersects(polygon):
+					continue
+				# A match!
+				matched = True
+				net = polygon.net
+				'''
+				if net.name and not net.name == net_name:
+					print 'old name: %s' % net.name
+					print 'new name: %s' % net_name
+					raise Exception('Net already named something different')
+				'''
+				net.add_name(net_name)
+			if not matched:
+				raise Exception('Could not assign net name ' + net_name)
+		
 	def show_nets(self):
 		for i in range(self.min_net_number, self.last_net + 1):
 			self.show_net(i)
@@ -985,6 +1065,7 @@ class UVJSSimGenerator:
 		self.find_pullups()
 		# Now make them linearly ordered
 		self.reassign_nets()
+		self.assign_node_names()
 		# This wasn't needed because we can figure it out during build
 		#self.mark_diffusion()
 		
@@ -994,6 +1075,7 @@ class UVJSSimGenerator:
 		
 		self.build_segdefs()
 		self.build_transdefs()
+		self.build_nodenames()
 
 
 
