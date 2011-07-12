@@ -26,29 +26,11 @@ Maybe use Inkscape .svg or
 '''
 
 from pr0ntools.pimage import PImage
+from pr0ntools.jssim.options import Options
 import sys
 from layer import UVPolygon, Net, Nets, PolygonRenderer, Point
 import time
 
-
-DEFAULT_IMAGE_EXTENSION = ".svg"
-DEFAULT_IMAGE_FILE_METAL_VCC = "metal_vcc" + DEFAULT_IMAGE_EXTENSION
-DEFAULT_IMAGE_FILE_METAL_GND = "metal_gnd" + DEFAULT_IMAGE_EXTENSION
-DEFAULT_IMAGE_FILE_METAL = "metal" + DEFAULT_IMAGE_EXTENSION
-DEFAULT_IMAGE_FILE_POLYSILICON = "polysilicon" + DEFAULT_IMAGE_EXTENSION
-DEFAULT_IMAGE_FILE_DIFFUSION = "diffusion" + DEFAULT_IMAGE_EXTENSION
-DEFAULT_IMAGE_FILE_VIAS = "vias" + DEFAULT_IMAGE_EXTENSION
-DEFAULT_IMAGE_FILE_BURIED_CONTACTS = "buried_contacts" + DEFAULT_IMAGE_EXTENSION
-DEFAULT_IMAGE_FILE_TRANSISTORS = "transistors" + DEFAULT_IMAGE_EXTENSION
-DEFAULT_IMAGE_FILE_LABELS = "labels" + DEFAULT_IMAGE_EXTENSION
-
-DATA_VER = "1.0"
-JS_FILE_TRANSDEFS = "transdefs.js"
-TRANSDEFS_VER = DATA_VER
-JS_FILE_SEGDEFS = "segdefs.js"
-SEGDEFS_VER = DATA_VER
-JS_FILE_NODENAMES = "nodenames.js"
-NODENAMES_VER = DATA_VER
 
 def get_js_file_header(name, version):
 	ret = ''
@@ -126,8 +108,8 @@ class NodeNames:
 		}
 		'''
 
-		ret = get_js_file_header(JS_FILE_NODENAMES, NODENAMES_VER)
-		ret += 'var nodenames_ver = "%s";\n' % NODENAMES_VER
+		ret = get_js_file_header(Options.JS_FILE_NODENAMES, Options.NODENAMES_VER)
+		ret += 'var nodenames_ver = "%s";\n' % Options.NODENAMES_VER
 
 		ret += 'var nodenames = {\n'				
 		for nodename in self.nodenames:
@@ -138,7 +120,7 @@ class NodeNames:
 		return ret
 
 	def write(self):
-		f = open(JS_FILE_NODENAMES, 'w')
+		f = open(Options.JS_FILE_NODENAMES, 'w')
 		f.write(self.__repr__())
 		f.close()
 
@@ -235,8 +217,8 @@ class Segdefs:
 		None of the other polygons should overlap (sounds like a DRC)
 		'''
 		
-		ret = get_js_file_header(JS_FILE_SEGDEFS, SEGDEFS_VER)
-		ret += 'var segdefs_ver = "%s";\n' % SEGDEFS_VER
+		ret = get_js_file_header(Options.JS_FILE_SEGDEFS, Options.SEGDEFS_VER)
+		ret += 'var segdefs_ver = "%s";\n' % Options.SEGDEFS_VER
 		
 		ret += 'var segdefs = [\n'		
 		for segdef in self.segdefs:
@@ -247,7 +229,7 @@ class Segdefs:
 		return ret
 
 	def write(self):
-		f = open(JS_FILE_SEGDEFS, 'w')
+		f = open(Options.JS_FILE_SEGDEFS, 'w')
 		f.write(self.__repr__())
 		f.close()
 	
@@ -317,8 +299,8 @@ class Transdefs:
 		self.transdefs = list()
 
 	def __repr__(self):
-		ret = get_js_file_header(JS_FILE_TRANSDEFS, TRANSDEFS_VER)
-		ret += 'var segdefs_ver = "%s";\n' % SEGDEFS_VER
+		ret = get_js_file_header(Options.JS_FILE_TRANSDEFS, Options.TRANSDEFS_VER)
+		ret += 'var segdefs_ver = "%s";\n' % Options.SEGDEFS_VER
 		
 		ret += 'var transdefs = [\n'
 		for transdef in self.transdefs:
@@ -332,7 +314,7 @@ class Transdefs:
 		self.transdefs.append(transdef)
 	
 	def write(self):
-		f = open(JS_FILE_TRANSDEFS, 'w')
+		f = open(Options.JS_FILE_TRANSDEFS, 'w')
 		f.write(self.__repr__())
 		f.close()
 	
@@ -375,13 +357,13 @@ class UVJSSimGenerator:
 	def __init__(self, src_images = None):
 		if src_images == None:
 			src_images = dict()
-			src_images['metal_gnd'] = DEFAULT_IMAGE_FILE_METAL_GND
-			src_images['metal_vcc'] = DEFAULT_IMAGE_FILE_METAL_VCC
-			src_images['metal'] = DEFAULT_IMAGE_FILE_METAL
-			src_images['polysilicon'] = DEFAULT_IMAGE_FILE_POLYSILICON
-			src_images['diffusion'] = DEFAULT_IMAGE_FILE_DIFFUSION
-			src_images['vias'] = DEFAULT_IMAGE_FILE_VIAS
-			src_images['labels'] = DEFAULT_IMAGE_FILE_LABELS
+			src_images['metal_gnd'] = Options.DEFAULT_IMAGE_FILE_METAL_GND
+			src_images['metal_vcc'] = Options.DEFAULT_IMAGE_FILE_METAL_VCC
+			src_images['metal'] = Options.DEFAULT_IMAGE_FILE_METAL
+			src_images['polysilicon'] = Options.DEFAULT_IMAGE_FILE_POLYSILICON
+			src_images['diffusion'] = Options.DEFAULT_IMAGE_FILE_DIFFUSION
+			src_images['vias'] = Options.DEFAULT_IMAGE_FILE_VIAS
+			src_images['labels'] = Options.DEFAULT_IMAGE_FILE_LABELS
 		
 		# visual6502 net numbers seem to start at 1, not 0
 		self.min_net_number = 1
@@ -417,8 +399,8 @@ class UVJSSimGenerator:
 
 		self.labels = Layer.from_svg(src_images['labels'])
 
-		#self.buried_contacts = Layer(DEFAULT_IMAGE_FILE_BURIED_CONTACTS)
-		#self.transistors = Layer(DEFAULT_IMAGE_FILE_TRANSISTORS)
+		#self.buried_contacts = Layer(Options.DEFAULT_IMAGE_FILE_BURIED_CONTACTS)
+		#self.transistors = Layer(Options.DEFAULT_IMAGE_FILE_TRANSISTORS)
 		self.transistors = Transistors()
 
 		self.layers = [self.polysilicon, self.diffusion, self.vias, self.metal_vcc, self.metal_gnd, self.metal]
@@ -1137,22 +1119,44 @@ def help():
 	print "uvjssim-generate: generate JSSim files from images"
 	print "Usage: uvjssim-generate"
 	print "Input files:"
-	print "\t%s" % DEFAULT_IMAGE_FILE_METAL_VCC
-	print "\t%s" % DEFAULT_IMAGE_FILE_METAL_GND
-	print "\t%s" % DEFAULT_IMAGE_FILE_METAL
-	print "\t%s" % DEFAULT_IMAGE_FILE_POLYSILICON
-	print "\t%s" % DEFAULT_IMAGE_FILE_DIFFUSION
-	print "\t%s" % DEFAULT_IMAGE_FILE_VIAS
-	print "\t%s (currently unused)" % DEFAULT_IMAGE_FILE_BURIED_CONTACTS
+	print "\t%s" % Options.DEFAULT_IMAGE_FILE_METAL_VCC
+	print "\t%s" % Options.DEFAULT_IMAGE_FILE_METAL_GND
+	print "\t%s" % Options.DEFAULT_IMAGE_FILE_METAL
+	print "\t%s" % Options.DEFAULT_IMAGE_FILE_POLYSILICON
+	print "\t%s" % Options.DEFAULT_IMAGE_FILE_DIFFUSION
+	print "\t%s" % Options.DEFAULT_IMAGE_FILE_VIAS
+	print "\t%s (currently unused)" % Options.DEFAULT_IMAGE_FILE_BURIED_CONTACTS
 	print "Output files:"
-	print "\t%s" % DEFAULT_IMAGE_FILE_TRANSISTORS
-	print "\t%s" % JS_FILE_TRANSDEFS
-	print "\t%s" % JS_FILE_SEGDEFS
+	print "\t%s" % Options.DEFAULT_IMAGE_FILE_TRANSISTORS
+	print "\t%s" % Options.JS_FILE_TRANSDEFS
+	print "\t%s" % Options.JS_FILE_SEGDEFS
 
-if __name__ == "__main__":
-	if len(sys.argv) > 1:
-		help()
-		sys.exit(1)
+if __name__ == "__main__":	
+	for arg_index in range (1, len(sys.argv)):
+		arg = sys.argv[arg_index]
+		arg_key = None
+		arg_value = None
+		if arg.find("--") == 0:
+			arg_value_bool = True
+			if arg.find("=") > 0:
+				arg_key = arg.split("=")[0][2:]
+				arg_value = arg.split("=")[1]
+				if arg_value == "false" or arg_value == "0" or arg_value == "no":
+					arg_value_bool = False
+			else:
+				arg_key = arg[2:]
+	
+		if arg_key == "as-masks":
+			Options.as_masks = True
+		elif arg_key == "help":
+			help()
+			sys.exit(0)
+		else:
+			'Unrecognized argument: %s' % arg
+			help()
+			sys.exit(1)
+	
+	Options.assign_defaults()
 
 	gen = UVJSSimGenerator()
 	gen.run()

@@ -2,24 +2,12 @@
 This file is part of pr0ntools
 Common "main" functionality
 Copyright 2010 John McMaster <JohnDMcMaster@gmail.com>
-Licensed under GPL V3+
+Licensed under a 2 clause BSD license, see COPYING for details
 '''
 
 import sys
-from benchmark import Benchmark
-from datetime import date
-import time
-import Image
-import ImageFont
-import ImageDraw
-
-log_file_handle = None
-stress_test_render_iterations = False
-show_render_iterations = False
 
 class CommonDriver:
-	spreadsheet_file_handle = None
-	
 	def __init__(self):
 		self.propagate_exceptions = True
 

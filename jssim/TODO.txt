@@ -21,6 +21,9 @@ TODO:
 	-65 1 -67 0z"/>
 -Look over FPGA-netlist-tools some more to see what I can leverage
 	In particular FPGA-netlist-tools/masks/hp35-bitmap-tools/masks_to_netlist.py is very short and seems to do a lot
+-Support reading source data as masks vs chip
+	Self aligned gates may be represented as solid diffusion blob
+	How like is it that they don't take the entire area?  For example they only need approx area around the edge
 -Only img2js tool is currently maintained, others are more of placeholders
 	Deleted, remake if needed
 	uvjssim-img2polygon.py
