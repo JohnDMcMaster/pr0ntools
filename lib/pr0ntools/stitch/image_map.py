@@ -1,6 +1,6 @@
 '''
 pr0ntools
-Copyright 2010 John McMaster <johnDMcMaster@gmail.com>
+Copyright 2010 John McMaster <JohnDMcMaster@gmail.com>
 Licensed under a 2 clause BSD license, see COPYING for details
 
 Manages a spacial layout of a collection of images

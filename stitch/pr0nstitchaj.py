@@ -1,7 +1,7 @@
 #!/usr/bin/python
 '''
 pr0nstitchaj: AJ's autopano WINE wrapper for Hugin
-Copyright 2011 John McMaster <johnDMcMaster@gmail.com>
+Copyright 2011 John McMaster <JohnDMcMaster@gmail.com>
 Licensed under a 2 clause BSD license, see COPYING for details
 '''
 

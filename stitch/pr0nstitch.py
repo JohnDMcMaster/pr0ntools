@@ -1,7 +1,7 @@
 #!/usr/bin/python
 '''
 pr0nstitch: IC die image stitching
-Copyright 2010 John McMaster <johnDMcMaster@gmail.com>
+Copyright 2010 John McMaster <JohnDMcMaster@gmail.com>
 Licensed under a 2 clause BSD license, see COPYING for details
 
 Command refernece:

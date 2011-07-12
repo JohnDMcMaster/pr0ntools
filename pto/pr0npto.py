@@ -1,7 +1,7 @@
 #!/usr/bin/python
 '''
 pr0npto: .pto file manipulation
-Copyright 2010 John McMaster <johnDMcMaster@gmail.com>
+Copyright 2010 John McMaster <JohnDMcMaster@gmail.com>
 Licensed under a 2 clause BSD license, see COPYING for details
 '''
 
