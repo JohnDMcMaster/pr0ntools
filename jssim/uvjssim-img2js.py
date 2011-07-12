@@ -28,7 +28,7 @@ Maybe use Inkscape .svg or
 from pr0ntools.pimage import PImage
 from pr0ntools.jssim.options import Options
 import sys
-from layer import UVPolygon, Net, Nets, PolygonRenderer, Point
+from pr0ntools.jssim.layer import UVPolygon, Net, Nets, PolygonRenderer, Point
 import time
 
 
