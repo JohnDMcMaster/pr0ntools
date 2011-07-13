@@ -239,6 +239,55 @@ class Generator:
 		print 'GND: %u' % self.vss.number
 	
 	def find_transistors(self):
+		if Options.transistors_by_adjacency:
+			self.find_transistors_by_adjacency()
+		if Options.transistors_by_intersect:
+			self.find_transistors_by_intersect()	
+	
+	def add_transistor(self, g_net, c1_net, c2_net, bb_polygon):
+		'''Rejects transistor if already added'''
+		
+		transistor = Transistor()
+		transistor.g = g_net
+		transistor.c1 = c1_net
+		transistor.c2 = c2_net
+		# Try to optimize connections to make pullup / pulldown easier to detect (JSSim will also want this)
+		if transistor.c1.potential == Net.VDD or transistor.c1.potential == Net.GND:
+			temp = transistor.c1
+			transistor.c1 = transistor.c2
+			transistor.c2 = temp
+	
+		# rough approximation hack assuming square...fix later
+		# we need to truncate to the region inside the bound box
+		# slightly better: take points from opposite ends of the intersection to make a rectangle, intersection with poly
+		transistor.set_bb(bb_polygon.points[0], bb_polygon.points[2])
+	
+		'''
+		Pullup if c1 is high and c2 is connected to g
+		(weak and pullup are treated identically)
+		'''
+		self.print_important_nets()
+		# TODO: we assume only PMOS or NMOS
+		# may need to adust this if using CMOS?
+		if Options.technology.has_nmos():
+			# NMOS pullup has one node connected to high potential and other two tied together
+			transistor.weak = transistor.c2.potential == Net.VDD and (transistor.c1 == transistor.g)
+		if Options.technology.has_pmos():
+			# PMOS pulldown has one node connected to low potential and other two tied together
+			transistor.weak = transistor.c2.potential == Net.GND and (transistor.c1 == transistor.g)
+		
+		print 'trans: ' + repr(transistor)
+		print 'direct weak: ' + repr(transistor.weak)
+		#if transistor.weak:
+		#	raise Exception('weak')
+	
+		print 'Adding transistor'
+		self.transistors.add(transistor)
+		
+	def find_transistors_by_intersect(self):
+		raise Exception('FIXME')
+	
+	def find_transistors_by_adjacency(self):
 		'''
 		Find / connect transistors
 		Note that these aren't actually connected so they aren't merged
@@ -283,35 +332,11 @@ class Generator:
 				raise Exception("Unexpected number of diffusion polygons intersecting polysilicon polygon")
 			# Merge should have already ran
 			
-			transistor = Transistor()
-			transistor.g = polysilicon_polygon.net
 			cs = list(diffusion_polygons)
-			transistor.c1 = cs[0].net
-			transistor.c2 = cs[1].net
-			# Try to optimize connections to make pullup / pulldown easier to detect (JSSim will also want this)
-			if transistor.c1.potential == Net.VDD or transistor.c1.potential == Net.GND:
-				temp = transistor.c1
-				transistor.c1 = transistor.c2
-				transistor.c2 = temp
+			self.add_transistor(polysilicon_polygon.net, cs[0].net, cs[1].net, polysilicon_polygon)
 			
-			# rough approximation hack assuming square...fix later
-			# we need to truncate to the region inside the bound box
-			# slightly better: take points from opposite ends of the intersection to make a rectangle, intersection with poly
-			transistor.set_bb(polysilicon_polygon.points[0], polysilicon_polygon.points[2])
 			
-			'''
-			Pullup if c1 is high and c2 is connected to g
-			(weak and pullup are treated identically)
-			'''
-			self.print_important_nets()
-			transistor.weak = transistor.c2.potential == Net.VDD and (transistor.c1 == transistor.g)
-			print 'trans: ' + repr(transistor)
-			print 'direct weak: ' + repr(transistor.weak)
-			#if transistor.weak:
-			#	raise Exception('weak')
 			
-			print 'Adding transistor'
-			self.transistors.add(transistor)
 	
 	def all_layers(self):
 		'''All polygon layers including virtual layers but not metadata layers'''

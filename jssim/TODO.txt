@@ -28,7 +28,10 @@ TODO:
 	Deleted, remake if needed
 	uvjssim-img2polygon.py
 	uvjssim-polygon2js.py
+Make output more predictable instead of random hash map lookups
+
 
 -Merge same layer polygons
 	DONE
+
 

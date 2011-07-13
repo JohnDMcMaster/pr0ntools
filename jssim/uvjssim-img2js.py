@@ -31,6 +31,8 @@ Maybe use Inkscape .svg or
 
 '''
 
+VERSION = "1.0"
+
 from pr0ntools.jssim.options import Options
 import sys
 from pr0ntools.jssim.generator import Generator
@@ -49,13 +51,23 @@ Assume visual6502 coordinate system
 
 from layer import Layer
 
-
-	
-	
 		
 def help():
-	print "uvjssim-generate: generate JSSim files from images"
-	print "Usage: uvjssim-generate"
+	print "uvjssim-img2js version %s" % VERSION
+	print "Generate JSSim files from images"
+	print "Copyright 2011 John McMaster <JohnDMcMaster@gmail.com>, 2 clause BSD license"
+	print "Usage: uvjssim-generate [options]"
+	print "--masks[=<bool>]: set options that favor input as masks as opposed to a physical chip"
+	print "--trans-by-adj[=<bool>]: compute transistors by finding diffusion adjacent to poly"
+	print "--trans-by-int[=<bool>]: compute transistors by finding diffusion intersecting poly"
+	print "--help: this message"
+	print "--trans-tech=<technology>: input transistor technology, one of (case insensitive):"
+	print "\tbipolar"
+	print "\tNMOS (default)"
+	print "\tPMOS"
+	print "\tCMOS"
+	print "\tBiCMOS"
+	print
 	print "Input files:"
 	print "\t%s" % Options.DEFAULT_IMAGE_FILE_METAL_VCC
 	print "\t%s" % Options.DEFAULT_IMAGE_FILE_METAL_GND
@@ -65,7 +77,7 @@ def help():
 	print "\t%s" % Options.DEFAULT_IMAGE_FILE_VIAS
 	print "\t%s (currently unused)" % Options.DEFAULT_IMAGE_FILE_BURIED_CONTACTS
 	print "Output files:"
-	print "\t%s" % Options.DEFAULT_IMAGE_FILE_TRANSISTORS
+	print "\t%s" % Options.JS_FILE_NODENAMES
 	print "\t%s" % Options.JS_FILE_TRANSDEFS
 	print "\t%s" % Options.JS_FILE_SEGDEFS
 
@@ -84,13 +96,23 @@ if __name__ == "__main__":
 			else:
 				arg_key = arg[2:]
 	
-		if arg_key == "as-masks":
-			Options.as_masks = True
+		if arg_key == "masks":
+			Options.as_masks = arg_value_bool
+		elif arg_key == "trans-by-adj":
+			Options.transistors_by_adjacency = arg_value_bool
+		elif arg_key == "trans-by-int":
+			Options.transistors_by_intersect = arg_value_bool
+		elif arg_key == "technology":
+			Options.transistor_technology = transistor.Technology.from_string(arg_value)
+			if Options.transistor_technology == Technology.INVALID:
+				print 'Unrecognized technology %s' % arg_value
+				help()
+				sys.exit(1)
 		elif arg_key == "help":
 			help()
 			sys.exit(0)
 		else:
-			'Unrecognized argument: %s' % arg
+			print 'Unrecognized argument: %s' % arg
 			help()
 			sys.exit(1)
 	
