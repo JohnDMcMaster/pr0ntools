@@ -20,6 +20,16 @@ class Options:
 
 	technology = Technology.NMOS
 
+	# Reserved for future use
+	# JSSim can only use point list type polygons, ie not ones with holes
+	# Code breaks polygons apart for rendering to compensate
+	'''
+	from shapely.geometry.Polygon:
+	is_simple
+		True if the geometry is simple, meaning that any self-intersections 
+		are only at boundary points, else False	
+	'''
+	simple_polygons = True
 
 	DEFAULT_IMAGE_EXTENSION = ".svg"
 	DEFAULT_IMAGE_FILE_METAL_VCC = "metal_vcc" + DEFAULT_IMAGE_EXTENSION

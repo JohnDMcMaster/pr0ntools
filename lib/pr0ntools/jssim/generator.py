@@ -56,6 +56,11 @@ class Generator:
 		self.polysilicon.index = Layer.POLYSILICON
 
 		self.diffusion = Layer.from_svg(src_images['diffusion'])		
+		if Options.transistors_by_intersect:
+			self.project_diffusion()
+		#print 'Polygons: %d' % len(self.diffusion.polygons)
+		#self.diffusion.show_polygons()
+		#sys.exit(1)
 		#self.diffusion.index = Layer.UNKNOWN_DIFFUSION
 
 		self.labels = Layer.from_svg(src_images['labels'])
@@ -239,6 +244,9 @@ class Generator:
 		print 'GND: %u' % self.vss.number
 	
 	def find_transistors(self):
+		#print Options.transistors_by_adjacency
+		#print Options.transistors_by_intersect
+		#sys.exit(1)
 		if Options.transistors_by_adjacency:
 			self.find_transistors_by_adjacency()
 		if Options.transistors_by_intersect:
@@ -246,6 +254,8 @@ class Generator:
 	
 	def add_transistor(self, g_net, c1_net, c2_net, bb_polygon):
 		'''Rejects transistor if already added'''
+		
+		print "***Adding transistor"
 		
 		transistor = Transistor()
 		transistor.g = g_net
@@ -260,7 +270,7 @@ class Generator:
 		# rough approximation hack assuming square...fix later
 		# we need to truncate to the region inside the bound box
 		# slightly better: take points from opposite ends of the intersection to make a rectangle, intersection with poly
-		transistor.set_bb(bb_polygon.points[0], bb_polygon.points[2])
+		transistor.set_bb(bb_polygon.get_points()[0], bb_polygon.get_points()[2])
 	
 		'''
 		Pullup if c1 is high and c2 is connected to g
@@ -269,7 +279,10 @@ class Generator:
 		self.print_important_nets()
 		# TODO: we assume only PMOS or NMOS
 		# may need to adust this if using CMOS?
+		print 'NMOS?: ' + repr(Options.technology.has_nmos())
 		if Options.technology.has_nmos():
+			print 'Potentials: c1: %d, g: %d, c2: %d' % (transistor.c1.potential, transistor.g.potential, transistor.c2.potential)
+			print 'Nets: c1: %d, g: %d, c2: %d' % (transistor.c1.number, transistor.g.number, transistor.c2.number)
 			# NMOS pullup has one node connected to high potential and other two tied together
 			transistor.weak = transistor.c2.potential == Net.VDD and (transistor.c1 == transistor.g)
 		if Options.technology.has_pmos():
@@ -283,10 +296,39 @@ class Generator:
 	
 		print 'Adding transistor'
 		self.transistors.add(transistor)
+	
+	def project_diffusion(self):
+		# Save in case we want to reference it
+		self.diffusion_original = self.diffusion
+		#self.diffusion.show()
+		#self.polysilicon.show()
+		self.diffusioni = self.diffusion_original.subtract(self.polysilicon)
+		self.diffusion = self.diffusioni.to_layer()		
+		#self.diffusion.show()
+		#sys.exit(1)
+		
+		# Find intersection with poly to form transistors
+		# Require 2, some chips use diffusion for conduction to bypass metal
+		# 4003 overlaps diffusion and poly because they split a contact across them
+		
+		# Subtract out the poly from diffusion
+		# We can then use the same proximity algorithm as before
+		# However, we will save intersections to get a better idea of correct transistor mapping
 		
 	def find_transistors_by_intersect(self):
-		raise Exception('FIXME')
-	
+		'''
+		Some areas may contain overlapping diffusion and poly with a contact
+		This does not form a transistor, simply a way of connecting
+		So, a match must have 
+		
+		Assume that we have a diffusion intersection
+		(offloaded the work from this function to earlier on)
+		'''
+		self.find_transistors_by_adjacency()
+		
+		# TODO
+		# Now fixup with the improved transistor coordinates
+		
 	def find_transistors_by_adjacency(self):
 		'''
 		Find / connect transistors
@@ -307,8 +349,9 @@ class Generator:
 		print 'Finding transistors...'
 		print 'Poly polygons: %u' % len(self.polysilicon.polygons)
 		print 'Diff polygons: %u' % len(self.diffusion.polygons)
-		layeri = self.polysilicon.intersection(self.diffusion)
+		layeri = self.polysilicon.intersection(self.diffusion, True)
 		#layeri.show()
+		#sys.exit(1)
 
 		# [polysilicon polygon objecty] = diffusion set
 		# Try to find the two diffusion to each poly
@@ -329,6 +372,7 @@ class Generator:
 		for polysilicon_polygon in candidates:
 			diffusion_polygons = candidates[polysilicon_polygon]
 			if len(diffusion_polygons) != 2:
+				print 'Diff polygons: %d' % len(diffusion_polygons)
 				raise Exception("Unexpected number of diffusion polygons intersecting polysilicon polygon")
 			# Merge should have already ran
 			
@@ -343,9 +387,8 @@ class Generator:
 		return self.layers + [self.metals]
 
 	def remove_polygon(self, polygon):
-		# TODO: for now this is for poly merge and we won't get a zombie net
-		# we may need to delete the net entirely at some point in the future
-		self.nets[polygon.net.number].remove_member(polygon)
+		net = self.nets[polygon.net.number]
+		net.remove_member(polygon)
 		# Invalidate references?
 		# del polygon
 		#print
@@ -358,13 +401,24 @@ class Generator:
 				layer.remove_polygon(polygon)
 				#layer.show('After (%s)' % layer.name)
 		#print
+		if len(net.members) == 0:
+			# ZOMBIE!!!  No more references
+			# Kill it
+			nets.remove(net)
 
 	def merge_polygons(self, layeri):
-		# And now we must make a single polygon
-		# poly1 will be the new polygon
-		# we must keep track of successors or we lose merge info
-		# union will only work on true intersection, we must work with the xplogyons?
-		# actually we only care about overlap so no we don't
+		'''
+		And now we must make a single polygon
+			IF we can make a single non-enclosed polygon
+			JSSim can only handle non-enclosed polygons
+			I'm not sure if its easier to enhance JSSim or carefully combine here
+			More than likely its better to avoid combining on compatibility grounds
+		
+		poly1 will be the new polygon
+		we must keep track of successors or we lose merge info
+		union will only work on true intersection, we must work with the xplogyons?
+		actually we only care about overlap so no we don't
+		'''
 		# [old] = new
 		successors = dict()
 		
@@ -437,7 +491,8 @@ class Generator:
 		Arbitrarily favor the lower net,
 		we will probably have to renumber anyway, but it could help debugging and could make generally more predictable
 		'''
-
+		
+		#layeri.show()
 
 		# Merge each intersection
 		
@@ -472,6 +527,29 @@ class Generator:
 					polygon.net = new_net
 				self.nets.merge(new_net.number, old_net.number)
 				successors[old_net] = new_net
+	
+	def verify_net_index(self):
+		'''
+		Check that the net numbers in polygon objects lines up with the net numbers in the nets object
+		'''
+		# Make a copy of net sets
+		net_polys = dict()
+		for net in self.nets.nets:
+			net_polys[net] = set(self.nets[net].members)
+		
+		# Now take them out of nets
+		for layer in self.layers:
+			for polygon in layer.polygons:
+				net_n = polygon.net.number
+				if net_n in net_polys:
+					# Net exists
+					if not polygon in net_polys[net_n]:
+						raise Exception('Polygon thinks it belongs to net %d but nets index does not' % net)
+				else:
+					print 'Dead'
+					sys.exit(1)
+					raise Exception("Polygon has inexistent net %d" % net_n)
+	
 	def condense_polygons(self):
 		'''Merge polygons on same layer if they intersect'''
 		#return
@@ -488,7 +566,7 @@ class Generator:
 		# FIXME: to simplify debugging
 		for layer in [self.metal]:
 		#for layer in [self.metals]:
-			layeri = layer.intersection(layer)
+			layeri = layer.intersection(layer, True)
 			print layeri
 			if False:
 				layeri.show()
@@ -497,6 +575,16 @@ class Generator:
 			self.merge_nets(layeri)
 			# and visually merge them
 			self.merge_polygons(layeri)
+		
+		print
+		print 
+		print
+		for net in self.nets.nets:
+			print net
+			print self.nets[net].members
+		#self.show_nets()
+		#sys.exit(1)
+		
 		
 		#for polygon in self.metal.polygons:
 		#	self.show_net(polygon.net.number)
@@ -508,7 +596,7 @@ class Generator:
 		print 'Vias polygons: %u' % len(self.vias.polygons)
 
 		# Start with two 
-		polysilicon_layeri = self.polysilicon.intersection(self.vias)
+		polysilicon_layeri = self.polysilicon.intersection(self.vias, True)
 		#polysilicon_layeri.show()
 		self.merge_nets(polysilicon_layeri)
 				
@@ -527,28 +615,79 @@ class Generator:
 		print 'Diff polygons: %u' % len(self.diffusion.polygons)
 		print 'Vias polygons: %u' % len(self.vias.polygons)
 
+		#self.diffusion.show()
+		#self.vias.show()
+
 		# Start with two 
-		diffusion_layeri = self.diffusion.intersection(self.vias)
+		diffusion_layeri = self.diffusion.intersection(self.vias, True)
 		#diffusion_layeri.show()
 		self.merge_nets(diffusion_layeri)
 		
+		
+		#sys.exit(1)
+		
 	def merge_metal_vias(self):
-		metals_layeri = self.metals.intersection(self.vias)
+		metals_layeri = self.metals.intersection(self.vias, True)
 		#metals_layeri.show()
 		self.merge_nets(metals_layeri)
+
+	def via_check(self, min_connections):
+		'''
+		All vias should have connected to metal and either poly or diffusion
+		Including the via, need 3 polygons minimum
+		'''
+		checked = set()
+		for polygon in self.vias.polygons:
+			net = polygon.net
+			if net in checked:
+				continue
+			checked.add(net)
+			print 'Via poly count for net %d: %d' % (net.number, len(net.members))
+			if len(net.members) < min_connections:
+				msg = 'Non-sensical via, require %d connections, got %d' % (min_connections, len(net.members))
+				print 'ERROR: ' + msg
+				polygon.show()
+				self.show_nets()
+				raise Exception(msg)
+		
 
 	def find_and_merge_nets(self):
 		# Combine polygons at a net level on the same layer
 		# Only needed if you have bad input polygons
 		# Really would be better to pre-process input to combine them
 		self.condense_polygons()
+		print 'Polygons condensed'
+		#self.show_nets()
+		self.verify_net_index()
 		
 		# Note that you cannot have diffusion and poly, via is for one or the other		
 		self.merge_metal_vias()
+		print 'Metal and vias merged'
+		#self.show_nets()
+		#self.verify_net_index()
+		#sys.exit(1)
+		
+		self.via_check(2)
+		
 		# Connected poly to metal
+		
 		self.merge_poly_vias_layers()
+		print 'Poly and vias merged'
+		#self.show_nets()
+		self.verify_net_index()
+		
 		# Connect diffusion to metal
+		print 'Diffusion and vias merged'
 		self.merge_diffusion_vias_layers()
+		#self.show_nets()
+		self.verify_net_index()
+		
+		self.via_check(3)
+		
+		#self.show_nets()
+		
+		print 'Finished merge'
+		#sys.exit(1)
 		
 	def polygon_coordinates(self, polygon):
 		ret = polygon.coordinates()
@@ -724,7 +863,7 @@ class Generator:
 				raise Exception('Could not assign net name ' + net_name)
 		
 	def show_nets(self):
-		for i in range(self.min_net_number, self.last_net + 1):
+		for i in self.nets.nets:
 			self.show_net(i)
 
 	def show_net(self, net_number):
@@ -753,6 +892,9 @@ class Generator:
 		self.find_and_merge_nets()
 		self.find_transistors()
 		self.find_pullups()
+		
+		#sys.exit(1)
+		
 		# Now make them linearly ordered
 		self.reassign_nets()
 		self.assign_node_names()

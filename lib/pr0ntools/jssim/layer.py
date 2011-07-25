@@ -1,10 +1,12 @@
 using_tkinter = True
 
 import xml.parsers.expat
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, MultiPolygon
 if using_tkinter:
 	from Tkinter import *
 
+g_no_cache = True
+g_no_cache = False
 
 '''
 Net should not know anything about polygons
@@ -74,7 +76,10 @@ class Net:
 			# One known but not the other?
 			elif p1 == Net.UNKNOWN:
 				self.potential = p2
-			elif p1 == Net.VDD and t2 == Net.GND:
+			elif p1 == Net.VDD and p2 == Net.GND:
+				if False:
+					for member in self.members:
+						member.show()
 				raise Exception("Supply shorted")
 			elif (p1 == Net.VDD or p1 == Net.GND) and (p2 == Net.PU or p2 == Net.PD):
 				print 'WARNING: eliminating pullup/pulldown status due to direct supply connection'
@@ -134,6 +139,9 @@ class Nets:
 		self.nets[net.number] = s
 		'''
 		self.nets[net.number] = net
+
+	def remove(self, net):
+		del self.nets[net.number]
 
 	def merge(self, new_net, old_net):
 		'''Move data from old_net number into new_net number'''
@@ -200,10 +208,13 @@ class PolygonRenderer:
 				# Default to black
 				color = 'black'
 				
-			for point in polygon.points:
+			for point in polygon.get_points():
 				#print dir(point)
 				points.append(point.x)
 				points.append(point.y)
+			if len(points) < 3:
+				print 'WARNING: skipping invalid points list ' + repr(points)
+				continue
 			canvas.create_polygon(points, fill=color)
 
 		canvas.pack()
@@ -215,9 +226,16 @@ Polygons are aware of anything need to draw them as well as their electrical pro
 They are not currently aware of their material (layer) but probably need to be aware of it to figure out color
 Currently color is pushed on instead of pulled
 Final JSSim figures out color from layer and segdefs are pushed out on a layer by layer basis so its not necessary to store
+
+Debating whether or not to support multipolygon
+Maybe users uses at own risk philosiphy?
+Does mean that other people can't be gauranteed simple polygon though
+
+Intended to be immutable.  Will build up supporting data (may cache) but shouldn't change object itself
+If you do, call clear_cache
 '''
 class UVPolygon:
-	def __init__(self, points, color=None):
+	def __init__(self, points = None, color = None):
 		'''
 		To make display nicer
 		Vaguely defined...HTML like
@@ -228,15 +246,32 @@ class UVPolygon:
 		self.color = color
 		# Number not the object
 		self.net = None
+		self.xpolygon = None
+		self.points = None
 		
 		if points:
 			self.set_polygon(Polygon([(point.x, point.y) for point in points]))
 	
+	def clear_cache(self):
+		self.xpolygon = None
+		self.points = None
+	
 	def set_polygon(self, polygon):
 		self.polygon = polygon
-		self.rebuild_points()
-		self.rebuild_xpolygon()
+		self.clear_cache()
+		#self.rebuild_points()
+		#self.rebuild_xpolygon()
 		#self.show("show self")
+	
+	def get_points(self):
+		if g_no_cache or self.points is None:
+			self.rebuild_points()
+		return self.points
+	
+	def get_xpolygon(self):
+		if g_no_cache or self.xpolygon is None:
+			self.rebuild_xpolygon()
+		return self.xpolygon
 	
 	def coordinates(self):
 		'''return (JSSim style) single dimensional array of coordinates (WARNING: UL coordinate system)'''
@@ -244,32 +279,50 @@ class UVPolygon:
 		# l = [(1, 2), (3, 4), (50, 32)]
 		# print [i for i in [(x[0],x[1]) for x in l]]
 		ret = list()
-		for point in self.points:
+		for point in self.get_points():
 			ret.append(point.x)
 			ret.append(point.y)
 		return ret
 		
 	@staticmethod
-	def from_polygon(polygon):
+	def from_polygon(polygon, net = None, color = None):
 		poly = UVPolygon(None)
+		poly.color = color
 		poly.polygon = polygon
-		poly.net = None
-		poly.rebuild_points()
-		poly.rebuild_xpolygon()
+		poly.net = net
+		#poly.rebuild_points()
+		#poly.rebuild_xpolygon()
 		return poly
 	
 	def rebuild_points(self):
 		self.points = list()
+		#print
+		#print
+		#print 'self.polygon: ' + repr(self.polygon)
+		if self.polygon.geom_type == 'MultiLineString':
+			return
+		#print 'Exterior coords: ' + repr(self.polygon.exterior.coords)
 		for i in range(len(self.polygon.exterior.coords.xy[0]) - 1):
 			x = self.polygon.exterior.coords.xy[0][i]
 			y = self.polygon.exterior.coords.xy[1][i]
 			#self.points.append((x, y))
 			self.points.append(Point(x, y))
 	
+	def to_cli(self):
+		# Polygon( [(110.9072599999999937, 82.6502100000000155), (270.8686099999999897, 82.6502100000000155), (270.8686099999999897, 155.0855360000000189), (110.9072599999999937, 155.0855360000000189), (110.9072599999999937, 82.6502100000000155)] )
+		ret = "Polygon( ["
+		sep = ""
+		for point in self.get_points():
+			ret += sep
+			ret += "(%u, %u)" % (point.x, point.y)
+			sep = ', '
+		ret += '] )'
+		return ret
+	
 	def __repr__(self):
 		ret = "<polygon points=\""
 		first = True
-		for point in self.points:
+		for point in self.get_points():
 			# Space pairs to make it a little more readable
 			if not first:
 				ret += ', '
@@ -278,6 +331,46 @@ class UVPolygon:
 		ret += '" />'
 		return ret
 		
+	'''
+	intersection: return areas that are in both polygons
+	union: return areas that are in either polygon
+	difference: return areas that are in first but not second
+	'''
+	
+	@staticmethod
+	def sl_polygon_list(obj):
+		if obj.geom_type == 'Polygon':
+			return [obj]
+		elif obj.geom_type == 'MultiPolygon':
+			l = list()
+			for poly in obj:
+				l.append(poly)
+			return l
+		else:
+			print 'unknown type %s' % obj.geom_type
+			raise Exception("dead")
+	
+	
+	@staticmethod
+	def uv_polygon_list(obj, new_color = None):
+		if obj.geom_type == 'Polygon':
+			print '*single'
+			return [UVPolygon.from_polygon(obj, color = new_color)]
+		elif obj.geom_type == 'MultiPolygon':
+			print '*multi'
+			l = list()
+			for poly in obj.geoms:
+				l.append(UVPolygon.from_polygon(poly, color = new_color))
+			return l
+		else:
+			print 'unknown type %s' % obj.geom_type
+			raise Exception("dead")
+	
+	def subtract(self, other, new_color = None):
+		'''Returns array of polygons'''
+		diff_poly = self.polygon.difference(other.polygon)
+		return UVPolygon.uv_polygon_list(self, diff_poly, new_color = new_color )
+	
 	def union(self, other):
 		poly = self.polygon.union(other.polygon)
 		return UVPolygon.from_polygon(poly)
@@ -287,6 +380,9 @@ class UVPolygon:
 		Rebuild extended polygon
 		Trys to find neighboring polygons by stretching about the centroid
 		which we will then try to overlap
+		
+		XXX: there is an approx match method
+		we may not need this
 		'''
 		
 		centroid = self.polygon.centroid
@@ -325,6 +421,14 @@ class UVPolygon:
 
 	def intersection(self, polygon):
 		intersected = self.polygon.intersection(polygon.polygon)
+		if False and intersected.geom_type == 'MultiLineString':
+			# Err actually should not get multipoly here?
+			# Boundary condition: infetismal hairline intersection
+			print 'intersected: %s' % repr(intersected)
+			print '\t' + repr(self.polygon.intersects(polygon.polygon))
+			self.show()
+			polygon.show()
+		
 		if intersected.is_empty:
 			return None
 		return UVPolygon.from_polygon(intersected)
@@ -359,7 +463,7 @@ class UVPolygon:
 		# Upper left origin origin just like us
 		#points = [1,1,10,1,10,10,1,10]
 		points = list()
-		for point in self.points:
+		for point in self.get_points():
 			points.append(point.x)
 			points.append(point.y)
 		canvas.create_polygon(points, fill='white')
@@ -386,14 +490,22 @@ class UVPolygonI(UVPolygon):
 # Intersection is arbitrary
 # We may extend the actual layer polygon
 # Don't make assumptions about how it relates to actual layers
+# hmm turns out there is an almost_equals method
+# TODO: make this a subclass of Layer?
+# to_layer would take out intersection metadata
 class LayerI:
 	def __init__(self, layer1, layer2, polygons):
+		# UVPolygon
 		self.layer1 = layer1
+		# UVPolygon
 		self.layer2 = layer2
+		# UVPolygon list
 		self.polygons = polygons
 
 	def show(self, title=None):
 		#UVPolygon.show_polygons(xintersections)
+		if title is None:
+			title = 'red: %s, green: %s, blue: intersect' % (self.layer1.name, self.layer2.name)
 		r = PolygonRenderer(title)
 		r.add_layer(self.layer1, 'red')
 		r.add_layer(self.layer2, 'green')
@@ -405,6 +517,8 @@ class LayerI:
 	# So can be further intersected
 	def to_layer(self):
 		layer = Layer()
+		layer.width = self.layer1.width
+		layer.height = self.layer1.height
 		layer.polygons = self.polygons
 		layer.name = 'Intersection of %s and %s' % (self.layer1.name, self.layer2.name)
 		# Why not
@@ -446,10 +560,10 @@ class LayerSVGParser:
 		   id="rect3225"
 		   style="fill:#999999" />
 		'''
-		print self.file_name
+		#print self.file_name
 		raw = open(self.file_name).read()
 		
-		print 'set vars'
+		#print 'set vars'
 		self.x_delta = 0.0
 		self.x_deltas = list()
 		self.y_delta = 0.0
@@ -459,7 +573,7 @@ class LayerSVGParser:
 
 		# 3 handler functions
 		def start_element(name, attrs):
-			print 'Start element:', name, attrs
+			#print 'Start element:', name, attrs
 			if name == 'rect':				
 				#print 'Got one!'
 				# Origin at upper left hand corner, same as PIL
@@ -483,8 +597,8 @@ class LayerSVGParser:
 			elif name == 'svg':
 			   self.layer.width = int(attrs['width'])
 			   self.layer.height = int(attrs['height'])
-			   print 'Width ' + str(self.layer.width)
-			   print 'Height ' + str(self.layer.height)
+			   #print 'Width ' + str(self.layer.width)
+			   #print 'Height ' + str(self.layer.height)
 			# Text entry
 			elif name == 'flowRoot':
 				'''
@@ -523,7 +637,7 @@ class LayerSVGParser:
 				#sys.exit(1)
 		   		pass
 		   	else:
-		   		print 'Skipping %s' % name
+		   		#print 'Skipping %s' % name
 				pass
 		   
 			
@@ -588,6 +702,18 @@ class Layer:
 		return layer_index >= 0 and layer_index <= 5
 
 	@staticmethod
+	def from_polygons(polygons, name=None):
+		ret = Layer()
+		for polygon in polygons:
+			ret.polygons.add(polygon)
+		ret.name = name
+		return ret
+		
+	@staticmethod
+	def from_layer(layer, name=None):
+		return Layer.from_layers([layer], name)
+		
+	@staticmethod
 	def from_layers(layers, name=None):
 		ret = Layer()
 		#ret.virtual = True
@@ -602,13 +728,15 @@ class Layer:
 		r.add_layer(self)
 		r.render()
 
+	def show_polygons(self):
+		UVPolygon.show_polygons(self.polygons)
+
 	def gen_polygons(self):
 		for polygon in self.polygons:
 			yield polygon
 		
 	def remove_polygon(self, polygon):
-	
-		print self.polygons
+		# print self.polygons
 		self.polygons.remove(polygon)
 		
 	def assign_nets(self, netgen):
@@ -619,7 +747,7 @@ class Layer:
 				polygon.net.add_member(polygon)
 				# If the layer has a potential defined to it, propagate it
 				polygon.net.potential = self.potential
-				print 'self potential: %u' % self.potential
+				#print 'self potential: %u' % self.potential
 
 	def __repr__(self):
 		ret = 'Layer: '
@@ -631,8 +759,149 @@ class Layer:
 		
 	def get_name(self):
 		return self.name
+		
+	def get_multipolygon(self):
+		'''Return a shapely multipolygon representing this layer'''
+		'''
+		In [128]: d1 = Polygon( [(110.9072599999999937, 82.6502100000000155), (270.8686099999999897, 82.6502100000000155), (270.8686099999999897, 155.0855360000000189), (110.9072599999999937, 155.0855360000000189), (110.9072599999999937, 82.6502100000000155)] )
+		In [130]: d2 = Polygon( [(178.3227500000000134, 34.3740499999999969), (203.3301850000000286, 34.3740499999999969), (203.3301850000000286, 155.0996000000000095), (178.3227500000000134, 155.0996000000000095), (178.3227500000000134, 34.3740499999999969)] )
+		In [127]: mp = MultiPolygon([d1, d2])
+		In [129]: print mp
+		MULTIPOLYGON (((110.9072599999999937 82.6502100000000155, 270.8686099999999897 82.6502100000000155, 270.8686099999999897 155.0855360000000189, 110.9072599999999937 155.0855360000000189, 110.9072599999999937 82.6502100000000155)), ((178.3227500000000134 34.3740499999999969, 203.3301850000000286 34.3740499999999969, 203.3301850000000286 155.0996000000000095, 178.3227500000000134 155.0996000000000095, 178.3227500000000134 34.3740499999999969)))
+		'''
+		l_temp = [p.polygon for p in self.polygons]
+		'''
+		print
+		print 'Getting multipoly...'
+		print '\t' + repr(l_temp)
+		for i in l_temp:
+			print '\t' + repr(i)
+		print
+		'''
+		ret = MultiPolygon(l_temp)
+		return ret
+		
+	def subtract(self, other):
+		#return self.subtract_by_single(other)
+		# return self.subtract_by_multi(other)
+		return self.subtract_by_single_multi(other)
+		
+	def subtract_by_single_multi(self, other, new_color=None):
+		'''
+		Not sure if this will work since we can't tag
+		'''
+		# Seed and subtract until we stop intersecting
+		# FIXME: looks like we can only subtract poly from multi, not multi from multi :(
+		mp_temp = self.get_multipolygon()
+		mp_other = other.get_multipolygon()
+		first = None
+		'''
+		Outter loops need to be other since its fixed
+		Can only subtract poly from multipoly, not multipoly from multipoly
+		'''
+		uvpl = list()
+		for poly in mp_other:
+			#UVPolygon.from_polygon(poly).show()
+			#Layer.from_polygons(UVPolygon.uv_polygon_list(mp_temp)).show()
+			
+			old_size = len(mp_temp)
+			mp_temp = mp_temp.difference(poly)
+			for polygon in mp_temp:
+				print 'mp_temp: ' + repr(polygon)
+			new_size = len(mp_temp)
+			uvpl = UVPolygon.uv_polygon_list(mp_temp)
+			for polygon in uvpl:
+				if not len(polygon.get_points()) == 8:
+					continue
+				print '***'
+				print 'Polygon 1: ' + repr(polygon)
+				print polygon.polygon
+				#polygon.show()
+				print 'Polygon dir: ' + repr(dir(polygon.polygon))
+				print '***'
+				print polygon.to_cli()
+				
+				#import pdb; pdb.set_trace()
 
-	def intersection(self, other, do_xintersection=True):
+			print 'Iteration %d => %d (%d)' % (old_size, new_size, len(uvpl))
+			#Layer.from_polygons(uvpl).show()
+		
+		#sys.exit(1)
+		uvpl = UVPolygon.uv_polygon_list(mp_temp, new_color = new_color)
+		print 'New polys: %d' % len(uvpl)
+		#sys.exit(1)
+		
+		'''
+		XXX: need to preserve nets?
+		Current requirements is blanket preservation, not precision
+		'''
+		for new_uvpoly in uvpl:
+			found = False
+			for old_uvpoly in self.polygons:
+				if old_uvpoly.intersects(new_uvpoly):
+					new_uvpoly.color = old_uvpoly.color
+					new_uvpoly.net = old_uvpoly.net
+					found = True
+					# Each new should intersect at most one old
+					break
+			if not found:
+				raise Exception('Could not match up new to old')
+		
+		
+		
+		ret = LayerI(self, other, uvpl)
+		return ret
+	
+	def subtract_by_multi(self, other, new_color=None):
+		'''
+		Not sure if this will work since we can't tag
+		'''
+		# FIXME: looks like we can only subtract poly from multi, not multi from multi :(
+		mp_self = self.get_multipolygon()
+		mp_other = other.get_multipolygon()
+		first = None
+		'''
+		
+		'''
+		for poly in mp_other:
+			first = poly
+		diff = mp_self.difference(first)
+		
+		uvpl = UVPolygon.uv_polygon_list(diff, new_color = new_color)
+		
+		return LayerI(self, other, uvpl)
+		
+	def subtract_by_single(self, other):
+		#print 'Checking difference of %s (%u) and %s (%u)' % (self.name, len(self.polygons), other.name, len(other.polygons))
+		
+		def gen_pairs_normal():
+			'''Normal polygon generator where polygons don't repeat'''
+			for self_polygon in self.polygons:
+				for other_polygon in other.polygons:
+					yield (self_polygon, other_polygon)
+							
+		polygen = gen_pairs_normal()
+		result_polygons = list()
+		
+		for (self_polygon, other_polygon) in polygen:
+			if self_polygon.intersects(other_polygon):
+				#print 'Intersection!'
+				# print '%s %s vs %s %s' % (self.name, poly1, other.name, poly2)
+				result_list = self_polygon.subtract(other_polygon)
+				for result in result_list:
+					result.poly1 = self_polygon
+					result.poly2 = other_polygon
+					result_polygons.append(result)
+			else:
+				# No intersection, leave as is
+				result_polygons.append(self_polygon)
+				result.poly1 = None
+				result.poly2 = None
+		name = 'Difference of %s and %s' % (self.name, other.name)
+		#return Layer.from_polygons(self, result_polygons, name)
+		return LayerI(self, other, result_polygons)
+
+	def intersection(self, other, do_xintersection = False):
 		# list of intersecting polygons
 		xintersections = list()
 		print 'Checking intersection of %s (%u) and %s (%u)' % (self.name, len(self.polygons), other.name, len(other.polygons))
@@ -659,13 +928,20 @@ class Layer:
 		
 		for (self_polygon, other_polygon) in polygen:
 			if do_xintersection:
-				poly1 = self_polygon.xpolygon
-				poly2 = other_polygon.xpolygon
+				poly1 = self_polygon.get_xpolygon()
+				poly2 = other_polygon.get_xpolygon()
 			else:
 				poly1 = self_polygon.polygon
 				poly2 = other_polygon.polygon
 			
-			if False:
+			if not poly1.geom_type == 'Polygon':
+				print 'WARNING: poly1 is %s' % poly1.geom_type
+				raise Exception('abc')
+			if not poly2.geom_type == 'Polygon':
+				print 'WARNING: poly2 is %s' % poly2.geom_type
+				raise Exception('abc')
+			
+			if True:
 				print 'Checking:'
 				print '\t%s: %s' % (self.name, poly1)
 				print '\t%s: %s' % (other.name, poly2)
@@ -673,7 +949,11 @@ class Layer:
 			if poly1.intersects(poly2):
 				print 'Intersection!'
 				print '%s %s vs %s %s' % (self.name, poly1, other.name, poly2)
-				xintersection = UVPolygon.from_polygon(poly1).intersection(UVPolygon.from_polygon(poly2))
+				uvpoly1 = UVPolygon.from_polygon(poly1)
+				uvpoly2 = UVPolygon.from_polygon(poly2)
+				xintersection = uvpoly1.intersection(uvpoly2)
+				if xintersection is None:
+					raise Exception("not intersected")
 				# Tack on some intersection data
 				xintersection.poly1 = self_polygon
 				xintersection.poly2 = other_polygon
