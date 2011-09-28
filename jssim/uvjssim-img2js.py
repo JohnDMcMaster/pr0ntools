@@ -29,10 +29,20 @@ For now assume all data is rectangular
 Maybe use Inkscape .svg or 
 
 
+
+>>> from Tkinter import *
+>>> root = Tk()
+>>> root.winfo_screenwidth()
+1280
+>>> root.winfo_screenheight()
+1024
+
+
 '''
 
 VERSION = "1.0"
 
+import signal
 from pr0ntools.jssim.options import Options
 import sys
 from pr0ntools.jssim.generator import Generator
@@ -60,6 +70,7 @@ def help():
 	print "--masks[=<bool>]: set options that favor input as masks as opposed to a physical chip"
 	print "--trans-by-adj[=<bool>]: compute transistors by finding diffusion adjacent to poly"
 	print "--trans-by-int[=<bool>]: compute transistors by finding diffusion intersecting poly"
+	print "--cif=<file>: from CIF file"
 	print "--help: this message"
 	print "--trans-tech=<technology>: input transistor technology, one of (case insensitive):"
 	print "\tbipolar"
@@ -82,6 +93,8 @@ def help():
 	print "\t%s" % Options.JS_FILE_SEGDEFS
 
 if __name__ == "__main__":	
+	cif_file_name = None
+	
 	for arg_index in range (1, len(sys.argv)):
 		arg = sys.argv[arg_index]
 		arg_key = None
@@ -96,8 +109,19 @@ if __name__ == "__main__":
 			else:
 				arg_key = arg[2:]
 	
-		if arg_key == "masks":
+		
+		if arg_key is None:
+			if arg.find('.cif') >= 0:
+				cif_file_name = arg
+			else:
+				raise Exception('Unknown undecorated arg %s' % arg)
+		elif arg_key == "masks":
 			Options.as_masks = arg_value_bool
+		elif arg_key == "cif":
+			if arg_value:
+				cif_file_name = arg_value
+			else:
+				cif_file_name = "in.cif"
 		elif arg_key == "trans-by-adj":
 			Options.transistors_by_adjacency = arg_value_bool
 		elif arg_key == "trans-by-int":
@@ -118,6 +142,9 @@ if __name__ == "__main__":
 	
 	Options.assign_defaults()
 
-	gen = Generator()
+	if cif_file_name:
+		gen = Generator.from_cif(cif_file_name)
+	else:
+		gen = Generator.from_qt_images()
 	gen.run()
 

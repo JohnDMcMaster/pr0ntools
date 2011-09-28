@@ -19,6 +19,19 @@ class Options:
 	transistors_by_intersect = None
 
 	technology = Technology.NMOS
+	
+	# Assigning early is good for normal use since we want to perform simple error checking
+	# before running full computations
+	# However, debugging may only want to use partial mask in which case labels might not line up
+	assign_node_names_early = True
+	
+	color_wheel = ('red', 'blue', 'green', 'yellow')
+	
+	# hack to complement above
+	ignore_unmatched_labels = True
+	
+	# Use quadtree to signifigantly reduce CPU usage at the cost of increased memory
+	using_quadtree = True
 
 	# Reserved for future use
 	# JSSim can only use point list type polygons, ie not ones with holes

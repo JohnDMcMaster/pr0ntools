@@ -4,6 +4,12 @@ Copyright 2011 John McMaster <JohnDMcMaster@gmail.com>
 Licensed under a 2 clause BSD license, see COPYING for details
 '''
 
+'''
+What about negative coordinates?
+CIF and other formats seem to support these
+'''
+
+from pr0ntools.benchmark import Benchmark
 from pr0ntools.pimage import PImage
 from pr0ntools.jssim.files.nodenames import *
 from pr0ntools.jssim.files.segdefs import *
@@ -11,11 +17,40 @@ from pr0ntools.jssim.files.transdefs import *
 from pr0ntools.jssim.layer import Layer
 from pr0ntools.jssim.options import Options
 from pr0ntools.jssim.transistor import *
+from pr0ntools.jssim.cif.parser import Parser as CIFParser
+from pr0ntools.jssim.cif.parser import Layer as CIFLayer
 import sys
 from pr0ntools.jssim.layer import UVPolygon, Net, Nets, PolygonRenderer, Point
 
+from pr0ntools.jssim.util import set_debug_width, set_debug_height
+
+if False:
+	clip_x_min = 250
+	clip_x_max = 360
+	clip_y_min = 150
+	clip_y_max = 250
+	clip_poly = UVPolygon.from_rect_ex(clip_x_min, clip_y_min, clip_x_max - clip_x_min + 1, clip_y_max - clip_y_min + 1)
+	clip_poly.color = 'white'
+else:
+	clip_poly = False
+
 class Generator:
-	def __init__(self, src_images = None):
+	def __init__(self):
+		self.vias = None
+		self.metal_gnd = None
+		self.metal_vcc = None
+		self.metal = None
+		self.polysilicon = None
+		self.diffusion = None
+		self.labels = None
+	
+	@staticmethod
+	def from_qt_images(src_images = None):
+		g = Generator()
+		g.from_qt_images_init(src_images)
+		return g
+	
+	def from_qt_images_init(self, src_images = None):
 		if src_images == None:
 			src_images = dict()
 			src_images['metal_gnd'] = Options.DEFAULT_IMAGE_FILE_METAL_GND
@@ -26,36 +61,244 @@ class Generator:
 			src_images['vias'] = Options.DEFAULT_IMAGE_FILE_VIAS
 			src_images['labels'] = Options.DEFAULT_IMAGE_FILE_LABELS
 		
+		# Validate sizes
+		self.verify_layer_sizes(src_images.values())
+	
+		self.vias = Layer.from_svg(src_images['vias'])
+		self.metal_gnd = Layer.from_svg(src_images['metal_gnd'])
+		self.metal_vcc = Layer.from_svg(src_images['metal_vcc'])
+		self.metal = Layer.from_svg(src_images['metal'])
+		print self.metal.width
+		self.polysilicon = Layer.from_svg(src_images['polysilicon'])
+		self.diffusion = Layer.from_svg(src_images['diffusion'])		
+		self.labels = Layer.from_svg(src_images['labels'])
+
+		self.init()
+	
+	@staticmethod
+	def from_cif(file_name = "in.cif"):
+		g = Generator()
+		g.from_cif_init(file_name)
+		return g
+		
+	def default_layer_names(self):
+		if not self.vias.name:
+			self.vias.name = 'vias'
+		if not self.metal.name:
+			self.metal.name = 'metal'
+		if not self.polysilicon.name:
+			self.polysilicon.name = 'polysilicon'
+		if not self.diffusion.name:
+			self.diffusion.name = 'diffusion'
+		if not self.labels.name:
+			self.labels.name = 'labels'
+	
+	def from_cif_init(self, file_name = "in.cif"):
+		self.vias = Layer()
+		self.metal = Layer()
+		self.polysilicon = Layer()
+		self.diffusion = Layer()
+		self.labels = Layer()
+		self.metal_gnd = None
+		self.metal_vcc = None
+		self.default_layer_names()
+		
+		parsed = CIFParser.parse(file_name)
+		
+		print 'CIF width: %d' % parsed.width
+		print 'CIF height: %d' % parsed.height
+		
+		self.rebuild_layer_lists(False)
+		# Make sizes the furthest point found
+		for layer in self.layers + [self.labels]:
+			#print 'Setting %s to %s' % (layer.name, parsed.width)
+			layer.width = parsed.width
+			layer.height = parsed.height
+		
+		def add_cif_polygons(uv_layer, cif_layer):
+			print '%s: adding %d boxes' % (uv_layer.name, len(cif_layer.boxes)) 
+			for box in cif_layer.boxes:
+				'''
+				CIF uses lower left coordinate system
+				Convert to internal representation, upper left
+				
+				UL
+					Vertical
+						B 22 94 787 2735
+					Horizontal
+						B 116 22 740 2793
+				'''
+				#print '.',
+				if False:
+					print 'start'
+					print box.xpos
+					print box.ypos
+					print box.width
+					print box.height
+				# FIXME: change this into one operation since this now takes non-negligible amount of time
+				#uvp = UVPolygon.from_rect(box.xpos, box.ypos, box.width, box.height)
+				uvp = UVPolygon.from_rect_ex(box.xpos, box.ypos, box.width, box.height, flip_height = uv_layer.height)
+				if False:
+					print uvp
+					uvp.show()
+				#uvp.flip_horizontal(uv_layer.height)
+				#print uvp
+				#uvp.show()
+				uv_layer.add_uvpolygon(uvp)
+				#sys.exit(1)
+			# uv_layer.show()
+			#sys.exit(1)
+			
+		print 'Width: %d, height: %d' % (parsed.width, parsed.height)
+		print 'Parsed labels: %d' % len(parsed.labels)
+		for label in parsed.labels:
+			# Make it a smallish object
+			# Really 1 pix should be fine...but I'm more afraid of corner cases breaking things
+			# Get it working first and then debug corner cases if needed
+			# Maybe length should be related to text length
+			uvpoly = UVPolygon.from_rect_ex(label.x, label.y, 20, 20, flip_height = parsed.height)
+			uvpoly.text = label.text
+			print uvpoly 
+			#uvpoly.show()
+			self.labels.add_uvpolygon(uvpoly)
+		#self.labels.show()
+		#sys.exit(1)
+				
+		for layer_id in parsed.layers:
+			layer = parsed.layers[layer_id]
+			bench = Benchmark()
+			# NMOS metal
+			if layer_id == CIFLayer.NM:
+				add_cif_polygons(self.metal, layer)
+			# NMOS poly
+			elif layer_id == CIFLayer.NP:
+				add_cif_polygons(self.polysilicon, layer)
+			# NMOS diffusion
+			elif layer_id == CIFLayer.ND:
+				add_cif_polygons(self.diffusion, layer)
+			# NMOS contact
+			elif layer_id == CIFLayer.NC:
+				add_cif_polygons(self.vias, layer)
+			else:
+				raise Exception('Unsupported layer type %s' % repr(layer_id))
+			print bench
+			
+		#self.compute_wh()
+		self.init()
+	
+	def compute_wh(self):
+		'''Some formats such as CIF don't embed width/height.  Instead we have to standardize on some computed value'''
+		width = 0
+		height = 0
+		
+		# Find the highest width/height
+		for layer in self.layers:
+			layer.compute_wh()
+			width = max(width, layer.width)
+			height = max(height, layer.height)
+		
+		# Should be maxed out, normalize
+		for layer in self.layers:
+			layer.width = width
+			layer.height = height
+
+	
+	def rebuild_layer_lists(self, complete = True):
+		self.layers = list()
+		self.layers.append(self.polysilicon)
+		self.layers.append(self.diffusion)
+		self.layers.append(self.vias)
+		
+		self.layers.append(self.metal)
+		if self.metal_vcc:
+			self.layers.append(self.metal_vcc)
+		if self.metal_gnd:
+			self.layers.append(self.metal_gnd)
+
+	def color_layers(self):
+		if not self.metal.color:
+			self.metal.set_color('blue')
+		if self.metal_gnd and not self.metal_gnd.color:
+			self.metal_gnd.set_color('blue')
+		if self.metal_vcc and not self.metal_vcc.color:
+			self.metal_vcc.set_color('blue')
+		
+		if not self.polysilicon.color:
+			self.polysilicon.set_color('red')
+		if not self.diffusion.color:
+			self.diffusion.set_color('green')
+		if not self.vias.color:
+			self.vias.set_color('black')
+	
+	def clip(self):
+		global clip_poly
+		if not clip_poly:
+			return
+			
+		for layer in self.layers:
+		#for layer in [self.diffusion]:
+			layer.keep_intersecting(clip_poly)
+			#layer.add_uvpolygon_begin(clip_poly)
+			#layer.show()
+			#clip_poly.show()
+	
+	def init(self):
+		set_debug_width(self.metal.width)
+		set_debug_height(self.metal.height)
+		#print g_width, g_height
+		#sys.exit(1)
+	
+		self.default_layer_names()
+	
+		# Clip as early as possible to avoid extra operations
+		self.clip()
+		
+		self.color_layers()
+	
+		self.metal.index = Layer.METAL
+		
+		if self.metal_gnd:
+			self.metal_gnd.potential = Net.GND
+			self.metal_gnd.index = Layer.METAL
+		if self.metal_vcc:
+			self.metal_vcc.potential = Net.VCC
+			self.metal_vcc.index = Layer.METAL
+		
+		self.polysilicon.index = Layer.POLYSILICON
+		
 		# visual6502 net numbers seem to start at 1, not 0
 		self.min_net_number = 1
 				
 		self.transdefs = Transdefs()
 		
 		self.reset_net_number()
+		# Skip some checks before nets are setup, but make the reference availible
+		self.nets = None
+		#self.polygon_nets = dict()
+		self.remove_polygon = self.remove_polygon_no_nets
 		
-		# Validate sizes
-		self.verify_layer_sizes(src_images.values())
-	
-		self.vias = Layer.from_svg(src_images['vias'])
-		# Vias have no layer
+		self.vdd = None
+		self.vss = None
 		
-		self.metal_gnd = Layer.from_svg(src_images['metal_gnd'])
-		self.metal_gnd.potential = Net.GND
-		self.metal_gnd.index = Layer.METAL
+		# Deals with small non-intersecting delta issues, but does distort the result
+		print 'Enlarging layers...'
+		bench = Benchmark()
+		for layer in self.layers:
+			layer.enlarge(None, 1.0)
+		print 'Layers enlarged in %s' % repr(bench)
 		
-		self.metal_vcc = Layer.from_svg(src_images['metal_vcc'])
-		self.metal_vcc.potential = Net.VCC
-		self.metal_vcc.index = Layer.METAL
-		
-		self.metal = Layer.from_svg(src_images['metal'])
-		self.metal.index = Layer.METAL
-		
-		self.metals = Layer.from_layers([self.metal_gnd, self.metal_vcc, self.metal], name='metals')
+		# Must be done before projrection or can result in complex geometries
+		# Well you can still get them, but its much easier if you don't do this first
+		bench = Benchmark()
+		self.condense_polygons()
+		print 'Polygons condensed in %s' % repr(bench)
 
-		self.polysilicon = Layer.from_svg(src_images['polysilicon'])
-		self.polysilicon.index = Layer.POLYSILICON
-
-		self.diffusion = Layer.from_svg(src_images['diffusion'])		
+		# net to set of polygons
+		# Used for merging nets
+		# number to net object
+		self.nets = Nets()
+		self.remove_polygon = self.remove_polygon_regular
+		
 		if Options.transistors_by_intersect:
 			self.project_diffusion()
 		#print 'Polygons: %d' % len(self.diffusion.polygons)
@@ -63,24 +306,18 @@ class Generator:
 		#sys.exit(1)
 		#self.diffusion.index = Layer.UNKNOWN_DIFFUSION
 
-		self.labels = Layer.from_svg(src_images['labels'])
 
 		#self.buried_contacts = Layer(Options.DEFAULT_IMAGE_FILE_BURIED_CONTACTS)
 		#self.transistors = Layer(Options.DEFAULT_IMAGE_FILE_TRANSISTORS)
 		self.transistors = Transistors()
-
-		self.layers = [self.polysilicon, self.diffusion, self.vias, self.metal_vcc, self.metal_gnd, self.metal]
+		
+		self.rebuild_layer_lists()
+		
 		self.verify_layer_sizes_after_load()
 		
-		# net to set of polygons
-		# Used for merging nets
-		# number to net object
-		self.nets = Nets()
-		#self.polygon_nets = dict()
+		for layer in self.layers:
+			layer.show()
 		
-		self.vdd = None
-		self.vss = None
-
 	def reset_net_number(self):
 		self.last_net = self.min_net_number - 1
 
@@ -91,8 +328,10 @@ class Generator:
 		
 		for layer in self.layers:
 			if layer.width != self.width:
+				print 'Expected width %d, layer (%s): %d' % (self.width, layer.name, layer.width)
 				raise Exception('layer width mismatch')
 			if layer.height != self.height:
+				print 'Expected height %d, layer (%s): %d' % (self.width, layer.name, layer.height)
 				raise Exception('layer height mismatch')
 	
 	def verify_layer_sizes(self, images):
@@ -133,7 +372,7 @@ class Generator:
 		for polygon in self.polysilicon:
 			yield polygon
 		# Must be last
-		for polygon in self.metals:
+		for polygon in self.get_metal():
 			yield polygon
 			
 	def run_DRC(self):
@@ -180,7 +419,7 @@ class Generator:
 			for polygon in layer.polygons:
 				net = polygon.net
 				self.nets.add(net)
-				print 'post potential: %u' % polygon.net.potential
+				#print 'post potential: %u' % polygon.net.potential
 					
 	def reassign_nets(self):
 		'''
@@ -291,21 +530,26 @@ class Generator:
 		
 		print 'trans: ' + repr(transistor)
 		print 'direct weak: ' + repr(transistor.weak)
-		#if transistor.weak:
+		#if transistor.weak:uv_polygon_list(
 		#	raise Exception('weak')
 	
 		print 'Adding transistor'
 		self.transistors.add(transistor)
 	
 	def project_diffusion(self):
+		print 'Projecting diffusion...'
+		bench = Benchmark()
+		start_polygons = len(self.diffusion.polygons)
 		# Save in case we want to reference it
 		self.diffusion_original = self.diffusion
-		#self.diffusion.show()
-		#self.polysilicon.show()
-		self.diffusioni = self.diffusion_original.subtract(self.polysilicon)
-		self.diffusion = self.diffusioni.to_layer()		
-		#self.diffusion.show()
-		#sys.exit(1)
+		if False:
+			self.diffusion.show()
+			self.polysilicon.show()
+		
+		#self.diffusioni = self.diffusion_original.subtract(self.polysilicon)
+		#self.diffusion = self.diffusioni.to_layer()		
+		
+		self.diffusion = self.diffusion_original.subtract(self.polysilicon)
 		
 		# Find intersection with poly to form transistors
 		# Require 2, some chips use diffusion for conduction to bypass metal
@@ -314,6 +558,14 @@ class Generator:
 		# Subtract out the poly from diffusion
 		# We can then use the same proximity algorithm as before
 		# However, we will save intersections to get a better idea of correct transistor mapping
+		end_polygons = len(self.diffusion.polygons)
+		print 'Projected diffusion %d => %d polygons in %s' % (start_polygons, end_polygons, repr(bench))
+		
+		if False:
+			self.diffusion.show()
+			#self.polysilicon.show()
+			#self.diffusion_original.show()
+			sys.exit(1)
 		
 	def find_transistors_by_intersect(self):
 		'''
@@ -373,6 +625,9 @@ class Generator:
 			diffusion_polygons = candidates[polysilicon_polygon]
 			if len(diffusion_polygons) != 2:
 				print 'Diff polygons: %d' % len(diffusion_polygons)
+				for diff_polygon in diffusion_polygons:
+					print diff_polygon
+					#diff_polygon.show()
 				raise Exception("Unexpected number of diffusion polygons intersecting polysilicon polygon")
 			# Merge should have already ran
 			
@@ -384,18 +639,24 @@ class Generator:
 	
 	def all_layers(self):
 		'''All polygon layers including virtual layers but not metadata layers'''
-		return self.layers + [self.metals]
+		return self.layers + self.get_metals()
 
-	def remove_polygon(self, polygon):
+	def remove_polygon_no_nets(self, polygon):
+		'''Intended to be used for early condensing before nets are established'''
+		for layer in self.all_layers():
+			if polygon in layer.polygons:
+				layer.remove_polygon(polygon)
+			
+	def remove_polygon_regular(self, polygon):
 		net = self.nets[polygon.net.number]
 		net.remove_member(polygon)
 		# Invalidate references?
 		# del polygon
 		#print
 		for layer in self.all_layers():
-			print 'Checking ' + layer.name
+			#print 'Checking ' + layer.name
 			if polygon in layer.polygons:
-				print '***Removing polygon from ' + layer.name
+				#print '***Removing polygon from ' + layer.name
 				#polygon.show('Removing')
 				#layer.show('Before (%s)' % layer.name)
 				layer.remove_polygon(polygon)
@@ -427,8 +688,17 @@ class Generator:
 		print
 		print
 		print
-		#print 'Checking polygons for self merge...'
+		if layeri.layer1 is not layeri.layer2:
+			raise Exception('Can only merge against own layer')
+		total_loops = len(layeri.polygons)
+		begin_polygons = len(layeri.layer1.polygons)
+		print 'Merging %s/%s %d intersections from %d polygons...' % (layeri.layer1.name, layeri.layer2.name, total_loops, begin_polygons)
+		loops = 0
 		for polygon in layeri.polygons:
+			if loops % (total_loops / 10) == 0:
+				print 'loops: %d / %d (%0.2f %%)' % (loops, total_loops, 100.0 * loops / total_loops)
+			loops += 1
+			
 			poly1 = polygon.poly1
 			poly2 = polygon.poly2
 			
@@ -436,29 +706,60 @@ class Generator:
 			if poly1 == poly2:
 				raise Exception('equal early')
 				
-			# Only worry if the actual polygons overlap, not the xpolygons
-			# Note that we can safely do this check on the original polygon and not the new polygon (if applicable)
-			if not poly1.polygon.intersects(poly2.polygon):
-				print 'Rejecting xpolygon only match'
-				continue
-			
 			# May have been merged, figure out what polygon it currently belongs to
 			while poly1 in successors:
 				poly1 = successors[poly1]
 			while poly2 in successors:
 				poly2 = successors[poly2]
+			# We may have already replaced?
+			if poly1 == poly2:
+				continue
+				print
+				print successors
+				print
+				print poly1
+				raise Exception('equal late')
+			
+			# Only worry if the actual polygons overlap, not the xpolygons
+			# Note that we can safely do this check on the original polygon and not the new polygon (if applicable)
+			'''
+			FIXME: refine this
+			this was because we would have a gap which wouldn't quite work?
+			Could try envolope, although if we are doing xpolygon it doesn't make sense to just later throw it out
+			'''
+			if not poly1.polygon.intersects(poly2.polygon):
+				print 'Rejecting xpolygon only match'
+				continue
 			
 			#union = poly1.polygon.union(poly2.polygon)
 			union = poly1.union(poly2)
+			# Hmm not sure why this happens
+			if union.polygon.geom_type == 'MultiPolygon':
+				print
+				print
+				print
+				print 'unexpected multipolygon'
+				print 'poly1: ' + repr(poly1)
+				print 'poly2: ' + repr(poly2)
+				print 'union: ' + repr(union.polygon)
+				'''
+				FIXME: not sure why this happens
+				Maybe zero area segments?
+				poly1: <polygon points="1084,621, 1087,621, 1087,614, 1061,614, 1061,614, 1060,614, 1060,623, 1061,623, 1061,622, 1084,622" />
+				poly2: <polygon points="1061,623, 1083,623, 1083,623, 1061,623" />
+				'''
+				continue
+				poly1.show()
+				poly2.show()
+				Layer.from_sl_multi(union.polygon).show()
+				print 'unexpected multipolygon'
+				sys.exit(1)
 			# nets should be identical since we should have done net merge before
 			#union.show('Union of %u and %u' % (poly1.net.number, poly2.net.number))
-			print 'union: ' + repr(union)
-			# Replace poly1's polygon and get rid of poly2
-			# We may have 
-			if poly1 == poly2:
-				raise Exception('equal late')
+			#print 'union: ' + repr(union)
 			successors[poly2] = poly1
 
+			# Replace poly1's polygon and get rid of poly2
 			#poly1.show("pre poly1")
 			poly1.set_polygon(union.polygon)			
 			#poly1.show("tranformed poly1")
@@ -466,21 +767,24 @@ class Generator:
 			
 			self.remove_polygon(poly2)
 	
-		if True:
+		end_polygons = len(layeri.layer1.polygons)
+		print 'Merged from %d => %d polygons' % (begin_polygons, end_polygons)
+		if False:
 			print 'Polygon intersections: %u' % len(layeri.polygons)
 			print
 			print 'metals:'
-			print self.metals
-			#self.metals.show()
+			print self.get_metal()
+			#self.get_metal().show()
 			print
 			
-			print 'metals polygons: %u' % len(self.metals.polygons)
-			if len(self.metals.polygons) != 4:
+			print 'metals polygons: %u' % len(self.get_metal().polygons)
+			if len(self.get_metal().polygons) != 4:
 				print 'FAILED'
 			#sys.exit(1)
 
 	def merge_nets(self, layeri):
 #		self.merge_nets_core(layeri, False)
+		
 		
 #	def merge_nets_core(self, layeri, same_layer):
 		'''
@@ -556,7 +860,7 @@ class Generator:
 		
 		print
 		print
-		print
+		print 'Condensing polygons...'
 
 		#for polygon in self.metal.polygons:
 		#	self.show_net(polygon.net.number)
@@ -564,34 +868,56 @@ class Generator:
 		#for layer in self.layers:
 		#self.metal.show()
 		# FIXME: to simplify debugging
-		for layer in [self.metal]:
-		#for layer in [self.metals]:
+		# Should relaly be all visible or conductive layers
+		layer_number = 0
+		for layer in self.layers:
+		#for layer in [self.get_metal()]:
+		#for layer in self.visible_layers():
+			layer_number += 1
+			before_count = len(layer.polygons)
+			print "Condensing %s's %d polygons (%d / %d)..." % (layer.name, before_count, layer_number, len(self.layers))
 			layeri = layer.intersection(layer, True)
-			print layeri
+			#print layeri
 			if False:
 				layeri.show()
 				sys.exit(1)
 			# Electically connect them
 			self.merge_nets(layeri)
-			# and visually merge them
+			# and geometrically merge them
 			self.merge_polygons(layeri)
+			after_count = len(layer.polygons)
+			print 'Condensed %d => %d' % (before_count, after_count)
+			if False:
+				for polygon in layer.polygons:
+					polygon.show()
+				layer.show()
+				sys.exit(1)
 		
-		print
-		print 
-		print
-		for net in self.nets.nets:
-			print net
-			print self.nets[net].members
+		if False:
+			for layer in self.layers:
+				layer.show()
+			sys.exit(1)
+		
+		if False:
+			print
+			print 
+			print
+			for net in self.nets.nets:
+				print net
+				print self.nets[net].members
 		#self.show_nets()
 		#sys.exit(1)
 		
+		#self.metal.show_polygons()
+		#sys.exit(1)
 		
 		#for polygon in self.metal.polygons:
 		#	self.show_net(polygon.net.number)
+		#self.show_nets()
 		#sys.exit(1)
 		
 	def merge_poly_vias_layers(self):		
-		print 'Metal polygons: %u' % len(self.metals.polygons)
+		print 'Metal polygons: %u' % len(self.get_metal().polygons)
 		print 'Poly polygons: %u' % len(self.polysilicon.polygons)
 		print 'Vias polygons: %u' % len(self.vias.polygons)
 
@@ -611,7 +937,7 @@ class Generator:
 		'''
 		
 		# Find / connect transistors
-		print 'Metal polygons: %u' % len(self.metals.polygons)
+		print 'Metal polygons: %u' % len(self.get_metal().polygons)
 		print 'Diff polygons: %u' % len(self.diffusion.polygons)
 		print 'Vias polygons: %u' % len(self.vias.polygons)
 
@@ -626,10 +952,33 @@ class Generator:
 		
 		#sys.exit(1)
 		
+	def get_metals(self):
+		metal_layers = list()
+	
+		metal_layers.append(self.metal)
+		if self.metal_gnd:
+			metal_layers.append(self.metal_gnd)
+		if self.metal_vcc:
+			metal_layers.append(self.metal_vcc)
+		return metal_layers
+		
+	def get_metal(self):
+		# Rebuild every time for now instead of managing invalidations
+		# Relativly quick compared to (I think) number of times needed
+		self.metals = None
+		if self.metals is None:
+			metal_layers = self.get_metals()
+			# Note this is a nontrivial operation, we add all polygons to it
+			# Maybe we can make virtual layer somehow?
+			self.metals = Layer.from_layers(metal_layers, name='metals')
+
+		return self.metals
+		
 	def merge_metal_vias(self):
-		metals_layeri = self.metals.intersection(self.vias, True)
-		#metals_layeri.show()
-		self.merge_nets(metals_layeri)
+		for metal_layer in self.get_metals():
+			metals_layeri = metal_layer.intersection(self.vias, True)
+			#metals_layeri.show()
+			self.merge_nets(metals_layeri)
 
 	def via_check(self, min_connections):
 		'''
@@ -646,8 +995,14 @@ class Generator:
 			if len(net.members) < min_connections:
 				msg = 'Non-sensical via, require %d connections, got %d' % (min_connections, len(net.members))
 				print 'ERROR: ' + msg
-				polygon.show()
-				self.show_nets()
+				#polygon.show()
+				#self.show_nets()
+				
+				r = PolygonRenderer(title='Nets')
+				self.append_nets_to_render(r)
+				r.add_polygon(polygon, color='orange')
+				r.render()
+				
 				raise Exception(msg)
 		
 
@@ -655,14 +1010,17 @@ class Generator:
 		# Combine polygons at a net level on the same layer
 		# Only needed if you have bad input polygons
 		# Really would be better to pre-process input to combine them
-		self.condense_polygons()
-		print 'Polygons condensed'
+		#bench = Benchmark()
+		#self.condense_polygons()
+		#print 'Polygons condensed in %s' % repr(bench)
 		#self.show_nets()
+		#sys.exit(1)
 		self.verify_net_index()
 		
 		# Note that you cannot have diffusion and poly, via is for one or the other		
+		bench = Benchmark()
 		self.merge_metal_vias()
-		print 'Metal and vias merged'
+		print 'Metal and vias merged in %s' % repr(bench)
 		#self.show_nets()
 		#self.verify_net_index()
 		#sys.exit(1)
@@ -671,14 +1029,16 @@ class Generator:
 		
 		# Connected poly to metal
 		
+		bench = Benchmark()
 		self.merge_poly_vias_layers()
-		print 'Poly and vias merged'
+		print 'Poly and vias merged in %s' % repr(bench)
 		#self.show_nets()
 		self.verify_net_index()
 		
 		# Connect diffusion to metal
-		print 'Diffusion and vias merged'
+		bench = Benchmark()
 		self.merge_diffusion_vias_layers()
+		print 'Diffusion and vias merged in %s' % repr(bench)
 		#self.show_nets()
 		self.verify_net_index()
 		
@@ -733,7 +1093,7 @@ class Generator:
 			
 			
 		# Must be last
-		for polygon in self.metals.gen_polygons():
+		for polygon in self.get_metal().gen_polygons():
 			
 			net = polygon.net
 			pullup = net.get_pullup()
@@ -822,8 +1182,17 @@ class Generator:
 			for polygon in layer.polygons:
 				yield polygon
 	
+	def get_metal_layers(self):
+		l = list()
+		l.append(self.metal)
+		if self.metal_vcc:
+			l.append(metal_vcc)
+		if self.metal_gnd:
+			l.append(metal_gnd)
+		return l
+	
 	def conductive_layers(self):
-		return list([self.polysilicon, self.diffusion, self.metal_vcc, self.metal_gnd, self.metal])
+		return list([self.polysilicon, self.diffusion]) + self.get_metal_layers()
 
 	def assign_node_names(self):
 		'''Assign labels to nets by looking at label text box intersection with conductive areas'''
@@ -838,6 +1207,8 @@ class Generator:
 			#if net_name == 'vcc':
 			#	label_polygon.show()
 			for polygon in self.gen_conductive_polygons():
+				# ??? what was this for?  Debugging?
+				"""
 				if net_name == 'vcc':
 					#UVPolygon.show_polygons([label_polygon, polygon])
 					'''
@@ -847,6 +1218,8 @@ class Generator:
 					else:
 					'''
 					pass
+				"""
+				
 				if not label_polygon.intersects(polygon):
 					continue
 				# A match!
@@ -858,16 +1231,46 @@ class Generator:
 					print 'new name: %s' % net_name
 					raise Exception('Net already named something different')
 				'''
-				net.add_name(net_name)
+				net.add_name_parsed(net_name)
 			if not matched:
-				raise Exception('Could not assign net name ' + net_name)
+				print 'Unmatched label: %s' % label_polygon
+				if not Options.ignore_unmatched_labels:
+					self.show_polygon_in_all(label_polygon)
+					raise Exception('Could not assign net name ' + net_name)
 		
+	def add_rendered_layers(self, r):
+		# draw over the original polygon
+		for layer in self.layers:
+			color = None
+			r.add_layer(layer, color = color)
+		
+	def show_polygon_in_all(self, uvpolygon):
+		r = PolygonRenderer(title='Highlighting polygon')
+		for layer in self.layers:
+			r.add_layer(layer)
+		self.add_rendered_layers(r)
+		r.add_polygon(uvpolygon, color='orange')
+		r.render()
+	
 	def show_nets(self):
-		for i in self.nets.nets:
-			self.show_net(i)
+		if True:
+			for i in self.nets.nets:
+				self.show_net(i)
+		else:
+			r = PolygonRenderer(title='Nets')
+			self.append_nets_to_render(self, r)
+			r.render()
+
+	def append_nets_to_render(self, r):
+		i = 0
+		for net in self.nets:
+			cur_color = Options.color_wheel[colori % len(Options.color_wheel)]
+			i += 1
+			for member in net.members:
+				r.add_polygon(member, color = cur_color)
 
 	def show_net(self, net_number):
-		r = PolygonRenderer(title='Net %u' % net_number)
+		r = PolygonRenderer(title='Net %u' % net_number, width=self.metal.width, height=self.metal.height)
 		for layer in self.layers:
 			r.add_layer(layer)
 		
@@ -875,7 +1278,7 @@ class Generator:
 		for layer in self.layers:
 			for polygon in layer.polygons:
 				if polygon.net.number == net_number:
-					r.add_polygon(polygon, 'blue')
+					r.add_polygon(polygon, 'orange')
 		r.render()
 
 	def run(self):
@@ -888,16 +1291,32 @@ class Generator:
 		
 		#print 'Iteration %u' % iteration
 		
+		print '********************'
+		print 'Phase 1 / 5: seeding nets'
 		self.assign_nets()
+		
+		# This is a relativly quick operation so move it earlier to reduce chance of late errors
+		if Options.assign_node_names_early:
+			self.assign_node_names()
+		
+		print '********************'
+		print 'Phase 2 / 5: merging nets'
 		self.find_and_merge_nets()
+
+		print '********************'
+		print 'Phase 3 / 5: finding transistors (and pullups'
 		self.find_transistors()
 		self.find_pullups()
 		
 		#sys.exit(1)
 		
+		print '********************'
+		print 'Phase 4 / 5: assigning nets'
+		
 		# Now make them linearly ordered
 		self.reassign_nets()
-		self.assign_node_names()
+		if not Options.assign_node_names_early:
+			self.assign_node_names()
 		# This wasn't needed because we can figure it out during build
 		#self.mark_diffusion()
 		
@@ -905,6 +1324,8 @@ class Generator:
 		#self.show_nets()
 		#sys.exit(1)
 		
+		print '********************'
+		print 'Phase 5 / 5: generating final output'
 		self.build_segdefs()
 		self.build_transdefs()
 		self.build_nodenames()
