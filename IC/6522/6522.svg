@@ -437,9 +437,9 @@
      inkscape:window-height="697"
      id="namedview4"
      showgrid="false"
-     inkscape:zoom="0.052262762"
-     inkscape:cx="7343.2829"
-     inkscape:cy="1000.8811"
+     inkscape:zoom="1.6724084"
+     inkscape:cx="2607.4253"
+     inkscape:cy="7768.0855"
      inkscape:window-x="0"
      inkscape:window-y="25"
      inkscape:window-maximized="1"
@@ -894,7 +894,7 @@
        x="9056"
        y="417" />
     <rect
-       style="fill:#0000ff;fill-rule:evenodd;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       style="fill:#0000ff;fill-rule:evenodd;stroke:none"
        id="rect3100"
        width="40"
        height="372"
@@ -908,7 +908,7 @@
        x="438"
        y="8394.7627" />
     <rect
-       style="stroke:none;fill:#0000ff"
+       style="fill:#0000ff;stroke:none"
        id="rect3872"
        width="33"
        height="419"
@@ -23260,5 +23260,33 @@
        height="39.165077"
        x="7513.416"
        y="7413.8804" />
+    <rect
+       style="fill:#0000ff;stroke:none"
+       id="rect6595"
+       width="113.01067"
+       height="120.7839"
+       x="2436.0078"
+       y="1478.7273" />
+    <rect
+       style="fill:#0000ff;stroke:none"
+       id="rect6597"
+       width="112.41273"
+       height="122.57772"
+       x="2701.4934"
+       y="1476.9335" />
+    <rect
+       style="fill:#0000ff;stroke:none"
+       id="rect6599"
+       width="56.804306"
+       height="92.082771"
+       x="2664.4209"
+       y="1495.4695" />
+    <rect
+       style="fill:#0000ff;stroke:none"
+       id="rect6601"
+       width="55.010487"
+       height="92.082779"
+       x="2543.0391"
+       y="1494.8716" />
   </g>
 </svg>
