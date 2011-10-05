@@ -12,7 +12,7 @@
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    id="svg2"
    version="1.1"
-   inkscape:version="0.48.1 r9760"
+   inkscape:version="0.47 r22583"
    width="9515"
    height="9295"
    sodipodi:docname="6522.svg"
@@ -428,28 +428,34 @@
      pagecolor="#ffffff"
      bordercolor="#666666"
      borderopacity="1"
-     objecttolerance="10"
-     gridtolerance="10"
-     guidetolerance="10"
+     objecttolerance="10000"
+     gridtolerance="10000"
+     guidetolerance="10000"
      inkscape:pageopacity="0"
      inkscape:pageshadow="2"
-     inkscape:window-width="1024"
-     inkscape:window-height="697"
+     inkscape:window-width="1680"
+     inkscape:window-height="961"
      id="namedview4"
-     showgrid="false"
-     inkscape:zoom="1.6724084"
-     inkscape:cx="2607.4253"
-     inkscape:cy="7768.0855"
+     showgrid="true"
+     inkscape:zoom="4.7302852"
+     inkscape:cx="3423.4279"
+     inkscape:cy="1575.2436"
      inkscape:window-x="0"
-     inkscape:window-y="25"
+     inkscape:window-y="0"
      inkscape:window-maximized="1"
      inkscape:current-layer="layer1"
-     inkscape:snap-global="false"
+     inkscape:snap-global="true"
      showguides="true"
      inkscape:guide-bbox="true">
     <inkscape:grid
        type="xygrid"
-       id="grid4651" />
+       id="grid4651"
+       empspacing="5"
+       visible="true"
+       enabled="true"
+       snapvisiblegridlinesonly="false"
+       empcolor="#ff0000"
+       empopacity="0.25098039" />
   </sodipodi:namedview>
   <image
      sodipodi:absref="/home/mcmaster/document/external/pr0ntools/IC/6522/stitch.png"
@@ -4321,9 +4327,9 @@
     <rect
        style="fill:#0000ff"
        id="rect3427"
-       width="409"
-       height="23.5"
-       x="2439.5"
+       width="409.5"
+       height="23.499756"
+       x="2439"
        y="1429.5002" />
     <rect
        style="fill:#0000ff"
@@ -14275,10 +14281,10 @@
     <rect
        style="fill:#0000ff;stroke:none"
        id="rect5841"
-       width="1477.0027"
-       height="24.999998"
+       width="2310.1494"
+       height="28"
        x="1569.8507"
-       y="7719" />
+       y="7715" />
     <rect
        style="fill:#0000ff;stroke:none"
        id="rect5843"
@@ -15140,13 +15146,6 @@
        height="24.80957"
        x="3035.5649"
        y="7675.4312" />
-    <rect
-       style="fill:#0000ff;stroke:none"
-       id="rect6095"
-       width="845.40942"
-       height="25.305763"
-       x="3040.2544"
-       y="7717.6074" />
     <rect
        style="fill:#0000ff;stroke:none"
        id="rect6097"
@@ -23263,10 +23262,10 @@
     <rect
        style="fill:#0000ff;stroke:none"
        id="rect6595"
-       width="113.01067"
-       height="120.7839"
-       x="2436.0078"
-       y="1478.7273" />
+       width="115"
+       height="121"
+       x="2435"
+       y="1479" />
     <rect
        style="fill:#0000ff;stroke:none"
        id="rect6597"
@@ -23284,7 +23283,7 @@
     <rect
        style="fill:#0000ff;stroke:none"
        id="rect6601"
-       width="55.010487"
+       width="54.960938"
        height="92.082779"
        x="2543.0391"
        y="1494.8716" />
