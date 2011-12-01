@@ -32,10 +32,14 @@ class Example(QtGui.QWidget):
 		self.mc = None
 		try:
 			self.mc = MC()
+			self.mc.on()
+			if False:
+				self.mc.y.jog(100)
+				sys.exit(1)
 		except:
 			print 'Failed to open device'
-			#raise
-		
+			raise
+				
 	def x(self, n):
 		if self.mc is None:
 			return
@@ -80,7 +84,7 @@ class Example(QtGui.QWidget):
 	
 		
 		k = event.key()
-		inc = 1
+		inc = 100
 		if k == Qt.Key_Left:
 			print 'left'
 			self.x(-inc)
