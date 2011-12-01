@@ -23,7 +23,7 @@ import usbio
 from usbio.mc import MC
 
 
-class Example(QtGui.QWidget):
+class Example(QtGui.QMainWindow):
 	
 	def __init__(self):
 		super(Example, self).__init__()
@@ -38,7 +38,7 @@ class Example(QtGui.QWidget):
 				sys.exit(1)
 		except:
 			print 'Failed to open device'
-			raise
+			#raise
 				
 	def x(self, n):
 		if self.mc is None:
