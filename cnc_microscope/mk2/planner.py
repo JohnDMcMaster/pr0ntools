@@ -11,7 +11,7 @@ import math
 import numpy
 import json
 import os
-from pr0ntools.stitch.image_map import ImageMap 
+#from pr0ntools.stitch.image_map import ImageMap 
 from imager import DummyImager
 from controller import DummyController
 
@@ -137,7 +137,10 @@ class Planner:
 
 		focus = FocusLevel()
 		self.focus = focus
-		focus.eyepiece_mag = float(microscope_config['microscope']['eyepiece'][0])
+		try:
+			focus.eyepiece_mag = float(microscope_config['microscope']['eyepiece'][0])
+		except:
+			focus.eyepiece_mag = 1.0
 		# objective_config = microscope_config['microscope']['objective'].itervalues().next()
 		objective_config = microscope_config['microscope']['objective'][0]
 		focus.objective_mag = float(objective_config['mag'])
@@ -198,10 +201,16 @@ class Planner:
 			full_z_delta = self.z_end - self.z_start
 		#print full_z_delta
 	
+		print 'full x delta: %f' % full_x_delta
+		print 'x view: %f' % focus.x_view
+	
 		x_images = full_x_delta / (focus.x_view * overlap)
 		y_images = full_y_delta / (focus.y_view * overlap)
 		x_images = round(x_images)
 		y_images = round(y_images)
+		
+		print 'x images: %d' % x_images
+		print 'y images: %d' % y_images
 	
 		if self.z:
 			self.z_backlash = float(microscope_config['stage']['z_backlash'])
