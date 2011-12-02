@@ -19,7 +19,8 @@ from PyQt4.QtGui import *
 from PyQt4 import Qt
 from PyQt4 import QtCore
 from PyQt4.QtCore import *
-from planner import Planner
+from planner import Planner, ControllerPlanner
+from imager import DummyImager
 
 import usbio
 from usbio.mc import MC
@@ -67,7 +68,9 @@ class Example(QtGui.QMainWindow):
 		
 		#self.controller = 
 			
-		self.planner = Planner()
+		controller = None
+		imager = None
+		self.planner = ControllerPlanner(controller, imager)
 		self.planner.run()
 		sys.exit(1)
 		
