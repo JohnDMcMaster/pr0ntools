@@ -120,14 +120,8 @@ class FocusLevel:
 		pass
 
 class Planner:
-	def __init__(self, controller = None, imager = None):
-		if controller is None:
-			controller = DummyController()
-		if imager is None:
-			imager = DummyImager()
-		
-		self.controller = controller
-		self.imager = imager
+	def __init__(self, progress_cb = None):
+		self.progress_cb = progress_cb
 	
 		# Proportion of overlap on each image to adjacent
 		overlap = 2.0 / 3.0
@@ -153,8 +147,6 @@ class Planner:
 		focus.x_view = float(objective_config['x_view'])
 		focus.y_view = float(objective_config['y_view'])
 	
-		self.z_backlash = float(microscope_config['stage']['z_backlash'])
-	
 		'''
 		Planar test run
 		plane calibration corner ended at 0.0000, 0.2674, -0.0129
@@ -163,24 +155,44 @@ class Planner:
 		scan_config_file = open(scan_config_file_name)
 		scan_config = json.loads(scan_config_file.read())
 
+		self.z = True
+
 		self.x_start = float(scan_config['start']['x'])
 		self.y_start = float(scan_config['start']['y'])
-		self.z_start = float(scan_config['start']['z'])
+		try:
+			self.z_start = float(scan_config['start']['z'])
+		except:
+			self.z_start = None
+			self.z = False
 		self.start = [self.x_start, self.y_start, self.z_start]
 	
 		self.x_end = float(scan_config['end']['x'])
 		self.y_end = float(scan_config['end']['y'])
-		self.z_end = float(scan_config['end']['z'])
+		try:
+			self.z_end = float(scan_config['end']['z'])
+		except:
+			self.z_end = None
+			self.z = False
 		self.end = [self.x_end, self.y_end, self.z_end]
 	
-		self.x_other = float(scan_config['other']['x'])
-		self.y_other = float(scan_config['other']['y'])
-		self.z_other = float(scan_config['other']['z'])
-		self.other = [self.x_other, self.y_other, self.z_other]	
-	
+		try:
+			self.x_other = float(scan_config['other']['x'])
+			self.y_other = float(scan_config['other']['y'])
+			try:
+				self.z_other = float(scan_config['other']['z'])
+			except:
+				self.z_other = None
+				self.z = False
+			self.other = [self.x_other, self.y_other, self.z_other]	
+		except:
+			self.other = None
+		
 		full_x_delta = self.x_end - self.x_start
 		full_y_delta = self.x_end - self.y_start
-		full_z_delta = self.z_end - self.z_start
+		if self.z_start is None or self.z_end is None:
+			full_z_delta = None
+		else:
+			full_z_delta = self.z_end - self.z_start
 		#print full_z_delta
 	
 		x_images = full_x_delta / (focus.x_view * overlap)
@@ -188,68 +200,74 @@ class Planner:
 		x_images = round(x_images)
 		y_images = round(y_images)
 	
+		if self.z:
+			self.z_backlash = float(microscope_config['stage']['z_backlash'])
+		else:
+			self.z_backlash = None
+	
 		self.x_step = self.x_end / x_images
 		self.y_step = self.y_end / y_images
 	
-		'''
-		To find the Z on this model, find projection to center line
-		Projection of A (position) onto B (center line) length = |A| cos(theta) = A dot B / |B| 
-		Should I have the z component in here?  In any case it should be small compared to others 
-		and I'll likely eventually need it
-		'''
+		if self.z and self.other:
+			'''
+			To find the Z on this model, find projection to center line
+			Projection of A (position) onto B (center line) length = |A| cos(theta) = A dot B / |B| 
+			Should I have the z component in here?  In any case it should be small compared to others 
+			and I'll likely eventually need it
+			'''
 	
-		'''			
-		planar projection
+			'''			
+			planar projection
 	
-		Given two vectors in plane, create orthagonol basis vectors
-		Project vertex onto plane to get vertex coordinates within the plane
-		http://stackoverflow.com/questions/3383105/projection-of-polygon-onto-plane-using-gsl-in-c-c
+			Given two vectors in plane, create orthagonol basis vectors
+			Project vertex onto plane to get vertex coordinates within the plane
+			http://stackoverflow.com/questions/3383105/projection-of-polygon-onto-plane-using-gsl-in-c-c
 	
-		Constraints
-		Linear XY coordinate system given
-		Need to project point from XY to UV plane to get Z distance
-		UV plane passes through XY origin
+			Constraints
+			Linear XY coordinate system given
+			Need to project point from XY to UV plane to get Z distance
+			UV plane passes through XY origin
 	
 	
-		Eh a simple way
-		Get plane in a x + b y + c z + d = 0 form
-		If we know x and y, should be simple
-		d = 0 for simplicity (set plane intersect at origin)
+			Eh a simple way
+			Get plane in a x + b y + c z + d = 0 form
+			If we know x and y, should be simple
+			d = 0 for simplicity (set plane intersect at origin)
 	
-		Three points
-			(0, 0, 0) implicit
-			(ax, ay, az) at other end of rectangle
-			(bx, by, bz) somewhere else on plane, probably another corner
-		Find normal vector, simple to convert to equation
-			nonzero normal vector n = (a, b, c)
-			through the point x0 =(x0, y0, z0)
-			n * (x - x0) = 0, 
-			yields ax + by + cz + d = 0 
-		"Converting between the different notations in 3D"
-			http://www.euclideanspace.com/maths/geometry/elements/plane/index.htm
-			Convert Three points to normal notation
-			N = (p1 - p0) x (p2 - p0)
-			d = -N * p02
-			where:
-				* N = normal to plane (not necessarily unit length)
-				* d = perpendicular distance of plane from origin.
-				* p0,p1 and p2 = vertex points
-				* x = cross product
-		'''
-		p0 = self.start
-		p1 = self.end
-		p2 = self.other
+			Three points
+				(0, 0, 0) implicit
+				(ax, ay, az) at other end of rectangle
+				(bx, by, bz) somewhere else on plane, probably another corner
+			Find normal vector, simple to convert to equation
+				nonzero normal vector n = (a, b, c)
+				through the point x0 =(x0, y0, z0)
+				n * (x - x0) = 0, 
+				yields ax + by + cz + d = 0 
+			"Converting between the different notations in 3D"
+				http://www.euclideanspace.com/maths/geometry/elements/plane/index.htm
+				Convert Three points to normal notation
+				N = (p1 - p0) x (p2 - p0)
+				d = -N * p02
+				where:
+					* N = normal to plane (not necessarily unit length)
+					* d = perpendicular distance of plane from origin.
+					* p0,p1 and p2 = vertex points
+					* x = cross product
+			'''
+			p0 = self.start
+			p1 = self.end
+			p2 = self.other
 
-		# [a - b for a, b in zip(a, b)]
-		# cross0 = p1 - p0
-		cross0 = [t1 - t0 for t1, t0 in zip(p1, p0)]
-		# cross1 = p2 - p0
-		cross1 = [t2 - t0 for t2, t0 in zip(p2, p0)]
-		self.normal = numpy.cross(cross0, cross1)
-		# a x + b y + c z + d = 0 
-		# z = -(a x + by) / c
-		# dz/dy = -b / c
-		self.dz_dy = -self.normal[1] / self.normal[2]
+			# [a - b for a, b in zip(a, b)]
+			# cross0 = p1 - p0
+			cross0 = [t1 - t0 for t1, t0 in zip(p1, p0)]
+			# cross1 = p2 - p0
+			cross1 = [t2 - t0 for t2, t0 in zip(p2, p0)]
+			self.normal = numpy.cross(cross0, cross1)
+			# a x + b y + c z + d = 0 
+			# z = -(a x + by) / c
+			# dz/dy = -b / c
+			self.dz_dy = -self.normal[1] / self.normal[2]
 	
 		self.pictures_to_take = 0
 		#self.pictures_to_take = len(list(drange_at_least(self.x_start, self.x_end, self.x_step))) * len(list(drange_at_least(self.y_start, self.y_end, self.y_step)))
@@ -257,6 +275,11 @@ class Planner:
 			for cur_y in drange_at_least(self.y_start, self.y_end, self.y_step):
 				self.pictures_to_take += 1
 		self.pictures_taken = 0
+		self.notify_progress()
+
+	def notify_progress(self):
+		if self.progress_cb:
+			self.progress_cb(self.pictures_to_take, self.pictures_taken)
 
 	def comment(self, s = ''):
 		if len(s) == 0:
@@ -265,6 +288,9 @@ class Planner:
 			print '# %s' % s
 
 	def calc_z(self, cur_x, cur_y):
+		if not self.z:
+			return None
+			
 		if False:
 			return self.calc_z_simple(cur_x, cur_y)
 		else:
@@ -297,6 +323,7 @@ class Planner:
 		self.do_take_picture()
 		self.pictures_taken += 1
 		self.reset_camera()
+		self.notify_progress()
 	
 	def do_take_picture(self):
 		print 'Taking picture'
@@ -392,16 +419,20 @@ class Planner:
 				cur_z = self.calc_z(cur_x, cur_y)
 				# print cur_z
 				# print 'full_z_delta: %f, z_start %f, z_end %f' % (full_z_delta, z_start, z_end)
-				self.comment('(%f, %f, %f)' % (cur_x, cur_y, cur_z))
+				self.comment('(%f, %f, %s)' % (cur_x, cur_y, str(cur_z)))
 
 				#if cur_z < z_start or cur_z > z_end:
 				#	print 'cur_z: %f, z_start %f, z_end %f' % (cur_z, z_start, z_end)
 				#	raise Exception('z out of range')
 				x_delta = cur_x - prev_x
 				y_delta = cur_y - prev_y
-				z_delta = cur_z - prev_z
+				if self.z:
+					z_delta = cur_z - prev_z
 		
-				self.relative_move(x_delta, y_delta, z_delta + z_backlash_delta)
+				z_param = None
+				if self.z:
+					z_param = z_delta + z_backlash_delta
+				self.relative_move(x_delta, y_delta, z_param)
 				if z_backlash_delta:
 					self.relative_move(0.0, 0.0, -z_backlash_delta)
 				self.take_picture()
@@ -431,8 +462,6 @@ class Planner:
 		if not self.pictures_taken == self.pictures_to_take:
 			raise Exception('pictures taken mismatch (taken: %d, to take: %d)' % (self.pictures_to_take, self.pictures_taken))
 
-
-
 class GCodePlanner(Planner):
 	'''
 	M7 (coolant on): tied to focus / half press pin
@@ -441,8 +470,8 @@ class GCodePlanner(Planner):
 	M9 (coolant off): release focus / picture
 	'''
 	
-	def __init__(self, controller = None, imager = None):
-		Planner.__init__(self, controller, imager)
+	def __init__(self):
+		Planner.__init__(self)
 
 	def do_take_picture(self):
 		self.line('M8')
@@ -499,4 +528,50 @@ class GCodePlanner(Planner):
 		self.line()
 		self.line('(Done!)')
 		#self.line('M2')
+
+'''
+Live control using an active Controller object
+'''
+class ControllerPlanner(Planner):
+	def __init__(self, controller = None, imager = None):
+		Planner.__init__(self)
+		
+		if controller is None:
+			controller = DummyController()
+		if imager is None:
+			imager = DummyImager()
+		
+		self.controller = controller
+		self.imager = imager
+
+
+	def do_take_picture(self):
+		#self.line('M8')
+		#self.pause(3)
+		# TODO: add this in once I move over to the windows machine
+		pass
+
+	def reset_camera(self):
+		# original needed focus button released
+		#self.line('M9')
+		# suspect I don't need anything here
+		pass
+	
+	def relative_move(self, x, y, z = None):
+		if not x and not y and not z:
+			print 'Omitting 0 move'
+			return
+		if x:
+			self.controller.x.jog(x)
+		if y:
+			self.controller.x.jog(y)
+		if z:
+			self.controller.x.jog(z)
+
+	def focus_camera(self):
+		# no z axis control right now
+		pass
+		
+	def end_program(self):
+		print 'Done!'
 
