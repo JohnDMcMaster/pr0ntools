@@ -15,6 +15,7 @@ last edited: October 2011
 
 import sys
 from PyQt4 import QtGui
+from PyQt4.QtGui import *
 from PyQt4 import Qt
 from PyQt4 import QtCore
 from PyQt4.QtCore import *
@@ -22,23 +23,48 @@ from PyQt4.QtCore import *
 import usbio
 from usbio.mc import MC
 
+class Axis(QtGui.QWidget):
+	def __init__(self, axis, parent = None):
+		super(Example, self).__init__()
+		# controller axis object
+		self.axis = axis
+		self.initUI()
+		
+	def initUI(self):
+		gb = QGroupBox()
+		#al = QHBoxLayout()
+		
+		self.pos_gb = QGroupBox("pos (um)")
+		gb.addWidget(self.pos_gb)
+		self.pos_value = QLabel("Unknown")
+		self.pos_gb.addWidget(self.pos_value)
+		self.home_button = QPushButton("Home")
+		self.pos_gb.addWidget(self.home_button)
+		
+		self.meas_gb = QGroupBox("Meas (um)")
+		gb.addWidget(self.meas_gb)
+		self.meas_value = QLabel("Unknown")
+		self.meas_gb.addWidget(self.meas_value)
+		self.meas_reset_button = QPushButton("Reset")
+		self.meas_gb.addWidget(self.meas_reset_button)
+		
+		self.addWidget(gb)
 
 class Example(QtGui.QMainWindow):
 	
 	def __init__(self):
 		super(Example, self).__init__()
-		
-		self.initUI()
+
 		self.mc = None
+		
 		try:
 			self.mc = MC()
 			self.mc.on()
-			if False:
-				self.mc.y.jog(100)
-				sys.exit(1)
 		except:
 			print 'Failed to open device'
 			#raise
+			
+		self.initUI()
 				
 	def x(self, n):
 		if self.mc is None:
@@ -50,10 +76,120 @@ class Example(QtGui.QMainWindow):
 			return
 		self.mc.y.jog(n)
 		
+	def get_config_layout(self):
+		cl = QVBoxLayout()
+		
+		l = QLabel("Objective")
+		cl.addWidget(l)
+		cb = QComboBox()
+		cl.addWidget(cb)
+		
+		l = QLabel("Resolution")
+		cl.addWidget(l)
+		cb = QComboBox()
+		cl.addWidget(cb)
+		
+		l = QLabel("Imaging device")
+		cl.addWidget(l)
+		cb = QComboBox()
+		cl.addWidget(cb)
+
+		l = QLabel("USBIO device")
+		cl.addWidget(l)
+		cb = QComboBox()
+		cl.addWidget(cb)
+
+		return cl
+	
+	def get_video_layout(self):
+		video_layout = QHBoxLayout()
+		
+		view_layout = QVBoxLayout()
+		l = QLabel("View")
+		view_layout.addWidget(l)
+		gv = QGraphicsView()
+		view_layout.addWidget(gv)
+		video_layout.addLayout(view_layout)
+		
+		last_layout = QVBoxLayout()
+		l = QLabel("Last")
+		last_layout.addWidget(l)
+		gv = QGraphicsView()
+		last_layout.addWidget(gv)
+		video_layout.addLayout(last_layout)
+		
+		return video_layout
+	
+	def get_bottom_layout(self):
+		bottom_layout = QHBoxLayout()
+		
+		axes_gb = QGroupBox('Axes')
+		axes_layout = QHBoxLayout()
+		if self.mc:
+			for axis in self.mc.axis:
+				axisw = Axis(axis)
+				axes_layout.addWidget(axisw)
+		axes_gb.setLayout(axes_layout)
+		bottom_layout.addWidget(axes_gb)
+		
+		
+		scan_gb = QGroupBox('Scan')
+		scan_layout = QVBoxLayout()
+		
+		limits_gb = QGroupBox('Limits')
+		limits_layout = QGridLayout()
+		ul = QPushButton("Set UL")
+		limits_layout.addWidget(ul, 0, 0)
+		ur = QPushButton("Set UR")
+		limits_layout.addWidget(ur, 0, 1)
+		ll = QPushButton("Set LL")
+		limits_layout.addWidget(ll, 1, 0)
+		lr = QPushButton("Set LR")
+		limits_layout.addWidget(lr, 1, 1)
+		limits_gb.setLayout(limits_layout)
+		scan_layout.addWidget(limits_gb)
+
+		# TODO: add overlap widgets
+		
+		run_layout = QHBoxLayout()
+		b = QPushButton("Go")
+		run_layout.addWidget(b)
+		pb = QProgressBar()
+		run_layout.addWidget(pb)
+		scan_layout.addLayout(run_layout)
+
+		
+		scan_gb.setLayout(scan_layout)
+		bottom_layout.addWidget(scan_gb)
+
+		
+		
+		
+		
+		return bottom_layout
+		
 	def initUI(self):
+		self.setGeometry(300, 300, 250, 150)		
+		self.setWindowTitle('pr0ncnc')	
+		self.show()
+		
+		# top layout
+		tl = QVBoxLayout(self)
+		
+		tl.addLayout(self.get_config_layout())
+		tl.addLayout(self.get_video_layout())
+		tl.addLayout(self.get_bottom_layout())
+		
+		w = QWidget()
+		w.setLayout(tl)
+		self.setCentralWidget(w)
+		
+	def initUIOld(self):
 		self.setGeometry(300, 300, 250, 150)		
 		self.setWindowTitle('Message box')	
 		self.show()
+		
+		l = QHBoxLayout(self)
 		
 	def keyPressEvent(self, event):
 		'''
