@@ -187,6 +187,9 @@ class Planner:
 		except:
 			self.other = None
 		
+		if not self.z:
+			print 'WARNING: crudely removing Z since its not present or broken'
+		
 		full_x_delta = self.x_end - self.x_start
 		full_y_delta = self.x_end - self.y_start
 		if self.z_start is None or self.z_end is None:
