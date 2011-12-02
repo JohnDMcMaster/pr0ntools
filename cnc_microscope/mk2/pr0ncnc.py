@@ -19,6 +19,7 @@ from PyQt4.QtGui import *
 from PyQt4 import Qt
 from PyQt4 import QtCore
 from PyQt4.QtCore import *
+from planner import Planner
 
 import usbio
 from usbio.mc import MC
@@ -63,6 +64,14 @@ class Example(QtGui.QMainWindow):
 		except:
 			print 'Failed to open device'
 			#raise
+		
+		#self.controller = 
+			
+		self.planner = Planner()
+		self.planner.run()
+		sys.exit(1)
+		
+			
 			
 		self.initUI()
 				
@@ -162,10 +171,6 @@ class Example(QtGui.QMainWindow):
 		scan_gb.setLayout(scan_layout)
 		bottom_layout.addWidget(scan_gb)
 
-		
-		
-		
-		
 		return bottom_layout
 		
 	def initUI(self):
