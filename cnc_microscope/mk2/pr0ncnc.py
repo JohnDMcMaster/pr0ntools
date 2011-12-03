@@ -27,7 +27,7 @@ from usbio.mc import MC
 
 class Axis(QtGui.QWidget):
 	def __init__(self, axis, parent = None):
-		super(Example, self).__init__()
+		super(Axis, self).__init__()
 		# controller axis object
 		self.axis = axis
 		self.initUI()
@@ -64,19 +64,20 @@ class Example(QtGui.QMainWindow):
 			self.mc.on()
 		except:
 			print 'Failed to open device'
-			#raise
+			raise
 		
 		#self.controller = 
 			
-		controller = None
-		controller = self.mc
-		imager = None
-		#imager = VideoCaptureImager()
-		imager = PILImager()
-		self.planner = ControllerPlanner(controller, imager)
-		self.planner.run()
-		print 'Planner debug break'
-		sys.exit(1)
+		if False:
+			controller = None
+			controller = self.mc
+			imager = None
+			#imager = VideoCaptureImager()
+			imager = PILImager()
+			self.planner = ControllerPlanner(controller, imager)
+			self.planner.run()
+			print 'Planner debug break'
+			sys.exit(1)
 		
 			
 			
@@ -136,13 +137,21 @@ class Example(QtGui.QMainWindow):
 		
 		return video_layout
 	
+	def home(self):
+		print 'Home requested'
+		if self.mc:
+			self.mc.home()
+	
 	def get_bottom_layout(self):
 		bottom_layout = QHBoxLayout()
 		
 		axes_gb = QGroupBox('Axes')
 		axes_layout = QHBoxLayout()
-		if self.mc:
-			for axis in self.mc.axis:
+		self.home_button = QPushButton("Home all")
+		self.home_button.connect(self.home_button, QtCore.SIGNAL("clicked()"), self.home)
+		axes_layout.addWidget(self.home_button)
+		if 0 and self.mc:
+			for axis in self.mc.axes:
 				axisw = Axis(axis)
 				axes_layout.addWidget(axisw)
 		axes_gb.setLayout(axes_layout)
@@ -235,7 +244,7 @@ class Example(QtGui.QMainWindow):
 		Upper left hand coordinate system
 		'''
 		k = event.key()
-		inc = 100
+		inc = 5
 		if k == Qt.Key_Left:
 			print 'left'
 			self.x(-inc)
