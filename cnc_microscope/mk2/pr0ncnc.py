@@ -136,13 +136,19 @@ class Example(QtGui.QMainWindow):
 		if self.mc:
 			self.mc.home()
 			
+	def progress_cb(self, pictures_to_take, pictures_taken, first):
+		if first:
+			self.pb.setMinimum(0)
+			self.pb.setMaximum(pictures_to_take)
+		self.pb.setValue(pictures_taken)
+			
 	def run(self):
 		controller = None
 		controller = self.mc
 		imager = None
 		#imager = VideoCaptureImager()
 		imager = PILImager()
-		self.planner = ControllerPlanner(controller, imager)
+		self.planner = ControllerPlanner(self.progress_cb, controller, imager)
 		self.planner.run()
 	
 	def get_bottom_layout(self):
@@ -183,8 +189,8 @@ class Example(QtGui.QMainWindow):
 		b = QPushButton("Go")
 		b.connect(b, SIGNAL('clicked()'), self.run)
 		run_layout.addWidget(b)
-		pb = QProgressBar()
-		run_layout.addWidget(pb)
+		self.pb = QProgressBar()
+		run_layout.addWidget(self.pb)
 		scan_layout.addLayout(run_layout)
 
 		

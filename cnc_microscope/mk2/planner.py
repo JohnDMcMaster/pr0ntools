@@ -297,11 +297,11 @@ class Planner:
 				print '    ' + str(p)
 			raise Exception('Fail')
 		self.pictures_taken = 0
-		self.notify_progress()
+		self.notify_progress(True)
 
-	def notify_progress(self):
+	def notify_progress(self, first = False):
 		if self.progress_cb:
-			self.progress_cb(self.pictures_to_take, self.pictures_taken)
+			self.progress_cb(self.pictures_to_take, self.pictures_taken, first)
 
 	def comment(self, s = ''):
 		if len(s) == 0:
@@ -617,8 +617,8 @@ class GCodePlanner(Planner):
 Live control using an active Controller object
 '''
 class ControllerPlanner(Planner):
-	def __init__(self, controller = None, imager = None):
-		Planner.__init__(self)
+	def __init__(self, progress_cb = None, controller = None, imager = None):
+		Planner.__init__(self, progress_cb)
 		
 		if controller is None:
 			controller = DummyController()
