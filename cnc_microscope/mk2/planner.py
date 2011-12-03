@@ -49,6 +49,19 @@ def drange_at_least(start, stop, step):
 			break
 		r += step
 
+# tolerance drange
+# in output if within a delta
+def drange_tol(start, stop, step, delta = None):
+	'''Garauntee max is in the output'''
+	if delta is None:
+		delta = step * 0.05
+	r = start
+	while True:
+		yield r
+		if r > stop:
+			break
+		r += step
+
 '''
 I'll move this to a JSON, XML or something format if I keep working on this
 
@@ -68,23 +81,7 @@ lower left: 0.2639,0.3275,-0.0068
 
 '''
 
-
-def genBasename(point, original_file_name):
-	suffix = original_file_name.split('.')[1]
-	row = point[3]
-	col = point[4]
-	rowcol = ''
-	if include_rowcol:
-		rowcol = 'c%04d_r%04d' % (col, row)
-	coordinate = ''
-	# 5 digits seems quite reasonable
-	if include_coordinate:
-		coordinate = "x%05d_y%05d" % (point[0] * 1000, point[1] * 1000)
-	spacer = ''
-	if len(rowcol) and len(coordinate):
-		spacer = '__'
-	return "%s%s%s%s" % (rowcol, spacer, coordinate, suffix)
-
+'''
 class CameraResolution:
 	width = 1280
 	height = 1024
@@ -102,6 +99,7 @@ class Camera:
 
 	def set_memory(s):
 		memory = 4000000000
+'''
 
 class FocusLevel:
 	# Assume XY isn't effected by Z
@@ -202,6 +200,7 @@ class Planner:
 			full_z_delta = self.z_end - self.z_start
 		#print full_z_delta
 	
+		print 'X %f to %f, Y %f to %f' % (self.x_start, self.x_end, self.y_start, self.y_end)
 		print 'Overlap: %f' % overlap
 		print 'full x delta: %f, y delta: %f' % (full_x_delta, full_y_delta)
 		print 'view x: %f, y: %f' % (focus.x_view, focus.y_view)
@@ -213,6 +212,8 @@ class Planner:
 		y_images = round(y_images)
 		print 'x images: %d' % x_images
 		print 'y images: %d' % y_images
+		self.x_images = x_images
+		self.y_images = y_images
 	
 		#sys.exit(1)
 	
@@ -286,11 +287,15 @@ class Planner:
 			# dz/dy = -b / c
 			self.dz_dy = -self.normal[1] / self.normal[2]
 	
-		self.pictures_to_take = 0
-		#self.pictures_to_take = len(list(drange_at_least(self.x_start, self.x_end, self.x_step))) * len(list(drange_at_least(self.y_start, self.y_end, self.y_step)))
-		for cur_x in drange_at_least(self.x_start, self.x_end, self.x_step):
-			for cur_y in drange_at_least(self.y_start, self.y_end, self.y_step):
-				self.pictures_to_take += 1
+		# Try actually generating the points and see if it matches how many we thought we were going to get
+		self.pictures_to_take = self.getNumPoints()
+		expected_n_pictures = self.x_images * self.y_images
+		if self.pictures_to_take != expected_n_pictures:
+			print 'Going to take %d pictures but thought was going to take %d pictures (x %d X y %d)' % (self.pictures_to_take, expected_n_pictures, self.x_images, self.y_images)
+			print 'Points:'
+			for p in self.getPoints():
+				print '    ' + str(p)
+			raise Exception('Fail')
 		self.pictures_taken = 0
 		self.notify_progress()
 
@@ -335,15 +340,35 @@ class Planner:
 	def pause(self, seconds):
 		pass
 
+	def genBasename(self, point, original_file_name):
+		suffix = original_file_name.split('.')[1]
+		row = point[3]
+		col = point[4]
+		rowcol = ''
+		if include_rowcol:
+			rowcol = 'c%04d_r%04d' % (col, row)
+		coordinate = ''
+		# 5 digits seems quite reasonable
+		if include_coordinate:
+			coordinate = "x%05d_y%05d" % (point[0] * 1000, point[1] * 1000)
+		spacer = ''
+		if len(rowcol) and len(coordinate):
+			spacer = '__'
+		return "%s%s%s%s" % (rowcol, spacer, coordinate, suffix)
+
+	def get_this_file_name(self):
+		# row and column, 0 indexed
+		return 'c%04X_r%04X.jpg' % (self.cur_col, self.cur_row)
+		
 	def take_picture(self):
 		self.focus_camera()
-		self.do_take_picture()
+		self.do_take_picture(self.get_this_file_name())
 		self.pictures_taken += 1
 		self.reset_camera()
 		self.notify_progress()
 	
-	def do_take_picture(self):
-		print 'Taking picture'
+	def do_take_picture(self, file_name = None):
+		print 'Dummy: taking picture to %s' % file_name
 		pass
 		
 	def reset_camera(self):
@@ -355,11 +380,32 @@ class Planner:
 	def relative_move(self, x, y, z = None):
 		print 'Relative move to (%f, %f, %s)' % (x, y, str(z))
 		pass
+		
+	def gen_x_points(self):
+		# We want to step nicely but this simple step doesn't take into account our x field of view
+		x_end = self.x_end - self.focus.x_view
+		for cur_x in drange_at_least(self.x_start, x_end, self.x_step):
+			yield cur_x
+	
+	def gen_y_points(self):
+		y_end = self.y_end - self.focus.y_view
+		for cur_y in drange_at_least(self.y_start, y_end, self.y_step):
+			yield cur_y
+	
+	def getNumPoints(self):
+		pictures_to_take = 0
+		#pictures_to_take = len(list(drange_at_least(self.x_start, self.x_end, self.x_step))) * len(list(drange_at_least(self.y_start, self.y_end, self.y_step)))
+		#for cur_x in self.gen_x_points():
+		#	for cur_y in self.gen_y_points():
+		#		pictures_to_take += 1
+		for p in self.getPoints():
+			pictures_to_take += 1
+		return pictures_to_take
 	
 	def getPoints(self):
 		'''ret (x, y, z)'''
-		for cur_x in drange_at_least(self.x_start, self.x_end, self.x_step):
-			for cur_y in drange_at_least(self.y_start, self.y_end, self.y_step):
+		for cur_x in self.gen_x_points():
+			for cur_y in self.gen_y_points():
 				cur_z = self.calc_z(cur_x, cur_y)
 				yield (cur_x, cur_y, cur_z)
 
@@ -412,15 +458,23 @@ class Planner:
 		# So, need to make sure we are scanning same direction each time
 		# err for now just easier I guess
 		forward = True
-		for cur_x in drange_at_least(self.x_start, self.x_end, self.x_step):
+		self.cur_col = -1
+		# columns
+		for cur_x in self.gen_x_points():
 			first_y = True
-			for cur_y in drange_at_least(self.y_start, self.y_end, self.y_step):
+			self.cur_x = cur_x
+			self.cur_col += 1
+			self.cur_row = -1
+			# rows
+			for cur_y in self.gen_y_points():
+				self.cur_y = cur_y
 				'''
 				Until I can properly spring load the z axis, I have it rubber banded
 				Also, for now assume simple planar model where we assume the third point is such that it makes the plane "level"
 					That is, even X and Y distortion
 				'''
 		
+				self.cur_row += 1
 				z_backlash_delta = 0.0
 				if first_y and z_backlash:
 					# Reposition z to ensure we aren't getting errors from axis backlash
@@ -500,7 +554,7 @@ class GCodePlanner(Planner):
 	def __init__(self):
 		Planner.__init__(self)
 
-	def do_take_picture(self):
+	def do_take_picture(self, file_name):
 		self.line('M8')
 		self.pause(3)
 
@@ -556,6 +610,9 @@ class GCodePlanner(Planner):
 		self.line('(Done!)')
 		#self.line('M2')
 
+	def home(self):
+		self.absolute_move(0, 0, 0)
+		
 '''
 Live control using an active Controller object
 '''
@@ -572,12 +629,16 @@ class ControllerPlanner(Planner):
 		self.imager = imager
 
 
-	def do_take_picture(self):
+	def do_take_picture(self, file_name):
 		#self.line('M8')
 		#self.pause(3)
 		# TODO: add this in once I move over to the windows machine
-		time.sleep(0.5)
-		pass
+		# Give it some time to settle
+		if self.imager:
+			time.sleep(1.5)
+			self.imager.take_picture(file_name)
+		else:
+			time.sleep(0.5)
 
 	def reset_camera(self):
 		# original needed focus button released
@@ -603,3 +664,6 @@ class ControllerPlanner(Planner):
 	def end_program(self):
 		print 'Done!'
 
+	def home(self):
+		self.controller.home()
+		

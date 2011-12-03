@@ -20,7 +20,7 @@ from PyQt4 import Qt
 from PyQt4 import QtCore
 from PyQt4.QtCore import *
 from planner import Planner, ControllerPlanner
-from imager import DummyImager
+from imager import DummyImager, VideoCaptureImager, PILImager
 
 import usbio
 from usbio.mc import MC
@@ -71,6 +71,8 @@ class Example(QtGui.QMainWindow):
 		controller = None
 		controller = self.mc
 		imager = None
+		#imager = VideoCaptureImager()
+		imager = PILImager()
 		self.planner = ControllerPlanner(controller, imager)
 		self.planner.run()
 		print 'Planner debug break'
