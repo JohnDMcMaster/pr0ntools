@@ -69,9 +69,11 @@ class Example(QtGui.QMainWindow):
 		#self.controller = 
 			
 		controller = None
+		controller = self.mc
 		imager = None
 		self.planner = ControllerPlanner(controller, imager)
 		self.planner.run()
+		print 'Planner debug break'
 		sys.exit(1)
 		
 			
@@ -227,6 +229,9 @@ class Example(QtGui.QMainWindow):
 		'''
 	
 		
+		'''
+		Upper left hand coordinate system
+		'''
 		k = event.key()
 		inc = 100
 		if k == Qt.Key_Left:
@@ -237,10 +242,10 @@ class Example(QtGui.QMainWindow):
 			self.x(inc)
 		elif k == Qt.Key_Up:
 			print 'up'
-			self.y(inc)
+			self.y(-inc)
 		elif k == Qt.Key_Down:
 			print 'down'
-			self.y(-inc)
+			self.y(inc)
 	
 def main():
 	app = QtGui.QApplication(sys.argv)
