@@ -69,13 +69,7 @@ class Example(QtGui.QMainWindow):
 		#self.controller = 
 			
 		if False:
-			controller = None
-			controller = self.mc
-			imager = None
-			#imager = VideoCaptureImager()
-			imager = PILImager()
-			self.planner = ControllerPlanner(controller, imager)
-			self.planner.run()
+			self.run()
 			print 'Planner debug break'
 			sys.exit(1)
 		
@@ -141,6 +135,15 @@ class Example(QtGui.QMainWindow):
 		print 'Home requested'
 		if self.mc:
 			self.mc.home()
+			
+	def run(self):
+		controller = None
+		controller = self.mc
+		imager = None
+		#imager = VideoCaptureImager()
+		imager = PILImager()
+		self.planner = ControllerPlanner(controller, imager)
+		self.planner.run()
 	
 	def get_bottom_layout(self):
 		bottom_layout = QHBoxLayout()
@@ -178,6 +181,7 @@ class Example(QtGui.QMainWindow):
 		
 		run_layout = QHBoxLayout()
 		b = QPushButton("Go")
+		b.connect(b, SIGNAL('clicked()'), self.run)
 		run_layout.addWidget(b)
 		pb = QProgressBar()
 		run_layout.addWidget(pb)
