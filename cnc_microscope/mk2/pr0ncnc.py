@@ -136,10 +136,12 @@ class Example(QtGui.QMainWindow):
 		if self.mc:
 			self.mc.home()
 			
-	def progress_cb(self, pictures_to_take, pictures_taken, first):
+	def progress_cb(self, pictures_to_take, pictures_taken, image, first):
 		if first:
 			self.pb.setMinimum(0)
 			self.pb.setMaximum(pictures_to_take)
+		else:
+			print 'took %s' % image
 		self.pb.setValue(pictures_taken)
 			
 	def run(self):

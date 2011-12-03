@@ -299,9 +299,9 @@ class Planner:
 		self.pictures_taken = 0
 		self.notify_progress(True)
 
-	def notify_progress(self, first = False):
+	def notify_progress(self, image_file_name, first = False):
 		if self.progress_cb:
-			self.progress_cb(self.pictures_to_take, self.pictures_taken, first)
+			self.progress_cb(self.pictures_to_take, self.pictures_taken, image_file_name, first)
 
 	def comment(self, s = ''):
 		if len(s) == 0:
@@ -362,10 +362,11 @@ class Planner:
 		
 	def take_picture(self):
 		self.focus_camera()
-		self.do_take_picture(self.get_this_file_name())
+		image_file_name = self.get_this_file_name()
+		self.do_take_picture(image_file_name)
 		self.pictures_taken += 1
 		self.reset_camera()
-		self.notify_progress()
+		self.notify_progress(image_file_name)
 	
 	def do_take_picture(self, file_name = None):
 		print 'Dummy: taking picture to %s' % file_name
