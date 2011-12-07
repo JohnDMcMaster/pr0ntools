@@ -59,6 +59,11 @@ class Example(QtGui.QMainWindow):
 
 		self.mc = None
 		
+		if 0:
+			self.run(True)
+			print 'Planner debug break'
+			sys.exit(1)
+		
 		try:
 			self.mc = MC()
 			self.mc.on()
@@ -68,8 +73,8 @@ class Example(QtGui.QMainWindow):
 		
 		#self.controller = 
 			
-		if False:
-			self.run()
+		if 0:
+			self.run(True)
 			print 'Planner debug break'
 			sys.exit(1)
 		
@@ -86,6 +91,11 @@ class Example(QtGui.QMainWindow):
 		if self.mc is None:
 			return
 		self.mc.y.jog(n)
+		
+	def z(self, n):
+		if self.mc is None:
+			return
+		self.mc.z.jog(n)
 		
 	def get_config_layout(self):
 		cl = QVBoxLayout()
@@ -119,6 +129,12 @@ class Example(QtGui.QMainWindow):
 		l = QLabel("View")
 		view_layout.addWidget(l)
 		gv = QGraphicsView()
+
+		scn = QGraphicsScene( gv )
+		#scn.setSceneRect( gv.rect() )
+		gv.setScene( scn )
+		self.gv = gv
+		self.scn = scn
 		view_layout.addWidget(gv)
 		video_layout.addLayout(view_layout)
 		
@@ -141,16 +157,26 @@ class Example(QtGui.QMainWindow):
 			self.pb.setMinimum(0)
 			self.pb.setMaximum(pictures_to_take)
 		else:
-			print 'took %s' % image
+			print 'took %s at %d / %d' % (image, pictures_taken, pictures_to_take)
+			if False:
+				pix = QPixmap( image )
+				# This will be a bit messy...maybe should make this a floating window
+				#self.gv.setFixedSize( pix.width(), pix.height() )
+				self.gv.setFixedSize( 400, 400 )
+				self.scn.addPixmap( pix )
+			
 		self.pb.setValue(pictures_taken)
 			
-	def run(self):
+	def run(self, dry = False):
 		controller = None
-		controller = self.mc
 		imager = None
-		#imager = VideoCaptureImager()
-		imager = PILImager()
-		self.planner = ControllerPlanner(self.progress_cb, controller, imager)
+		if not dry:
+			controller = self.mc
+			#imager = VideoCaptureImager()
+			imager = PILImager()
+			self.planner = ControllerPlanner(self.progress_cb, controller, imager)
+		else:
+			self.planner = Planner()
 		self.planner.run()
 	
 	def get_bottom_layout(self):
@@ -269,6 +295,12 @@ class Example(QtGui.QMainWindow):
 		elif k == Qt.Key_Down:
 			print 'down'
 			self.y(inc)
+		elif k == Qt.Key_PageUp:
+			print 'up'
+			self.z(inc)
+		elif k == Qt.Key_PageDown:
+			print 'down'
+			self.z(-inc)
 	
 def main():
 	app = QtGui.QApplication(sys.argv)

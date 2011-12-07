@@ -126,8 +126,13 @@ class Planner:
 		overlap = 2.0 / 3.0
 		# Maximum allowable overlap proportion error when trying to fit number of snapshots
 		overlap_max_error = 0.05
-		microscope_config_file_name = 'microscope.json'
-		scan_config_file_name = 'scan.json'
+		if 0:
+			microscope_config_file_name = 'microscope_small.json'
+			scan_config_file_name = 'scan_small.json'
+		else:
+			microscope_config_file_name = 'microscope.json'
+			scan_config_file_name = 'scan.json'
+		
 		naked_arg_index = 0
 		action = ACTION_GCODE
 		
@@ -287,6 +292,8 @@ class Planner:
 			# dz/dy = -b / c
 			self.dz_dy = -self.normal[1] / self.normal[2]
 	
+		self.getPointsExInit()
+	
 		# Try actually generating the points and see if it matches how many we thought we were going to get
 		self.pictures_to_take = self.getNumPoints()
 		expected_n_pictures = self.x_images * self.y_images
@@ -358,7 +365,8 @@ class Planner:
 
 	def get_this_file_name(self):
 		# row and column, 0 indexed
-		return 'c%04X_r%04X.jpg' % (self.cur_col, self.cur_row)
+		#return 'c%04X_r%04X.jpg' % (self.cur_col, self.cur_row)
+		return 'c%04X_r%04X.tif' % (self.cur_col, self.cur_row)
 		
 	def take_picture(self):
 		self.focus_camera()
@@ -403,13 +411,20 @@ class Planner:
 			pictures_to_take += 1
 		return pictures_to_take
 	
+	"""
 	def getPoints(self):
 		'''ret (x, y, z)'''
 		for cur_x in self.gen_x_points():
 			for cur_y in self.gen_y_points():
 				cur_z = self.calc_z(cur_x, cur_y)
 				yield (cur_x, cur_y, cur_z)
-
+	"""
+	
+	def getPoints(self):
+		for (cur_x, cur_y, cur_z, row, col) in self.getPointsEx():
+			yield (cur_x, cur_y, cur_z)
+	
+	"""
 	def getPointsEx(self):
 		'''ret (x, y, z, row, col)'''
 		last_x = None
@@ -422,6 +437,61 @@ class Planner:
 			yield (point[0], point[1], point[2], row, col)
 			last_x = point[0]
 			row += 1
+	"""
+
+	def getPointsExInit(self):
+		if 0:
+			self.getPointsEx = self.getPointsExLoop
+		else:
+			#self.getPointsEx = self.getPointsExSerpentineXY
+			self.getPointsEx = self.getPointsExSerpentineYX
+	
+	# Simpler and less backlash issues
+	# However, takes longer as  we have to go back to the other side
+	def getPointsExLoop(self):
+		col = 0
+		for cur_x in self.gen_x_points():
+			row = 0
+			for cur_y in self.gen_y_points():
+				cur_z = self.calc_z(cur_x, cur_y)
+				yield (cur_x, cur_y, cur_z, row, col)
+				row += 1
+			col += 1
+	
+	# Has higher throughput but more prone to backlash issue
+	def getPointsExSerpentineXY(self):
+		y_list_active = [x for x in self.gen_y_points()]
+		y_list_next = list(y_list_active)
+		y_list_next.reverse()
+		col = 0
+		for cur_x in self.gen_x_points():
+			row = 0
+			for cur_y in y_list_active:
+				cur_z = self.calc_z(cur_x, cur_y)
+				yield (cur_x, cur_y, cur_z, row, col)
+				row += 1
+			# swap direction
+			temp = y_list_active
+			y_list_active = y_list_next
+			y_list_next = temp
+			col += 1
+			
+	def getPointsExSerpentineYX(self):
+		x_list_active = [x for x in self.gen_x_points()]
+		x_list_next = list(x_list_active)
+		x_list_next.reverse()
+		row = 0
+		for cur_y in self.gen_y_points():
+			col = 0
+			for cur_x in x_list_active:
+				cur_z = self.calc_z(cur_x, cur_y)
+				yield (cur_x, cur_y, cur_z, row, col)
+				row += 1
+			# swap direction
+			temp = x_list_active
+			x_list_active = x_list_next
+			x_list_next = temp
+			col += 1
 	
 	def run(self):
 		print
@@ -461,13 +531,15 @@ class Planner:
 		forward = True
 		self.cur_col = -1
 		# columns
-		for cur_x in self.gen_x_points():
-			first_y = True
+		for (cur_x, cur_y, cur_z, self.cur_row, self.cur_col) in self.getPointsEx():
+		#for cur_x in self.gen_x_points():
 			self.cur_x = cur_x
-			self.cur_col += 1
-			self.cur_row = -1
+			#self.cur_col += 1
+			#self.cur_row = -1
 			# rows
-			for cur_y in self.gen_y_points():
+			#for cur_y in self.gen_y_points():
+			
+			if True:
 				self.cur_y = cur_y
 				'''
 				Until I can properly spring load the z axis, I have it rubber banded
@@ -476,6 +548,7 @@ class Planner:
 				'''
 		
 				self.cur_row += 1
+				first_y = self.cur_row == 0
 				z_backlash_delta = 0.0
 				if first_y and z_backlash:
 					# Reposition z to ensure we aren't getting errors from axis backlash
@@ -636,7 +709,15 @@ class ControllerPlanner(Planner):
 		# TODO: add this in once I move over to the windows machine
 		# Give it some time to settle
 		if self.imager:
-			time.sleep(1.5)
+			'''
+			At full res this takes a while to settle
+			all settings, including resolution, seem to be getting inherited from AmScope program which works fine for me
+			'''
+			#print 'test'
+			#time.sleep(4.5)
+			# allows for better cooling, motor is getting hot
+			#time.sleep(15)
+			time.sleep(6)
 			self.imager.take_picture(file_name)
 		else:
 			time.sleep(0.5)

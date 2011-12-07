@@ -5,6 +5,11 @@ from PIL import Image
 from PIL import ImageOps  
 import time  
 
+'''
+R:127
+G:103
+B:129
+'''
 
 class Imager:
 	def __init__(self):
@@ -36,6 +41,8 @@ class PILImager:
 
 	def take_picture(self, file_name_out = None):  
 		img = self.cam.getImage() # capture the current image  
+		# on windows this causes the app to block on a MS Paint window..not desirable
+		#img.show()
 		img.save(file_name_out)
 
 	def __del__(self):
