@@ -26,13 +26,21 @@ import usbio
 from usbio.mc import MC
 
 class Axis(QtGui.QWidget):
+	# Absolute position given
+	axisSet = QtCore.pyqtSignal()
+	
 	def __init__(self, axis, parent = None):
 		#super(Axis, self).__init__('Axis %s' % self.axis.name, parent)
 		super(Axis, self).__init__(parent)
 		# controller axis object
 		self.axis = axis
 		self.initUI()
-		
+		self.initSignals()
+	
+	def initSignals(self):
+		#self.connect(self, QtCore.SIGNAL("axisSet(double)"), self.update_abs)
+		pass
+	
 	def go_abs(self):
 		print 'abs'
 	
@@ -41,44 +49,71 @@ class Axis(QtGui.QWidget):
 	
 	def home(self):
 		print 'home'
+		self.axis.home()
+	
+	def set_home(self):
+		print 'setting new home position'
+		self.axis.set_home()
+		#Axis.axisSet.emit()
+		#self.axisSet.emit(Axis.axisSet)
+		self.emit(SIGNAL("axisSet(double)"), 0.0)
 		
 	def meas_reset(self):
 		print 'meas reset'
+		self.meas_abs = self.axis.get_um()
+		
+	#def update_abs(self, pos_um):
+	#	self.pos_value.setText
 		
 	def initUI(self):
 		self.gb = QGroupBox('Axis %s' % self.axis.name)
 		self.gl = QGridLayout()
 		self.gb.setLayout(self.gl)
 		#gbl.addWidget(QLabel('test'))
+		row = 0
 		
 		self.pos_value = QLabel("Pos (um):")
-		self.gl.addWidget(self.pos_value, 0, 0)
+		self.gl.addWidget(self.pos_value, row, 0)
 		self.pos_value = QLabel("Unknown")
-		self.gl.addWidget(self.pos_value, 0, 1)
+		self.gl.addWidget(self.pos_value, row, 1)
+		self.connect(self, QtCore.SIGNAL("axisSet(double)"), self.pos_value.setNum)
+		row += 1
 		
+		# Return to 0 position
 		self.home_button = QPushButton("Home axis")
 		self.home_button.connect(self.home_button, QtCore.SIGNAL("clicked()"), self.home)
-		self.gl.addWidget(self.home_button, 1, 0)
+		self.gl.addWidget(self.home_button, row, 0)
+		row += 1
+		
+		# Set the 0 position
+		self.set_home_button = QPushButton("Set home")
+		self.connect(self.set_home_button, QtCore.SIGNAL("clicked()"), self.set_home)
+		self.gl.addWidget(self.set_home_button, row, 0)
+		row += 1
 		
 		self.pos_le = QLineEdit('0.0')
-		self.gl.addWidget(self.pos_le, 2, 0)
+		self.gl.addWidget(self.pos_le, row, 0)
 		pb = QPushButton("Go absolute (um)")
 		pb.connect(pb, QtCore.SIGNAL("clicked()"), self.go_abs)
-		self.gl.addWidget(pb, 2, 1)
+		self.gl.addWidget(pb, row, 1)
+		row += 1
 		
 		self.pos_le = QLineEdit('0.0')
-		self.gl.addWidget(self.pos_le, 3, 0)
+		self.gl.addWidget(self.pos_le, row, 0)
 		pb = QPushButton("Go relative (um)")
 		pb.connect(pb, QtCore.SIGNAL("clicked()"), self.go_rel)
-		self.gl.addWidget(pb, 3, 1)
+		self.gl.addWidget(pb, row, 1)
+		row += 1
 
 		self.meas_label = QLabel("Meas (um)")
-		self.gl.addWidget(self.meas_label, 4, 0)
+		self.gl.addWidget(self.meas_label, row, 0)
 		self.meas_value = QLabel("Unknown")
-		self.gl.addWidget(self.meas_value, 4, 1)
+		self.gl.addWidget(self.meas_value, row, 1)
+		# Only resets in the GUI, not related to internal axis position counter
 		self.meas_reset_button = QPushButton("Reset meas")
 		self.connect(self.meas_reset_button, QtCore.SIGNAL("clicked()"), self.meas_reset)
-		self.gl.addWidget(self.meas_reset_button, 5, 0)
+		self.gl.addWidget(self.meas_reset_button, row, 0)
+		row += 1
 		
 		self.l = QHBoxLayout()
 		self.l.addWidget(self.gb)
