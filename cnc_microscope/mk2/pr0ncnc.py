@@ -24,7 +24,42 @@ from imager import DummyImager, VideoCaptureImager, PILImager
 
 import usbio
 from usbio.mc import MC
+from pr0ntools.benchmark import Benchmark
 
+'''
+Try to seperate imaging and movement
+For now keep unified in planner thread
+'''
+class ImagingThread(QThread):
+	pass
+
+class ControllerThread(QThread):
+	pass
+
+# Sends events to the imaging and movement threads
+class PlannerThread(QThread):
+	def __init__(self,parent, mc, imager, dry, progress_cb):
+		QtCore.QThread.__init__(self, parent)
+		self.dry = dry
+		self.mc = mc
+		self.imager = imager
+		self.progress_cb = progress_cb
+		
+	def run(self):
+		print 'Initializing planner!'
+
+		controller = None
+		imager = None
+		if not self.dry:
+			controller = self.mc
+			imager = self.imager
+			self.planner = ControllerPlanner(self.progress_cb, controller, imager)
+		else:
+			self.planner = Planner()
+		print 'Running planner'
+		self.planner.run()
+		print 'Planner done!'
+	
 class Axis(QtGui.QWidget):
 	# Absolute position given
 	axisSet = QtCore.pyqtSignal()
@@ -230,10 +265,14 @@ class Example(QtGui.QMainWindow):
 			
 	def progress_cb(self, pictures_to_take, pictures_taken, image, first):
 		if first:
+			print 'First CB with %d items' % pictures_to_take
 			self.pb.setMinimum(0)
 			self.pb.setMaximum(pictures_to_take)
+			self.bench = Benchmark(pictures_to_take)
 		else:
 			print 'took %s at %d / %d' % (image, pictures_taken, pictures_to_take)
+			self.bench.set_cur_items(pictures_taken)
+			print self.bench
 			if False:
 				pix = QPixmap( image )
 				# This will be a bit messy...maybe should make this a floating window
@@ -244,16 +283,26 @@ class Example(QtGui.QMainWindow):
 		self.pb.setValue(pictures_taken)
 			
 	def run(self, dry = False):
-		controller = None
-		imager = None
-		if not dry:
-			controller = self.mc
-			#imager = VideoCaptureImager()
-			imager = PILImager()
-			self.planner = ControllerPlanner(self.progress_cb, controller, imager)
+		if 0:
+			controller = None
+			imager = None
+			if not dry:
+				controller = self.mc
+				#imager = VideoCaptureImager()
+				imager = PILImager()
+				self.planner = ControllerPlanner(self.progress_cb, controller, imager)
+			else:
+				self.planner = Planner()
+			self.planner.run()
 		else:
-			self.planner = Planner()
-		self.planner.run()
+			imager = None
+			if not dry:
+				#imager = VideoCaptureImager()
+				imager = PILImager()
+			self.pt = PlannerThread(self, self.mc, imager, dry, self.progress_cb)
+			#eeeee not working as well as I hoped
+			#self.pt.start()
+			self.pt.run()
 	
 	def get_bottom_layout(self):
 		bottom_layout = QHBoxLayout()
@@ -386,5 +435,6 @@ def main():
 
 if __name__ == '__main__':
 	#print QtCore.Qt.Key_Left
+	b = Benchmark(4)
 	main()
 

@@ -28,6 +28,9 @@ class Benchmark:
     def advance(self, n = 1):
         self.cur_items += n
 
+    def set_cur_items(self, n):
+        self.cur_items = n
+		
     @staticmethod
     def time_str(delta):
         fraction = delta % 1
@@ -46,13 +49,15 @@ class Benchmark:
         elif self.max_items:
             cur_time = time.time()
             delta_t = cur_time - self.start_time
+            rate_s = 'N/A'
             if True or delta_t < 0.000001:
                 rate = self.cur_items / (delta_t)
-                remaining = (self.max_items - self.cur_items) * rate
+                rate_s = '%f items / sec' % rate
+                remaining = (self.max_items - self.cur_items) / rate
                 eta_str = self.time_str(remaining)
             else:
                 eta_str = "indeterminate"
-            return '%d / %d, ETA: %s' % (self.cur_items, self.max_items, eta_str)
+            return '%d / %d, ETA: %s @ %s' % (self.cur_items, self.max_items, eta_str, rate_s)
         else:
             return self.time_str(time.time() - self.start_time)
 

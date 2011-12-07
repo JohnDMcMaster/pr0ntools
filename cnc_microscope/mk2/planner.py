@@ -304,7 +304,7 @@ class Planner:
 				print '    ' + str(p)
 			raise Exception('Fail')
 		self.pictures_taken = 0
-		self.notify_progress(True)
+		self.notify_progress(None, True)
 
 	def notify_progress(self, image_file_name, first = False):
 		if self.progress_cb:
@@ -366,7 +366,7 @@ class Planner:
 	def get_this_file_name(self):
 		# row and column, 0 indexed
 		#return 'c%04X_r%04X.jpg' % (self.cur_col, self.cur_row)
-		return 'c%04X_r%04X.tif' % (self.cur_col, self.cur_row)
+		return 'c%04d_r%04d.tif' % (self.cur_col, self.cur_row)
 		
 	def take_picture(self):
 		self.focus_camera()
@@ -486,12 +486,12 @@ class Planner:
 			for cur_x in x_list_active:
 				cur_z = self.calc_z(cur_x, cur_y)
 				yield (cur_x, cur_y, cur_z, row, col)
-				row += 1
+				col += 1
 			# swap direction
 			temp = x_list_active
 			x_list_active = x_list_next
 			x_list_next = temp
-			col += 1
+			row += 1
 	
 	def run(self):
 		print
