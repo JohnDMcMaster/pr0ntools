@@ -43,20 +43,30 @@ class Axis(QtGui.QWidget):
 	
 	def go_abs(self):
 		print 'abs'
+		self.axis.set_pos(float(self.abs_pos_le.text()))
+		self.emit_pos()
 	
 	def go_rel(self):
 		print 'rel'
+		self.axis.jog(float(self.rel_pos_le.text()))
+		self.emit_pos()
+	
+	def emit_pos(self):
+		self.emit(SIGNAL("axisSet(double)"), self.axis.get_um())
 	
 	def home(self):
 		print 'home'
 		self.axis.home()
+		# We moved to 0 position
+		self.emit_pos()
 	
 	def set_home(self):
 		print 'setting new home position'
 		self.axis.set_home()
 		#Axis.axisSet.emit()
 		#self.axisSet.emit(Axis.axisSet)
-		self.emit(SIGNAL("axisSet(double)"), 0.0)
+		# We made the current position 0
+		self.emit_pos()
 		
 	def meas_reset(self):
 		print 'meas reset'
@@ -83,23 +93,21 @@ class Axis(QtGui.QWidget):
 		self.home_button = QPushButton("Home axis")
 		self.home_button.connect(self.home_button, QtCore.SIGNAL("clicked()"), self.home)
 		self.gl.addWidget(self.home_button, row, 0)
-		row += 1
-		
 		# Set the 0 position
 		self.set_home_button = QPushButton("Set home")
 		self.connect(self.set_home_button, QtCore.SIGNAL("clicked()"), self.set_home)
-		self.gl.addWidget(self.set_home_button, row, 0)
+		self.gl.addWidget(self.set_home_button, row, 1)
 		row += 1
 		
-		self.pos_le = QLineEdit('0.0')
-		self.gl.addWidget(self.pos_le, row, 0)
+		self.abs_pos_le = QLineEdit('0.0')
+		self.gl.addWidget(self.abs_pos_le, row, 0)
 		pb = QPushButton("Go absolute (um)")
 		pb.connect(pb, QtCore.SIGNAL("clicked()"), self.go_abs)
 		self.gl.addWidget(pb, row, 1)
 		row += 1
 		
-		self.pos_le = QLineEdit('0.0')
-		self.gl.addWidget(self.pos_le, row, 0)
+		self.rel_pos_le = QLineEdit('0.0')
+		self.gl.addWidget(self.rel_pos_le, row, 0)
 		pb = QPushButton("Go relative (um)")
 		pb.connect(pb, QtCore.SIGNAL("clicked()"), self.go_rel)
 		self.gl.addWidget(pb, row, 1)
