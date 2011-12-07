@@ -42,42 +42,43 @@ class Axis(QtGui.QWidget):
 	def home(self):
 		print 'home'
 		
+	def meas_reset(self):
+		print 'meas reset'
+		
 	def initUI(self):
 		self.gb = QGroupBox('Axis %s' % self.axis.name)
 		self.gl = QGridLayout()
 		self.gb.setLayout(self.gl)
 		#gbl.addWidget(QLabel('test'))
 		
-		if 1:
-			self.pos_value = QLabel("Pos (um):")
-			self.gl.addWidget(self.pos_value, 0, 0)
-			self.pos_value = QLabel("Unknown")
-			self.gl.addWidget(self.pos_value, 0, 1)
-			
-			self.home_button = QPushButton("Home")
-			self.home_button.connect(self.home_button, QtCore.SIGNAL("clicked()"), self.home)
-			self.gl.addWidget(self.home_button, 1, 0)
-			
-			self.pos_le = QLineEdit('0.0')
-			self.gl.addWidget(self.pos_le, 2, 0)
-			pb = QPushButton("Go absolute (um)")
-			pb.connect(pb, QtCore.SIGNAL("clicked()"), self.go_abs)
-			self.gl.addWidget(pb, 2, 1)
-			
-			self.pos_le = QLineEdit('0.0')
-			self.gl.addWidget(self.pos_le, 3, 0)
-			pb = QPushButton("Go relative (um)")
-			pb.connect(pb, QtCore.SIGNAL("clicked()"), self.go_rel)
-			self.gl.addWidget(pb, 3, 1)
+		self.pos_value = QLabel("Pos (um):")
+		self.gl.addWidget(self.pos_value, 0, 0)
+		self.pos_value = QLabel("Unknown")
+		self.gl.addWidget(self.pos_value, 0, 1)
+		
+		self.home_button = QPushButton("Home axis")
+		self.home_button.connect(self.home_button, QtCore.SIGNAL("clicked()"), self.home)
+		self.gl.addWidget(self.home_button, 1, 0)
+		
+		self.pos_le = QLineEdit('0.0')
+		self.gl.addWidget(self.pos_le, 2, 0)
+		pb = QPushButton("Go absolute (um)")
+		pb.connect(pb, QtCore.SIGNAL("clicked()"), self.go_abs)
+		self.gl.addWidget(pb, 2, 1)
+		
+		self.pos_le = QLineEdit('0.0')
+		self.gl.addWidget(self.pos_le, 3, 0)
+		pb = QPushButton("Go relative (um)")
+		pb.connect(pb, QtCore.SIGNAL("clicked()"), self.go_rel)
+		self.gl.addWidget(pb, 3, 1)
 
-			'''
-			self.meas_gb = QGroupBox("Meas (um)")
-			gb.addWidget(self.meas_gb)
-			self.meas_value = QLabel("Unknown")
-			self.meas_gb.addWidget(self.meas_value)
-			self.meas_reset_button = QPushButton("Reset")
-			self.meas_gb.addWidget(self.meas_reset_button)
-			'''
+		self.meas_label = QLabel("Meas (um)")
+		self.gl.addWidget(self.meas_label, 4, 0)
+		self.meas_value = QLabel("Unknown")
+		self.gl.addWidget(self.meas_value, 4, 1)
+		self.meas_reset_button = QPushButton("Reset meas")
+		self.connect(self.meas_reset_button, QtCore.SIGNAL("clicked()"), self.meas_reset)
+		self.gl.addWidget(self.meas_reset_button, 5, 0)
 		
 		self.l = QHBoxLayout()
 		self.l.addWidget(self.gb)
