@@ -37,7 +37,8 @@ def camera_in_use():
 	import psutil
 	for p in psutil.get_process_list():
 		try:
-			if p.exe.find('scope.exe'):
+			if p.exe.find('scope.exe') >= 0:
+				print 'Found process %s' % p.exe
 				return True
 		except:
 			pass

@@ -12,3 +12,7 @@ def get_microscope_config():
 	microscope_config = json.loads(microscope_config_file.read())
 	return microscope_config
 	
+def get_scan_config():
+	scan_config_file = open(scan_config_file_name)
+	scan_config = json.loads(scan_config_file.read())
+	return scan_config

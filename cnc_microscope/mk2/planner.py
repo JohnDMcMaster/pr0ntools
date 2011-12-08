@@ -120,7 +120,7 @@ class FocusLevel:
 		pass
 
 class Planner:
-	def __init__(self, progress_cb = None, microscope_config = None, objective_config = None):
+	def __init__(self, progress_cb = None, microscope_config = None, objective_config = None, scan_config = None):
 		self.progress_cb = progress_cb
 	
 		# Proportion of overlap on each image to adjacent
@@ -156,8 +156,8 @@ class Planner:
 		plane calibration corner ended at 0.0000, 0.2674, -0.0129
 		'''
 	
-		scan_config_file = open(scan_config_file_name)
-		scan_config = json.loads(scan_config_file.read())
+		if scan_config is None:
+			scan_config = config.get_scan_config()
 
 		self.z = True
 
