@@ -15,6 +15,7 @@ import os
 from imager import DummyImager
 import usbio
 from usbio.controller import DummyController
+import config
 
 VERSION = '0.1'
 
@@ -119,25 +120,19 @@ class FocusLevel:
 		pass
 
 class Planner:
-	def __init__(self, progress_cb = None):
+	def __init__(self, progress_cb = None, microscope_config = None, objective_config = None):
 		self.progress_cb = progress_cb
 	
 		# Proportion of overlap on each image to adjacent
 		overlap = 2.0 / 3.0
 		# Maximum allowable overlap proportion error when trying to fit number of snapshots
 		overlap_max_error = 0.05
-		if 0:
-			microscope_config_file_name = 'microscope_small.json'
-			scan_config_file_name = 'scan_small.json'
-		else:
-			microscope_config_file_name = 'microscope.json'
-			scan_config_file_name = 'scan.json'
 		
 		naked_arg_index = 0
 		action = ACTION_GCODE
 		
-		microscope_config_file = open(microscope_config_file_name)
-		microscope_config = json.loads(microscope_config_file.read())
+		if microscope_config is None:
+			microscope_config = config.get_microscope_config()
 
 		focus = FocusLevel()
 		self.focus = focus
@@ -146,7 +141,9 @@ class Planner:
 		except:
 			focus.eyepiece_mag = 1.0
 		# objective_config = microscope_config['microscope']['objective'].itervalues().next()
-		objective_config = microscope_config['microscope']['objective'][0]
+		if objective_config is None:
+			# Default to the first
+			objective_config = microscope_config['microscope']['objective'][0]
 		focus.objective_mag = float(objective_config['mag'])
 		focus.camera_mag = float(microscope_config['camera']['mag'])
 		focus.camera_digital_mag = float(microscope_config['camera']['digital_mag'])

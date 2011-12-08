@@ -26,6 +26,23 @@ import usbio
 from usbio.mc import MC
 from pr0ntools.benchmark import Benchmark
 
+import config
+
+# driver does not play well with other and effectively results in a system restart
+# provide some basic protection
+def camera_in_use():
+	'''
+	C:\Program Files\AmScope\AmScope\x86\scope.exe
+	'''
+	import psutil
+	for p in psutil.get_process_list():
+		try:
+			if p.exe.find('scope.exe'):
+				return True
+		except:
+			pass
+	return False
+
 '''
 Try to seperate imaging and movement
 For now keep unified in planner thread
@@ -76,6 +93,10 @@ class Axis(QtGui.QWidget):
 		#self.connect(self, QtCore.SIGNAL("axisSet(double)"), self.update_abs)
 		pass
 	
+	def jog(self, n):
+		self.axis.jog(n)
+		self.emit_pos()
+	
 	def go_abs(self):
 		print 'abs'
 		self.axis.set_pos(float(self.abs_pos_le.text()))
@@ -83,10 +104,10 @@ class Axis(QtGui.QWidget):
 	
 	def go_rel(self):
 		print 'rel'
-		self.axis.jog(float(self.rel_pos_le.text()))
-		self.emit_pos()
+		self.jog(float(self.rel_pos_le.text()))
 	
 	def emit_pos(self):
+		print 'emitting pos'
 		self.emit(SIGNAL("axisSet(double)"), self.axis.get_um())
 	
 	def home(self):
@@ -106,6 +127,12 @@ class Axis(QtGui.QWidget):
 	def meas_reset(self):
 		print 'meas reset'
 		self.meas_abs = self.axis.get_um()
+		self.meas_value.setText("0.0")
+		
+	def update_meas(self, pos):
+		nv = pos - self.meas_abs
+		print 'new meas value %f' % nv
+		self.meas_value.setNum(nv)
 		
 	#def update_abs(self, pos_um):
 	#	self.pos_value.setText
@@ -154,7 +181,9 @@ class Axis(QtGui.QWidget):
 		self.gl.addWidget(self.meas_value, row, 1)
 		# Only resets in the GUI, not related to internal axis position counter
 		self.meas_reset_button = QPushButton("Reset meas")
+		self.meas_reset()
 		self.connect(self.meas_reset_button, QtCore.SIGNAL("clicked()"), self.meas_reset)
+		self.connect(self, QtCore.SIGNAL("axisSet(double)"), self.update_meas)
 		self.gl.addWidget(self.meas_reset_button, row, 0)
 		row += 1
 		
@@ -196,40 +225,86 @@ class Example(QtGui.QMainWindow):
 	def x(self, n):
 		if self.mc is None:
 			return
-		self.mc.x.jog(n)
+		#self.mc.x.jog(n)
+		self.axes['X'].jog(n)
 	
 	def y(self, n):
 		if self.mc is None:
 			return
-		self.mc.y.jog(n)
+		#self.mc.y.jog(n)
+		self.axes['Y'].jog(n)
 		
 	def z(self, n):
 		if self.mc is None:
 			return
-		self.mc.z.jog(n)
+		#self.mc.z.jog(n)
+		self.axes['Z'].jog(n)
 		
+	def reload_microscope_config(self):
+		self.microscope_config = config.get_microscope_config()
+		mc = self.microscope_config
+		self.objective_cb.clear()
+		self.objective_config = None
+		for objective in mc['microscope']['objective']:
+			self.objective_cb.addItem(objective['name'])
+		self.update_objective_config()
+	
+	def update_objective_config(self):
+		self.objective_config = self.microscope_config['microscope']['objective'][self.objective_cb.currentIndex ()]
+		oc = self.objective_config
+		print 'Selected objective %s' % self.objective_config['name']
+		self.objective_mag.setText('Magnification: %f' % oc["mag"])
+		self.objective_x_view.setText('X view (um): %f' % oc["x_view"])
+		self.objective_y_view.setText('Y view (um): %f' % oc["y_view"])
+	
 	def get_config_layout(self):
-		cl = QVBoxLayout()
+		cl = QGridLayout()
 		
+		row = 0
 		l = QLabel("Objective")
-		cl.addWidget(l)
-		cb = QComboBox()
-		cl.addWidget(cb)
+		cl.addWidget(l, row, 0)
+		self.objective_cb = QComboBox()
+		cl.addWidget(self.objective_cb, row, 1)
+		self.connect(self.objective_cb, QtCore.SIGNAL("currentIndexChanged(int)"), self.update_objective_config)
+		reload = QPushButton("Reload config")
+		self.connect(reload, QtCore.SIGNAL("clicked()"), self.reload_microscope_config)
+		cl.addWidget(reload, row, 2)
+		row += 1
+		self.objective_mag = QLabel("")
+		cl.addWidget(self.objective_mag, row, 1)
+		self.objective_x_view = QLabel("")
+		row += 1
+		cl.addWidget(self.objective_x_view, row, 1)
+		self.objective_y_view = QLabel("")
+		cl.addWidget(self.objective_y_view, row, 2)
+		row += 1
+		# seed it
+		self.reload_microscope_config()
+		
+		'''
+		Reserved...need to setup PIL to change resolution or at least confirm it
 		
 		l = QLabel("Resolution")
 		cl.addWidget(l)
 		cb = QComboBox()
 		cl.addWidget(cb)
+		'''
 		
 		l = QLabel("Imaging device")
-		cl.addWidget(l)
+		cl.addWidget(l, row, 0)
 		cb = QComboBox()
-		cl.addWidget(cb)
-
+		cl.addWidget(cb, row, 1)
+		connect = QPushButton("Connect")
+		cl.addWidget(connect, row, 2)
+		row += 1
+		
 		l = QLabel("USBIO device")
-		cl.addWidget(l)
+		cl.addWidget(l, row, 0)
 		cb = QComboBox()
-		cl.addWidget(cb)
+		cl.addWidget(cb, row, 1)
+		connect = QPushButton("Connect")
+		cl.addWidget(connect, row, 2)
+		row += 1
 
 		return cl
 	
@@ -289,7 +364,12 @@ class Example(QtGui.QMainWindow):
 			if not dry:
 				controller = self.mc
 				#imager = VideoCaptureImager()
-				imager = PILImager()
+				if not camera_in_use():
+					print 'Loading imager...'
+					imager = PILImager()
+				else:
+					print 'WARNING: camera in use, not loading imager'
+					raise Exception('Die')
 				self.planner = ControllerPlanner(self.progress_cb, controller, imager)
 			else:
 				self.planner = Planner()
@@ -297,6 +377,10 @@ class Example(QtGui.QMainWindow):
 		else:
 			imager = None
 			if not dry:
+				if camera_in_use():
+					print 'WARNING: camera in use, not loading imager'
+					raise Exception('Die')				
+				print 'Loading imager...'
 				#imager = VideoCaptureImager()
 				imager = PILImager()
 			self.pt = PlannerThread(self, self.mc, imager, dry, self.progress_cb)
@@ -312,9 +396,12 @@ class Example(QtGui.QMainWindow):
 		self.home_button = QPushButton("Home all")
 		self.home_button.connect(self.home_button, QtCore.SIGNAL("clicked()"), self.home)
 		axes_layout.addWidget(self.home_button)
+		self.axes = None
 		if self.mc:
+			self.axes = dict()
 			for axis in self.mc.axes:
 				axisw = Axis(axis)
+				self.axes[axis.name] = axisw
 				axes_layout.addWidget(axisw)
 		axes_gb.setLayout(axes_layout)
 		bottom_layout.addWidget(axes_gb)
