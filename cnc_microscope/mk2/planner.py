@@ -120,8 +120,12 @@ class FocusLevel:
 		pass
 
 class Planner:
-	def __init__(self, progress_cb = None, microscope_config = None, objective_config = None, scan_config = None):
-		self.progress_cb = progress_cb
+	def __init__(self, rconfig):
+		self.rconfig = rconfig
+		microscope_config = rconfig.microscope_config
+		objective_config = rconfig.objective_config
+		scan_config = rconfig.scan_config
+		self.progress_cb = rconfig.progress_cb
 	
 		# Proportion of overlap on each image to adjacent
 		overlap = 2.0 / 3.0
@@ -143,6 +147,8 @@ class Planner:
 		# objective_config = microscope_config['microscope']['objective'].itervalues().next()
 		if objective_config is None:
 			# Default to the first
+			print 'Planner: no objective config, selecting default'
+			raise Exception('GUI should specify this now')
 			objective_config = microscope_config['microscope']['objective'][0]
 		focus.objective_mag = float(objective_config['mag'])
 		focus.camera_mag = float(microscope_config['camera']['mag'])
@@ -344,6 +350,11 @@ class Planner:
 	def pause(self, seconds):
 		pass
 
+	def write_metadata(self):
+		# Copy config for reference
+		self.rconfig.write_to_dir(self.out_dir())
+		# TODO: write out coordinate map
+		
 	def genBasename(self, point, original_file_name):
 		suffix = original_file_name.split('.')[1]
 		row = point[3]
@@ -360,11 +371,22 @@ class Planner:
 			spacer = '__'
 		return "%s%s%s%s" % (rowcol, spacer, coordinate, suffix)
 
+	def out_dir(self):
+		return self.rconfig.job_name
+		
 	def get_this_file_name(self):
 		# row and column, 0 indexed
 		#return 'c%04X_r%04X.jpg' % (self.cur_col, self.cur_row)
-		return 'c%04d_r%04d.tif' % (self.cur_col, self.cur_row)
+		r =  'c%04d_r%04d.tif' % (self.cur_col, self.cur_row)
+		if self.out_dir():
+			r = '%s/%s' % (self.rconfig.job_name, r)
+		return r
 		
+	def prepare_image_output(self):
+		od = self.out_dir()
+		if od:
+			os.mkdir(od)
+			
 	def take_picture(self):
 		self.focus_camera()
 		image_file_name = self.get_this_file_name()
@@ -461,34 +483,50 @@ class Planner:
 		y_list_next = list(y_list_active)
 		y_list_next.reverse()
 		col = 0
+		forward = True
 		for cur_x in self.gen_x_points():
-			row = 0
+			if forward:
+				row = 0
+			else:
+				row = len(y_list_active) - 1
 			for cur_y in y_list_active:
 				cur_z = self.calc_z(cur_x, cur_y)
 				yield (cur_x, cur_y, cur_z, row, col)
-				row += 1
+				if forward:
+					row += 1
+				else:
+					row -= 1
 			# swap direction
 			temp = y_list_active
 			y_list_active = y_list_next
 			y_list_next = temp
 			col += 1
+			forward = not forward
 			
 	def getPointsExSerpentineYX(self):
 		x_list_active = [x for x in self.gen_x_points()]
 		x_list_next = list(x_list_active)
 		x_list_next.reverse()
 		row = 0
+		forward = True
 		for cur_y in self.gen_y_points():
-			col = 0
+			if forward:
+				col = 0
+			else:
+				col = len(x_list_active) - 1
 			for cur_x in x_list_active:
 				cur_z = self.calc_z(cur_x, cur_y)
 				yield (cur_x, cur_y, cur_z, row, col)
-				col += 1
+				if forward:
+					col += 1
+				else:
+					col -= 1
 			# swap direction
 			temp = x_list_active
 			x_list_active = x_list_next
 			x_list_next = temp
 			row += 1
+			forward = not forward
 	
 	def run(self):
 		print
@@ -521,6 +559,8 @@ class Planner:
 		prev_y = 0.0
 		prev_z = 0.0
 
+		self.prepare_image_output()
+		
 		# Because of the backlash on Z, its better to scan in same direction
 		# Additionally, it doesn't matter too much for focus which direction we go, but XY is thrown off
 		# So, need to make sure we are scanning same direction each time
@@ -544,7 +584,7 @@ class Planner:
 					That is, even X and Y distortion
 				'''
 		
-				self.cur_row += 1
+				#self.cur_row += 1
 				first_y = self.cur_row == 0
 				z_backlash_delta = 0.0
 				if first_y and z_backlash:
@@ -611,9 +651,20 @@ class Planner:
 		if not self.pictures_taken == self.pictures_to_take:
 			raise Exception('pictures taken mismatch (taken: %d, to take: %d)' % (self.pictures_to_take, self.pictures_taken))
 			
+		self.write_metadata()
+		
+		
 	def home(self):
 		self.relative_move(-self.cur_x, -self.cur_y)
 
+	@staticmethod
+	def get(rconfig):
+		if not rconfig.dry:
+			return ControllerPlanner(rconfig)
+		else:
+			print "***DRY RUN***"
+			return Planner(rconfig)
+	
 class GCodePlanner(Planner):
 	'''
 	M7 (coolant on): tied to focus / half press pin
@@ -622,8 +673,8 @@ class GCodePlanner(Planner):
 	M9 (coolant off): release focus / picture
 	'''
 	
-	def __init__(self):
-		Planner.__init__(self)
+	def __init__(self, **args):
+		Planner.__init__(self, **args)
 
 	def do_take_picture(self, file_name):
 		self.line('M8')
@@ -688,8 +739,11 @@ class GCodePlanner(Planner):
 Live control using an active Controller object
 '''
 class ControllerPlanner(Planner):
-	def __init__(self, progress_cb = None, controller = None, imager = None):
-		Planner.__init__(self, progress_cb)
+	def __init__(self, rconfig):
+		Planner.__init__(self, rconfig)
+		
+		controller = rconfig.controller
+		imager = rconfig.imager
 		
 		if controller is None:
 			controller = DummyController()

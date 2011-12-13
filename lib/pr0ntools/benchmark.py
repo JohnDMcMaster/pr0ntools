@@ -43,14 +43,14 @@ class Benchmark:
         hours = delta
         return '%02d:%02d:%02d.%04d' % (hours, minutes, seconds, fraction * 10000)
     
-    def __repr__(self):
+    def __str__(self):
         if self.end_time:
             return self.time_str(self.end_time - self.start_time)
         elif self.max_items:
             cur_time = time.time()
             delta_t = cur_time - self.start_time
             rate_s = 'N/A'
-            if True or delta_t < 0.000001:
+            if delta_t > 0.000001:
                 rate = self.cur_items / (delta_t)
                 rate_s = '%f items / sec' % rate
                 remaining = (self.max_items - self.cur_items) / rate

@@ -22,11 +22,14 @@ from PyQt4.QtCore import *
 from planner import Planner, ControllerPlanner
 from imager import DummyImager, VideoCaptureImager, PILImager
 
+import os.path
+
 import usbio
 from usbio.mc import MC
 from pr0ntools.benchmark import Benchmark
 
 import config
+from config import RunConfig
 
 # driver does not play well with other and effectively results in a system restart
 # provide some basic protection
@@ -56,27 +59,19 @@ class ControllerThread(QThread):
 
 # Sends events to the imaging and movement threads
 class PlannerThread(QThread):
-	def __init__(self,parent, mc, imager, dry, progress_cb):
+	def __init__(self,parent, rconfig):
 		QtCore.QThread.__init__(self, parent)
-		self.dry = dry
-		self.mc = mc
-		self.imager = imager
-		self.progress_cb = progress_cb
+		self.rconfig = rconfig
 		
 	def run(self):
 		print 'Initializing planner!'
 
-		controller = None
-		imager = None
-		if not self.dry:
-			controller = self.mc
-			imager = self.imager
-			self.planner = ControllerPlanner(self.progress_cb, controller, imager)
-		else:
-			self.planner = Planner()
+		self.planner = Planner.get(self.rconfig)
 		print 'Running planner'
+		b = Benchmark()
 		self.planner.run()
-		print 'Planner done!'
+		b.stop()
+		print 'Planner done!  Took : %s' % str(b)
 	
 class Axis(QtGui.QWidget):
 	# Absolute position given
@@ -360,6 +355,7 @@ class Example(QtGui.QMainWindow):
 			
 	def run(self, dry = False):
 		if 0:
+			'''
 			controller = None
 			imager = None
 			if not dry:
@@ -371,20 +367,42 @@ class Example(QtGui.QMainWindow):
 				else:
 					print 'WARNING: camera in use, not loading imager'
 					raise Exception('Die')
-				self.planner = ControllerPlanner(self.progress_cb, controller, imager)
+				self.planner = ControllerPlanner(controller, imager, self.progress_cb)
 			else:
 				self.planner = Planner()
 			self.planner.run()
+			'''
+			pass
 		else:
+			rconfig = RunConfig()
 			imager = None
+			#dry = True
 			if not dry:
 				if camera_in_use():
 					print 'WARNING: camera in use, not loading imager'
-					raise Exception('Die')				
+					raise Exception('Camera in use')				
 				print 'Loading imager...'
 				#imager = VideoCaptureImager()
 				imager = PILImager()
-			self.pt = PlannerThread(self, self.mc, imager, dry, self.progress_cb)
+			if not self.microscope_config:
+				raise Exception("missing uscope config")
+			if not self.objective_config:
+				raise Exception("missing obj config")
+			
+			rconfig.dry = dry
+			rconfig.progress_cb = self.progress_cb
+			rconfig.microscope_config = self.microscope_config
+			rconfig.objective_config = self.objective_config			
+			rconfig.controller = self.mc
+			rconfig.imager = imager
+			
+			rconfig.job_name = self.job_name_le.text()
+			if len(rconfig.job_name) == 0:
+				rconfig.job_name = "out"
+			if os.path.exists(rconfig.job_name):
+				raise Exception("job name dir %s already exists" % rconfig.job_name)
+			
+			self.pt = PlannerThread(self, rconfig)
 			#eeeee not working as well as I hoped
 			#self.pt.start()
 			self.pt.run()
@@ -426,12 +444,15 @@ class Example(QtGui.QMainWindow):
 
 		# TODO: add overlap widgets
 		
-		run_layout = QHBoxLayout()
+		run_layout = QGridLayout()
+		run_layout.addWidget(QLabel('Job name'), 0, 0)
+		self.job_name_le = QLineEdit('out')
+		run_layout.addWidget(self.job_name_le, 0, 1)
 		b = QPushButton("Go")
 		b.connect(b, SIGNAL('clicked()'), self.run)
-		run_layout.addWidget(b)
+		run_layout.addWidget(b, 1, 0)
 		self.pb = QProgressBar()
-		run_layout.addWidget(self.pb)
+		run_layout.addWidget(self.pb, 1, 1)
 		scan_layout.addLayout(run_layout)
 
 		
@@ -508,12 +529,13 @@ class Example(QtGui.QMainWindow):
 		elif k == Qt.Key_Down:
 			print 'down'
 			self.y(inc)
+		# Focus is sensitive
 		elif k == Qt.Key_PageUp:
 			print 'up'
-			self.z(inc)
+			self.z(1)
 		elif k == Qt.Key_PageDown:
 			print 'down'
-			self.z(-inc)
+			self.z(-1)
 	
 def main():
 	app = QtGui.QApplication(sys.argv)
@@ -523,6 +545,5 @@ def main():
 
 if __name__ == '__main__':
 	#print QtCore.Qt.Key_Left
-	b = Benchmark(4)
 	main()
 
