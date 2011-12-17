@@ -4,12 +4,28 @@ import VideoCapture as VC
 from PIL import Image  
 from PIL import ImageOps  
 import time  
+import psutil
 
 '''
 R:127
 G:103
 B:129
 '''
+
+# driver does not play well with other and effectively results in a system restart
+# provide some basic protection
+def camera_in_use():
+	'''
+	C:\Program Files\AmScope\AmScope\x86\scope.exe
+	'''
+	for p in psutil.get_process_list():
+		try:
+			if p.exe.find('scope.exe') >= 0:
+				print 'Found process %s' % p.exe
+				return True
+		except:
+			pass
+	return False
 
 class Imager:
 	def __init__(self):
@@ -35,6 +51,10 @@ class VideoCaptureImager:
 
 class PILImager:
 	def __init__(self):
+		if camera_in_use():
+			print 'WARNING: camera in use, not loading imager'
+			raise Exception('Camera in use')				
+	
 		self.cam = VC.Device() # initialize the webcam  
 		img = self.cam.getImage() # in my testing the first getImage stays black.  
 		time.sleep(1) # give sometime for the device to come up  

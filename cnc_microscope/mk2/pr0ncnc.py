@@ -31,22 +31,6 @@ from pr0ntools.benchmark import Benchmark
 import config
 from config import RunConfig
 
-# driver does not play well with other and effectively results in a system restart
-# provide some basic protection
-def camera_in_use():
-	'''
-	C:\Program Files\AmScope\AmScope\x86\scope.exe
-	'''
-	import psutil
-	for p in psutil.get_process_list():
-		try:
-			if p.exe.find('scope.exe') >= 0:
-				print 'Found process %s' % p.exe
-				return True
-		except:
-			pass
-	return False
-
 '''
 Try to seperate imaging and movement
 For now keep unified in planner thread
@@ -378,9 +362,6 @@ class Example(QtGui.QMainWindow):
 			imager = None
 			#dry = True
 			if not dry:
-				if camera_in_use():
-					print 'WARNING: camera in use, not loading imager'
-					raise Exception('Camera in use')				
 				print 'Loading imager...'
 				#imager = VideoCaptureImager()
 				imager = PILImager()
