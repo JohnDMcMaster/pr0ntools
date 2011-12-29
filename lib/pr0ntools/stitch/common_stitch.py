@@ -32,8 +32,16 @@ class CommonStitch:
 		self.regular = False
 		# Only used if regular image
 		self.subimage_control_points = True
+		
+		# TODO: parse these from scan.json
+		# and fix scan.json to invert these to match these values
 		self.x_overlap = 1.0 / 3.0
 		self.y_overlap = 1.0 / 3.0
+		
+		self.dry = False
+
+	def set_dry(self, d):
+		self.dry = d
 
 	def set_regular(self, regular):
 		self.regular = regular
@@ -45,6 +53,10 @@ class CommonStitch:
 		self.output_image_file_name = file_name
 
 	def run(self):
+		if self.dry:
+			print 'Dry run abort'
+			return
+	
 		if not self.output_project_file_name and not self.output_image_file_name:
 			raise Exception("need either project or image file")
 		#if not self.output_project_file_name:

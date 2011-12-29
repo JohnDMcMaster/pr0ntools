@@ -111,35 +111,44 @@ class ImageCoordinateMap:
 	@staticmethod
 	def from_file_names_core(file_names, flip_col, flip_row, flip_pre_transpose, flip_post_transpose,
 			alt_rows = False, alt_cols = False, rows = None, cols = None):
+		print 'Constructing image coordinate map from file names...'
+		print 'Input rows hint: %s' % str(rows)
+		print 'Input cols hint: %s' % str(cols)
 		'''
 		rows: hard code number input rows
 		cols: hard code number input cols
 		alt_rows: alternate second row and each other after
 		alt_cols: alternate second col and each other after
 		'''
-		print rows
-		print cols
 		if rows is None and not cols is None:
 			rows = len(file_names) / cols
 		if rows is None and not cols is None:
 			cols = len(file_names) / rows
 		
 		if rows is None or cols is None:
+			print 'Row / col hints insufficient, guessing row / col layout from file names'
 			first_parts = set()
 			second_parts = set()
 			for file_name in file_names:
 				basename = os.path.basename(file_name)
 				core_file_name = basename.split('.')[0]
-				first_parts.add(core_file_name.split('_')[0])
-				second_parts.add(core_file_name.split('_')[1])
+				parts = core_file_name.split('_')
+				if len(parts) != 2:
+					raise Exception('Expect files named like cXXXX_rXXXX.tif for automagic stitching')
+				first_parts.add(parts[0])
+				second_parts.add(parts[1])
 		
 			# Assume X first so that files read x_y.jpg which seems most intuitive (to me FWIW)
 			if cols is None:
+				print 'Constructing columns from set %s' % str(first_parts)
 				cols = len(first_parts)
 			if rows is None:
+				print 'Constructing rows from set %s' % str(second_parts)
 				rows = len(second_parts)
 		print 'initial cols / X dim / width: %d, rows / Y dim / height: %d' % (cols, rows)
 		
+		print 'Flip status = pre transpose: %d, post transpose: %d' % (flip_pre_transpose, flip_post_transpose)
+		print 'Flip status = rows alt: %d, cols alt %d' % (alt_rows, alt_cols)
 		# Make sure we end up with correct arrangement
 		flips = 0
 		if flip_pre_transpose:
@@ -162,10 +171,11 @@ class ImageCoordinateMap:
 		'''
 		Since x/col is first, y/row will increment first and must be the inner loop
 		'''
-		for cur_row in range(0, rows):
-			for cur_col in range(0, cols):
+		for cur_col in range(0, cols):
+			for cur_row in range(0, rows):
 				# Not canonical, but resolved well enough
 				file_name = file_names[file_names_index]
+				#print 'Assigning image name %s at raw col %d row %d' % (file_name, cur_
 				
 				effective_col = cur_col
 				effective_row = cur_row

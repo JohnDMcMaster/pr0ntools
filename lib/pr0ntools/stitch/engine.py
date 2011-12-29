@@ -15,21 +15,21 @@ from pr0ntools.temp_file import ManagedTempFile
 from pr0ntools.temp_file import ManagedTempDir
 import sys
 
-class PanoEngine:
-	coordinate_map = None
-	output_image_file_name = None
-	project = None
-	remapper = None
-	photometric_optimizer = None
-	cleaner = None
-	# Used before init, later ignore for project.file_name
-	output_project_file_name = None
-	image_file_names = None
-	subimage_control_points = True
-	control_point_gen = None
-
+# Is this class used?
+class PanoEngineX:
 	def __init__(self):
-		pass
+		self.dry = False
+		self.coordinate_map = None
+		self.output_image_file_name = None
+		self.project = None
+		self.remapper = None
+		self.photometric_optimizer = None
+		self.cleaner = None
+		# Used before init, later ignore for project.file_name
+		self.output_project_file_name = None
+		self.image_file_names = None
+		self.subimage_control_points = True
+		self.control_point_gen = None
 
 	@staticmethod
 	def from_file_names(image_file_names, flip_col = False, flip_row = False, flip_pre_transpose = False, flip_post_transpose = False, depth = 1):
@@ -50,6 +50,9 @@ class PanoEngine:
 			return self.control_points_by_subimage(pair, pair_images)
 		else:
 			return self.control_point_gen.generate_core(pair_images)
+
+	def set_dry(self, d):
+		self.dry = d
 
 	# Control point generator wrapper entry
 	def generate_control_points(self, pair, pair_images):
@@ -369,6 +372,8 @@ class PanoEngine:
 			pair_images = self.coordinate_map.get_images_from_pair(pair)
 			print 'pair images: ' + repr(pair_images)
 
+			if self.dry:
+				continue
 
 			final_pair_project = self.generate_control_points(pair, pair_images)
 			

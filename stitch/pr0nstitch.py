@@ -102,6 +102,7 @@ if __name__ == "__main__":
 	regular = False
 	x_overlap = None
 	y_overlap = None
+	dry = False
 	
 	for arg_index in range (1, len(sys.argv)):
 		arg = sys.argv[arg_index]
@@ -155,6 +156,8 @@ if __name__ == "__main__":
 				x_overlap = float(arg_value)
 			elif arg_key == 'y-overlap':
 				y_overlap = float(arg_value)
+			elif arg_key == 'dry':
+				dry = True
 			else:
 				arg_fatal('Unrecognized arg: %s' % arg)
 		else:
@@ -198,6 +201,7 @@ if __name__ == "__main__":
 	engine.set_output_project_file_name(output_project_file_name)
 	engine.set_output_image_file_name(output_image_file_name)
 	engine.set_regular(regular)
+	engine.set_dry(dry)
 	
 	if x_overlap:
 		engine.x_overlap = x_overlap
