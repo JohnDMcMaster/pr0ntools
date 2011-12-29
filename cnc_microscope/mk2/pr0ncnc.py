@@ -178,30 +178,34 @@ class Example(QtGui.QMainWindow):
 		super(Example, self).__init__()
 
 		self.mc = None
+		self.dry = False
+		self.extra_dry = False
+		self.startup_run = False
 		
-		if 0:
-			self.run(True)
-			print 'Planner debug break'
-			sys.exit(1)
+		#self.startup_run = True
+		if self.startup_run:
+			self.startup_run = True
+			self.extra_dry = True
+			self.dry = True
 		
-		try:
-			self.mc = MC()
-			self.mc.on()
-		except:
-			print 'Failed to open device'
-			raise
+		if not self.extra_dry:
+			try:
+				self.mc = MC()
+				self.mc.on()
+			except:
+				print 'Failed to open device'
+				raise
 		
 		#self.controller = 
-			
-		if 0:
-			self.run(True)
-			print 'Planner debug break'
-			sys.exit(1)
-		
 			
 			
 		self.initUI()
 				
+		if self.startup_run:
+			self.run()
+			print 'Planner debug break'
+			sys.exit(1)
+		
 	def x(self, n):
 		if self.mc is None:
 			return
@@ -318,6 +322,20 @@ class Example(QtGui.QMainWindow):
 		if self.mc:
 			self.mc.home()
 			
+	def go_rel(self):
+		print 'Go rel all requested'
+		if self.axes:
+			for k in self.axes:
+				axis = self.axes[k]
+				axis.go_rel()
+		
+	def go_abs(self):
+		print 'Go abs all requested'
+		if self.axes:
+			for k in self.axes:
+				axis = self.axes[k]
+				axis.go_abs()
+				
 	def progress_cb(self, pictures_to_take, pictures_taken, image, first):
 		if first:
 			print 'First CB with %d items' % pictures_to_take
@@ -337,7 +355,10 @@ class Example(QtGui.QMainWindow):
 			
 		self.pb.setValue(pictures_taken)
 			
-	def run(self, dry = False):
+	def run(self):
+		dry = self.dry_cb.isChecked()
+		if dry:
+			print 'Dry run checked'
 		if 0:
 			'''
 			controller = None
@@ -380,22 +401,34 @@ class Example(QtGui.QMainWindow):
 			rconfig.job_name = self.job_name_le.text()
 			if len(rconfig.job_name) == 0:
 				rconfig.job_name = "out"
-			if os.path.exists(rconfig.job_name):
+			if not dry and os.path.exists(rconfig.job_name):
 				raise Exception("job name dir %s already exists" % rconfig.job_name)
 			
 			self.pt = PlannerThread(self, rconfig)
 			#eeeee not working as well as I hoped
 			#self.pt.start()
 			self.pt.run()
+			# Cleanup camera objects
+			self.pt = None
 	
 	def get_bottom_layout(self):
 		bottom_layout = QHBoxLayout()
 		
 		axes_gb = QGroupBox('Axes')
 		axes_layout = QHBoxLayout()
+		
 		self.home_button = QPushButton("Home all")
 		self.home_button.connect(self.home_button, QtCore.SIGNAL("clicked()"), self.home)
 		axes_layout.addWidget(self.home_button)
+
+		self.go_abs_button = QPushButton("Go abs all")
+		self.go_abs_button.connect(self.go_abs_button, QtCore.SIGNAL("clicked()"), self.go_abs)
+		axes_layout.addWidget(self.go_abs_button)
+		
+		self.go_rel_button = QPushButton("Go rel all")
+		self.go_rel_button.connect(self.go_rel_button, QtCore.SIGNAL("clicked()"), self.go_rel)
+		axes_layout.addWidget(self.go_rel_button)
+
 		self.axes = None
 		if self.mc:
 			self.axes = dict()
@@ -434,6 +467,9 @@ class Example(QtGui.QMainWindow):
 		run_layout.addWidget(b, 1, 0)
 		self.pb = QProgressBar()
 		run_layout.addWidget(self.pb, 1, 1)
+		run_layout.addWidget(QLabel('Dry?'), 2, 0)
+		self.dry_cb = QCheckBox()
+		run_layout.addWidget(self.dry_cb, 2, 1)
 		scan_layout.addLayout(run_layout)
 
 		

@@ -9,6 +9,7 @@ import sys
 import time
 import math
 import numpy
+import numpy.linalg
 import json
 import os
 #from pr0ntools.stitch.image_map import ImageMap 
@@ -16,6 +17,7 @@ from imager import DummyImager
 import usbio
 from usbio.controller import DummyController
 import config
+import copy
 
 VERSION = '0.1'
 
@@ -119,24 +121,88 @@ class FocusLevel:
 	def __init__(self):
 		pass
 
+class PlannerAxis:
+	def __init__(self, name, ideal_overlap_percent, view, start, end):
+		self.name = name
+		'''
+		The naming is somewhat bad on this as it has an anti-intuitive meaning
+		
+		Proportion of each image that is unique from previous
+		Overlap of 1.0 means that images are all unique sections
+		Overlap of 0.0 means never move and keep taking the same spot
+		'''
+		self.ideal_overlap_percent = ideal_overlap_percent
+		self.view = view
+		self.start = start
+		self.end = end
+		
+		'''
+		Note that one picture has wider coverage than the others
+		Thus its treated specially and subtracted from the remainder
+		
+		It is okay for the second part to be negative since we could
+		try to image less than our sensor size
+		However, the entire quantitity should not be negative
+		'''
+		self.images_ideal_calc = 1.0 + (self.delta() - self.view) / self.ideal_step_uniqe_area()
+		self.images_to_take = math.ceil(self.images_ideal())
+		# Note that we don't need to adjust the initial view since its fixed, only the steps
+		# self.images_to_take = 1.0 + (self.delta() - self.view) / self.step_size_calc
+		self.step_size_calc = (self.delta() - self.view) / (self.images_to_take - 1.0)
+
+	def ideal_step_uniqe_area(self):
+		'''How many pixels of each image are unique to the previously taken image when linear'''
+		return self.ideal_overlap_percent * self.view
+		
+	def delta(self):
+		'''Total distance that needs to be imaged'''
+		return self.end - self.start
+				
+	def images_ideal(self):
+		return self.images_ideal_calc
+	
+	def images(self):
+		'''How many images should actually take after considering margins and rounding'''
+		return self.images_to_take
+	
+	def step(self):
+		'''How much to move each time we take the next image'''
+		return self.step_size_calc
+		
+	def step_percent(self):
+		'''Actual percentage we move to take the next picture'''
+		# Contrast with requested value self.ideal_overlap_percent
+		return self.step() / self.view
+		
+	#def overlap(self):
+	#	'''Actual percentage of each image that is unique when linearly stepping'''
+			
 class Planner:
-	def __init__(self, rconfig):
-		self.rconfig = rconfig
-		microscope_config = rconfig.microscope_config
+	def __init__(self, rconfig_in):
+		# FIXME: this is better than before but CTypes pickle error from deepcopy
+		#self.rconfig = copy.deepcopy(rconfig)
+		self.rconfig = copy.copy(rconfig_in)
+		rconfig = self.rconfig
 		objective_config = rconfig.objective_config
-		scan_config = rconfig.scan_config
 		self.progress_cb = rconfig.progress_cb
 	
-		# Proportion of overlap on each image to adjacent
-		overlap = 2.0 / 3.0
+		if rconfig.scan_config is None:
+			rconfig.scan_config = config.get_scan_config()
+		scan_config = rconfig.scan_config
+
+		
+		ideal_overlap = 2.0 / 3.0
+		if 'overlap' in scan_config:
+			ideal_overlap = float(scan_config['overlap'])
 		# Maximum allowable overlap proportion error when trying to fit number of snapshots
 		overlap_max_error = 0.05
 		
 		naked_arg_index = 0
 		action = ACTION_GCODE
 		
-		if microscope_config is None:
-			microscope_config = config.get_microscope_config()
+		if rconfig.microscope_config is None:
+			rconfig.microscope_config = config.get_microscope_config()
+		microscope_config = rconfig.microscope_config
 
 		focus = FocusLevel()
 		self.focus = focus
@@ -162,16 +228,96 @@ class Planner:
 		plane calibration corner ended at 0.0000, 0.2674, -0.0129
 		'''
 	
-		if scan_config is None:
-			scan_config = config.get_scan_config()
+		self.parse_points()
+		
+		if not self.z:
+			print 'WARNING: crudely removing Z since its not present or broken'
+		
+		if self.z_start is None or self.z_end is None:
+			full_z_delta = None
+		else:
+			full_z_delta = self.z_end - self.z_start
+		#print full_z_delta
+	
+		self.x = PlannerAxis('X', ideal_overlap, focus.x_view, self.x_start, self.x_end)
+		self.y = PlannerAxis('Y', ideal_overlap, focus.y_view, self.y_start, self.y_end)
+		
+		print 'X %f to %f, Y %f to %f' % (self.x_start, self.x_end, self.y_start, self.y_end)
+		print 'Ideal overlap: %f, actual X %g, Y %g' % (ideal_overlap, self.x.step_percent(), self.y.step_percent())
+		print 'full x delta: %f, y delta: %f' % (self.x.delta(), self.y.delta())
+		print 'view x: %f, y: %f' % (focus.x_view, focus.y_view)
+			
+		if self.z:
+			self.z_backlash = float(microscope_config['stage']['z_backlash'])
+		else:
+			self.z_backlash = None
+	
+		#self.x_overlap = self.x.step() / focus.x_view
+		#self.y_overlap = self.y.step() / focus.y_view
+		#print 'step x: %g, y: %g' % (self.x.step(), self.y.step())
+		'''
+		expect = 100, actual = 100 => 100 % efficient
+		expect = 100, actual = 200 => 50 % efficient		
+		'''
+		#print 'X overlap actual %g vs ideal %g, %g efficient' % (
+		#		self.x_overlap, ideal_x_overlap, ideal_x_overlap / self.x_overlap * 100.0 )
+		#print 'Y overlap actual %g vs ideal %g, %g efficient' % (
+		#		self.y_overlap, ideal_y_overlap, ideal_y_overlap / self.y_overlap * 100.0 )
 
+		# A true useful metric of efficieny loss is how many extra pictures we had to take
+		# Maybe overhead is a better way of reporting it
+		ideal_n_pictures = self.x.images_ideal() * self.y.images_ideal()
+		expected_n_pictures = self.x.images() * self.y.images()
+		print 'Ideally taking %g pictures (%g X %g) but actually taking %d (%d X %d), %g efficient' % (
+				ideal_n_pictures, self.x.images_ideal(), self.y.images_ideal(), 
+				expected_n_pictures, self.x.images(), self.y.images(),
+				ideal_n_pictures / expected_n_pictures * 100.0)
+		
+		if self.z and self.others:
+			self.calc_normal()
+		else:
+			print 'Not calculating normal (z %s, others %s)' % (self.z, self.others)
+		
+		self.getPointsExInit()
+	
+		# Try actually generating the points and see if it matches how many we thought we were going to get
+		self.pictures_to_take = self.getNumPoints()
+		if self.pictures_to_take != expected_n_pictures:
+			print 'Going to take %d pictures but thought was going to take %d pictures (x %d X y %d)' % (self.pictures_to_take, expected_n_pictures, self.x.images(), self.y.images())
+			print 'Points:'
+			for p in self.getPoints():
+				print '    ' + str(p)
+			raise Exception('Fail')
+		self.pictures_taken = 0
+		self.notify_progress(None, True)
+
+	def __del__(self):
+		pass
+		
+	def parse_points(self):
 		self.z = True
 
+		scan_config = self.rconfig.scan_config
+		if scan_config is None:
+			raise Exception('Missing scan parameters')
+		
+		self.x_gutter = 0.0
+		self.y_gutter = 0.0
+		if 'gutter' in scan_config:
+			try:
+				self.x_gutter = float(scan_config['gutter']['x'])
+				self.y_gutter = float(scan_config['gutter']['y'])
+			except:
+				g = float(scan_config['gutter'])
+				self.x_gutter = g
+				self.y_gutter = g
+		
 		self.x_start = float(scan_config['start']['x'])
 		self.y_start = float(scan_config['start']['y'])
 		try:
 			self.z_start = float(scan_config['start']['z'])
 		except:
+			print 'Failed to find z start, disabling Z'
 			self.z_start = None
 			self.z = False
 		self.start = [self.x_start, self.y_start, self.z_start]
@@ -181,134 +327,159 @@ class Planner:
 		try:
 			self.z_end = float(scan_config['end']['z'])
 		except:
+			print 'Failed to find z end, disabling Z'
 			self.z_end = None
 			self.z = False
 		self.end = [self.x_end, self.y_end, self.z_end]
 	
-		try:
-			self.x_other = float(scan_config['other']['x'])
-			self.y_other = float(scan_config['other']['y'])
-			try:
-				self.z_other = float(scan_config['other']['z'])
-			except:
-				self.z_other = None
-				self.z = False
-			self.other = [self.x_other, self.y_other, self.z_other]	
-		except:
-			self.other = None
-		
-		if not self.z:
-			print 'WARNING: crudely removing Z since its not present or broken'
-		
-		full_x_delta = self.x_end - self.x_start
-		full_y_delta = self.y_end - self.y_start
-		if self.z_start is None or self.z_end is None:
-			full_z_delta = None
+		if 'others' in scan_config:
+			self.others = []
+			i = 0
+			for p in scan_config['others']:
+				l = [float(p['x']), float(p['y']), None]
+				print l
+				self.others.append(l)
+				try:
+					self.others[i][2] = float(p['z'])
+				except:
+					self.others[i][2] = None
+					print 'Failed to find z other (%s), disabling Z' % (p)
+					self.z = False
+				#self.other = [self.x_other, self.y_other, self.z_other]	
+				i += 1
 		else:
-			full_z_delta = self.z_end - self.z_start
-		#print full_z_delta
-	
-		print 'X %f to %f, Y %f to %f' % (self.x_start, self.x_end, self.y_start, self.y_end)
-		print 'Overlap: %f' % overlap
-		print 'full x delta: %f, y delta: %f' % (full_x_delta, full_y_delta)
-		print 'view x: %f, y: %f' % (focus.x_view, focus.y_view)
-		x_images = full_x_delta / (focus.x_view * overlap)
-		y_images = full_y_delta / (focus.y_view * overlap)
-		print 'x images pre round: %f' % x_images
-		print 'y images pre round: %f' % y_images
-		x_images = round(x_images)
-		y_images = round(y_images)
-		print 'x images: %d' % x_images
-		print 'y images: %d' % y_images
-		self.x_images = x_images
-		self.y_images = y_images
-	
-		#sys.exit(1)
-	
-		if self.z:
-			self.z_backlash = float(microscope_config['stage']['z_backlash'])
-		else:
-			self.z_backlash = None
-	
-		self.x_step = self.x_end / x_images
-		self.y_step = self.y_end / y_images
-		print 'step x: %f, y: %f' % (self.x_step, self.y_step)
-	
-		if self.z and self.other:
-			'''
-			To find the Z on this model, find projection to center line
-			Projection of A (position) onto B (center line) length = |A| cos(theta) = A dot B / |B| 
-			Should I have the z component in here?  In any case it should be small compared to others 
-			and I'll likely eventually need it
-			'''
-	
-			'''			
-			planar projection
-	
-			Given two vectors in plane, create orthagonol basis vectors
-			Project vertex onto plane to get vertex coordinates within the plane
-			http://stackoverflow.com/questions/3383105/projection-of-polygon-onto-plane-using-gsl-in-c-c
-	
-			Constraints
-			Linear XY coordinate system given
-			Need to project point from XY to UV plane to get Z distance
-			UV plane passes through XY origin
-	
-	
-			Eh a simple way
-			Get plane in a x + b y + c z + d = 0 form
-			If we know x and y, should be simple
-			d = 0 for simplicity (set plane intersect at origin)
-	
-			Three points
-				(0, 0, 0) implicit
-				(ax, ay, az) at other end of rectangle
-				(bx, by, bz) somewhere else on plane, probably another corner
-			Find normal vector, simple to convert to equation
-				nonzero normal vector n = (a, b, c)
-				through the point x0 =(x0, y0, z0)
-				n * (x - x0) = 0, 
-				yields ax + by + cz + d = 0 
-			"Converting between the different notations in 3D"
-				http://www.euclideanspace.com/maths/geometry/elements/plane/index.htm
-				Convert Three points to normal notation
-				N = (p1 - p0) x (p2 - p0)
-				d = -N * p02
-				where:
-					* N = normal to plane (not necessarily unit length)
-					* d = perpendicular distance of plane from origin.
-					* p0,p1 and p2 = vertex points
-					* x = cross product
-			'''
-			p0 = self.start
-			p1 = self.end
-			p2 = self.other
+			print 'Could not find other points'
+			#raise Exception('die')
+			self.others = None
+		
+	def calc_normal(self):
+		'''
+		To find the Z on this model, find projection to center line
+		Projection of A (position) onto B (center line) length = |A| cos(theta) = A dot B / |B| 
+		Should I have the z component in here?  In any case it should be small compared to others 
+		and I'll likely eventually need it
+		'''
 
+		'''			
+		planar projection
+
+		Given two vectors in plane, create orthagonol basis vectors
+		Project vertex onto plane to get vertex coordinates within the plane
+		http://stackoverflow.com/questions/3383105/projection-of-polygon-onto-plane-using-gsl-in-c-c
+
+		Constraints
+		Linear XY coordinate system given
+		Need to project point from XY to UV plane to get Z distance
+		UV plane passes through XY origin
+
+
+		Eh a simple way
+		Get plane in a x + b y + c z + d = 0 form
+		If we know x and y, should be simple
+		d = 0 for simplicity (set plane intersect at origin)
+
+		Three points
+			(0, 0, 0) implicit
+			(ax, ay, az) at other end of rectangle
+			(bx, by, bz) somewhere else on plane, probably another corner
+		Find normal vector, simple to convert to equation
+			nonzero normal vector n = (a, b, c)
+			through the point x0 =(x0, y0, z0)
+			n * (x - x0) = 0, 
+			yields ax + by + cz + d = 0 
+		"Converting between the different notations in 3D"
+			http://www.euclideanspace.com/maths/geometry/elements/plane/index.htm
+			Convert Three points to normal notation
+			N = (p1 - p0) x (p2 - p0)
+			d = -N * p02
+			where:
+				* N = normal to plane (not necessarily unit length)
+				* d = perpendicular distance of plane from origin.
+				* p0,p1 and p2 = vertex points
+				* x = cross product
+		'''
+		
+		def cross(p0, p1, p2):
 			# [a - b for a, b in zip(a, b)]
 			# cross0 = p1 - p0
-			cross0 = [t1 - t0 for t1, t0 in zip(p1, p0)]
+			cross0 = [float(t1) - float(t0) for t1, t0 in zip(p1, p0)]
 			# cross1 = p2 - p0
-			cross1 = [t2 - t0 for t2, t0 in zip(p2, p0)]
-			self.normal = numpy.cross(cross0, cross1)
-			# a x + b y + c z + d = 0 
-			# z = -(a x + by) / c
-			# dz/dy = -b / c
-			self.dz_dy = -self.normal[1] / self.normal[2]
-	
-		self.getPointsExInit()
-	
-		# Try actually generating the points and see if it matches how many we thought we were going to get
-		self.pictures_to_take = self.getNumPoints()
-		expected_n_pictures = self.x_images * self.y_images
-		if self.pictures_to_take != expected_n_pictures:
-			print 'Going to take %d pictures but thought was going to take %d pictures (x %d X y %d)' % (self.pictures_to_take, expected_n_pictures, self.x_images, self.y_images)
-			print 'Points:'
-			for p in self.getPoints():
-				print '    ' + str(p)
-			raise Exception('Fail')
-		self.pictures_taken = 0
-		self.notify_progress(None, True)
-
+			cross1 = [float(t2) - float(t0) for t2, t0 in zip(p2, p0)]
+			c = numpy.cross(cross0, cross1)
+			n = numpy.linalg.norm(c)
+			# Keep pointed up to make things more regular
+			if c[2] < 0:
+				n *= -1.0
+			for i in range(3):
+				c[i] /= n
+			return c
+			
+		print 'Calculating normal'
+			
+		if len(self.others) == 1:
+			print 'Single plane case'
+			p0 = self.start
+			p1 = self.end
+			p2 = self.others[0]
+			self.normal = cross(p0, p1, p2)
+		else:
+			print 'Multiple plane case'
+			# This is massively inefficient but number of points should be low
+			self.normal = [0.0, 0.0, 0.0]
+			ps = [self.start, self.end] + self.others
+			n = 0
+			'''
+			for p0 in ps:
+				for p1 in ps:
+					if p1 == p0:
+						continue
+					for p2 in ps:
+						if p2 == p1 or p2 == p0:
+							continue
+			'''
+			for p0 in [self.start]:
+				for p1 in [self.end]:
+					for p2 in self.others:
+						normal = cross(p0, p1, p2)
+						print
+						print 'Computed normal %s' % str(normal)
+						print p0
+						print p1
+						print p2
+						print
+						for i in range(0, 3):
+							self.normal[i] += normal[i]
+						n += 1
+							
+			for i in range(0, 3):
+				self.normal[i] /= n
+		# a x + b y + c z + d = 0 
+		# z = -(a x + by) / c
+		# dz/dy = -b / c
+		self.dz_dy = -self.normal[1] / self.normal[2]
+		
+		print 'Normal: %s' % str(self.normal)
+		
+		# Validate the plane mode l is reasonable
+		compare = self.others
+		#compare = [[4197.88, 236.898, -21.0], [0.0, 4200.0, 28.0]]
+		#compare = [[4197.8, 400.0, -26.5], [0.0, 4200.0, 10.0]]
+		for p in [self.start, self.end] + compare:
+			z = self.calc_z(p[0], p[1])
+			z_expect = p[2]
+			d = abs(z - z_expect)
+			thresh = 5.0
+			thresh_absolute = 500
+			print 'Point %s: calc %g, error %g' % (str(p), z, d)
+			if d > thresh:
+				print 'Bad planar solution, difference %g vs threshold %g' % (d, thresh)
+				print p
+				print 'Computed z: %g, expected z: %g' % (z, z_expect)
+				print self.others
+				print 'Normal: %s' % str(self.normal)
+				if d > thresh_absolute:
+					raise Exception('Bad planar solution')
+			
 	def notify_progress(self, image_file_name, first = False):
 		if self.progress_cb:
 			self.progress_cb(self.pictures_to_take, self.pictures_taken, image_file_name, first)
@@ -351,6 +522,8 @@ class Planner:
 		pass
 
 	def write_metadata(self):
+		if self.rconfig.dry:
+			return
 		# Copy config for reference
 		self.rconfig.write_to_dir(self.out_dir())
 		# TODO: write out coordinate map
@@ -372,20 +545,24 @@ class Planner:
 		return "%s%s%s%s" % (rowcol, spacer, coordinate, suffix)
 
 	def out_dir(self):
-		return self.rconfig.job_name
+		return 'out' + '//' +  self.rconfig.job_name
 		
 	def get_this_file_name(self):
 		# row and column, 0 indexed
 		#return 'c%04X_r%04X.jpg' % (self.cur_col, self.cur_row)
 		r =  'c%04d_r%04d.tif' % (self.cur_col, self.cur_row)
 		if self.out_dir():
-			r = '%s/%s' % (self.rconfig.job_name, r)
+			r = '%s/%s' % (self.out_dir(), r)
 		return r
 		
 	def prepare_image_output(self):
 		od = self.out_dir()
 		if od:
-			os.mkdir(od)
+			if self.rconfig.dry:
+				print 'DRY: mkdir(%s)' % od
+			else:
+				print 'Creating output directory %s' % od
+				os.mkdir(od)
 			
 	def take_picture(self):
 		self.focus_camera()
@@ -409,20 +586,30 @@ class Planner:
 		print 'Relative move to (%f, %f, %s)' % (x, y, str(z))
 		pass
 		
+	'''
 	def gen_x_points(self):
 		# We want to step nicely but this simple step doesn't take into account our x field of view
 		x_end = self.x_end - self.focus.x_view
-		for cur_x in drange_at_least(self.x_start, x_end, self.x_step):
+		for cur_x in drange_at_least(self.x_start, x_end, self.x.step()):
 			yield cur_x
 	
 	def gen_y_points(self):
 		y_end = self.y_end - self.focus.y_view
-		for cur_y in drange_at_least(self.y_start, y_end, self.y_step):
+		for cur_y in drange_at_least(self.y_start, y_end, self.y.step()):
 			yield cur_y
+	'''
+	
+	def gen_x_points(self):
+		for i in range(self.x.images()):
+			yield self.x_start + i * self.x.step()
+	
+	def gen_y_points(self):
+		for i in range(self.y.images()):
+			yield self.y_start + i * self.y.step()
 	
 	def getNumPoints(self):
 		pictures_to_take = 0
-		#pictures_to_take = len(list(drange_at_least(self.x_start, self.x_end, self.x_step))) * len(list(drange_at_least(self.y_start, self.y_end, self.y_step)))
+		#pictures_to_take = len(list(drange_at_least(self.x_start, self.x_end, self.x.step()))) * len(list(drange_at_least(self.y_start, self.y_end, self.y.step())))
 		#for cur_x in self.gen_x_points():
 		#	for cur_y in self.gen_y_points():
 		#		pictures_to_take += 1
@@ -460,10 +647,55 @@ class Planner:
 
 	def getPointsExInit(self):
 		if 0:
-			self.getPointsEx = self.getPointsExLoop
+			self.getPointsExCore = self.getPointsExLoop
 		else:
 			#self.getPointsEx = self.getPointsExSerpentineXY
-			self.getPointsEx = self.getPointsExSerpentineYX
+			self.getPointsExCore = self.getPointsExSerpentineYX
+	
+	def validate_point(self, p):
+		(cur_x, cur_y, cur_z, cur_row, cur_col) = p
+		#print 'xh: %g vs cur %g, yh: %g vs cur %g' % (xh, cur_x, yh, cur_y)
+		#do = False
+		#do = cur_x > 3048 and cur_y > 3143
+		x_tol = 1.0
+		y_tol = 1.0
+		xmax = cur_x + self.focus.x_view
+		ymax = cur_y + self.focus.y_view
+		
+		fail = False
+		
+		if cur_col < 0 or cur_col >= self.x.images_ideal():
+			print 'Col out of range 0 <= %d <= %d' % (cur_col, self.x.images_ideal())
+			fail = True
+		if cur_x < self.x_start - x_tol or xmax > self.x_end + x_tol:
+			print 'X out of range'
+			fail = True
+			
+		if cur_row < 0 or cur_row >= self.y.images_ideal():
+			print 'Row out of range 0 <= %d <= %d' % (cur_row, self.y.images_ideal())
+			fail = True
+		if cur_y < self.y_start - y_tol or ymax > self.y_end + y_tol:
+			print 'Y out of range'
+			fail = True		
+		
+		if fail:
+			print 'Bad point:'
+			print '  X: %g' % cur_x
+			print '  Y: %g' % cur_y
+			print '  Z: %s' % str(cur_z)
+			print '  Row: %g' % cur_row
+			print '  Col: %g' % cur_col
+			raise Exception('Bad point (%g + %g = %g, %g + %g = %g) for range (%g, %g) to (%g, %g)' % (
+					cur_x, self.focus.x_view, xmax,
+					cur_y, self.focus.y_view, ymax,
+					self.x_start, self.y_start,
+					self.x_end, self.y_end))
+	
+	def getPointsEx(self):
+		for p in self.getPointsExCore():
+			self.validate_point(p)
+			yield p
+	
 	
 	# Simpler and less backlash issues
 	# However, takes longer as  we have to go back to the other side
@@ -538,7 +770,7 @@ class Planner:
 		self.comment('objective: %f, eyepiece: %f, camera: %f, net: %f' % (focus.objective_mag, focus.eyepiece_mag, focus.camera_mag, net_mag))
 		self.comment('x size: %f, y size: %f' % (self.x_end - self.x_start, self.y_end - self.y_start))
 		self.comment('x fov: %f, y fov: %f' % (focus.x_view, focus.y_view))
-		self.comment('x_step: %f, y_step: %f' % (self.x_step, self.y_step))
+		self.comment('x_step: %f, y_step: %f' % (self.x.step(), self.y.step()))
 		
 		z_backlash = self.z_backlash
 		if z_backlash:
@@ -617,7 +849,8 @@ class Planner:
 				z_param = None
 				if self.z:
 					z_param = z_delta + z_backlash_delta
-				self.relative_move(x_delta, y_delta, z_param)
+				#self.relative_move(x_delta, y_delta, z_param)
+				self.absolute_move(cur_x, cur_y, cur_z)
 				if z_backlash_delta:
 					self.relative_move(0.0, 0.0, -z_backlash_delta)
 				self.take_picture()
@@ -653,17 +886,27 @@ class Planner:
 			
 		self.write_metadata()
 		
+	def absolute_move(self, x, y, z = None):
+		raise Exception('blah')
 		
 	def home(self):
 		self.relative_move(-self.cur_x, -self.cur_y)
 
+	def absolute_move(self, x, y, z = None):
+		print 'DRY: absolute move to (%s, %s, %s)' % (str(x), str(y), str(z))
+	
 	@staticmethod
 	def get(rconfig):
 		if not rconfig.dry:
 			return ControllerPlanner(rconfig)
 		else:
 			print "***DRY RUN***"
+			#return DryPlanner(rconfig)
 			return Planner(rconfig)
+	
+class DryPlanner(Planner):
+	def __init__(self, **args):
+		Planner.__init__(self, **args)
 	
 class GCodePlanner(Planner):
 	'''
@@ -778,6 +1021,14 @@ class ControllerPlanner(Planner):
 		#self.line('M9')
 		# suspect I don't need anything here
 		pass
+	
+	def absolute_move(self, x, y, z = None):
+		if not x is None:
+			self.controller.x.set_pos(x)
+		if not y is None:
+			self.controller.y.set_pos(y)
+		if not z is None:
+			self.controller.z.set_pos(z)
 	
 	def relative_move(self, x, y, z = None):
 		if not x and not y and not z:
