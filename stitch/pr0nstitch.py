@@ -169,7 +169,7 @@ if __name__ == "__main__":
 				arg_fatal('unrecognized arg: %s' % arg)
 
 	if algorithm is None:
-		algorithm = ALGORITHM_WANDER
+		algorithm = ALGORITHM_GRID
 
 	print 'post arg'
 	print 'output image: %s' % output_image_file_name
