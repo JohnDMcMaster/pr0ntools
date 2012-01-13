@@ -54,7 +54,9 @@ class WanderStitch(CommonStitch):
 
 	def stitch_images(self, file_names_pair):
 		#project = self.control_point_gen.generate_core(file_names_pair)
-		project = self.generate_control_points_by_pair(ImageCoordinatePair.from_spatial_points(self.spatial_map.points[file_names_pair[0]], self.spatial_map.points[file_names_pair[1]]), file_names_pair)
+		sp0 = self.spatial_map.points[file_names_pair[0]]
+		sp1 = self.spatial_map.points[file_names_pair[1]]
+		project = self.generate_control_points_by_pair(ImageCoordinatePair.from_spatial_points(sp0, sp1), file_names_pair)
 		if project is None:
 			print 'Could not connect supposedly adjacent images, recovery is currently not supported'
 			return None
