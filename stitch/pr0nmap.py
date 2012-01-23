@@ -8,6 +8,7 @@ from pr0ntools.pimage import PImage
 import argparse
 import os
 import os.path
+import math
 
 class Map:
 	def __init__(self, image_in):
@@ -16,7 +17,7 @@ class Map:
 		# Consider mangling this pased on the image name
 		self.id = 'si_canvas'
 		self.out_dir = 'map'
-		self.max_level = 1
+		self.max_level = None
 		self.min_level = 0
 		self.image = None
 		
@@ -200,13 +201,29 @@ siMap.setOptions({
 </html>
 ''';
 
+	def zoom_factor(self):
+		return 2
+
 	def gen_js(self):
 		if os.path.exists(self.out_dir):
 			os.system('rm -rf %s' % self.out_dir)
 		os.mkdir(self.out_dir)
 
 		self.image = PImage.from_file(self.image_in)
-
+		if self.max_level is None:
+			'''
+			Calculate such that max level is a nice screen size
+			Lets be generous for small viewers...especially considering limitations of mobile devices
+			'''
+			fit_width = 640
+			fit_height = 480
+			
+			image = self.image
+			width_levels = math.ceil(math.log(image.width(), self.zoom_factor()) - math.log(fit_width, self.zoom_factor()))
+			height_levels = math.ceil(math.log(image.height(), self.zoom_factor()) - math.log(fit_height, self.zoom_factor()))
+			self.max_level = int(max(width_levels, height_levels, 0))
+			# Take the number of zoom levels required to fit the entire thing on screen
+			print 'Calculated max zoom level for %d X %d screen to be %d (width max: %d, height max: %d)' % (fit_width, fit_height, self.max_level, width_levels, height_levels)
 		js = self.get_js()
 		js_filename = '%s/index.html' % self.out_dir
 		open(js_filename, 'w').write(js)
@@ -228,7 +245,7 @@ if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description='Generate Google Maps code from image file(s)')
 	parser.add_argument('images_in', metavar='N', type=str, nargs='+', help='images in')
 	parser.add_argument('--level-min', action="store", dest="level_min", type=int, default=0, help='Minimum zoom level')
-	parser.add_argument('--level-max', action="store", dest="level_max", type=int, required=True, help='Maximum zoom level')
+	parser.add_argument('--level-max', action="store", dest="level_max", type=int, default=None, help='Maximum zoom level')
 	parser.add_argument('--out', action="store", dest="out_dir", type=str, default="map", help='Output directory')
 	args = parser.parse_args()
 	
