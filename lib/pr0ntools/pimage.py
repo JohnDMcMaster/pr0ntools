@@ -150,7 +150,7 @@ class PImage:
 		return self.from_array(array_out, self.get_mode(), self.get_mode())
 		'''
 		# 4-tuple (x0, y0, x1, y1)
-		print 'x_min: %d, y_min: %d, x_max: %d, y_max: %d' % (x_min, y_min, x_max, y_max)
+		#print 'x_min: %d, y_min: %d, x_max: %d, y_max: %d' % (x_min, y_min, x_max, y_max)
 		# This is exclusive, I want inclusive
 		return PImage.from_image(self.image.crop((x_min, y_min, x_max, y_max)))
 
