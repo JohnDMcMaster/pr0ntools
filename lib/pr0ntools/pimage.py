@@ -111,6 +111,15 @@ class PImage:
 		#print (x_min, x_max, y_min, y_max)
 		#print 'Trimming: doing subimage'
 		return (self.subimage(x_min, x_max, y_min, y_max), x_min, x_max, y_min, y_max)
+	
+	def save(self, filename):
+		self.image.save(filename)
+
+	def get_scaled(self, factor, filt = None):
+		if filt is None:
+			filt = Image.NEAREST
+		i = self.image.resize((int(self.width() * factor), int(self.height() * factor)), filt)
+		return PImage.from_image(i)
 
 	'''
 	Given exclusive end array bounds (allows .width() convenience)
@@ -118,7 +127,7 @@ class PImage:
 	Truncates the image if our array bounds are out of range
 		Maybe we should throw exception instead?
 	'''
-	def subimage(self, x_min, x_max, y_min, y_max):
+	def subimage(self, x_min, x_max, y_min, y_max):	
 		if x_min is None:
 			x_min = 0
 		if x_max is None:
@@ -248,6 +257,16 @@ class PImage:
 
 	def file_name(self):
 		return self.image.fp.name
+
+	def set_canvas_size(self, width, height):
+		# Simple case: nothing to do
+		if self.width() == width and self.height == height:
+			return
+		
+		ip = Image.new(self.get_mode(), (width, height))
+		ip.paste(self.image, (0,0, self.width(), self.height()))
+		# Shift the old image out
+		self.image = ip
 
 	@staticmethod
 	def from_file(path):

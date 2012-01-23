@@ -21,8 +21,9 @@ var options = {
   mapTypeControlOptions: {style: google.maps.MapTypeControlStyle.DROPDOWN_MENU}
 }
 
-var SI_RANGE_X = 5672;
-var SI_RANGE_Y = 4373;
+var SI_MAX_ZOOM = 3
+var SI_RANGE_X = 5672 / Math.pow(2, SI_MAX_ZOOM);
+var SI_RANGE_Y = 4373 / Math.pow(2, SI_MAX_ZOOM);
 
 function SiProjection() {
   // Using the base map tile, denote the lat/lon of the equatorial origin.
@@ -78,7 +79,7 @@ if (firstL) {
 
 var siMap = new google.maps.Map(document.getElementById("si_canvas"), options);
 siMap.setCenter(new google.maps.LatLng(1, 1));
-siMap.setZoom(1);
+siMap.setZoom(0);
 
 first = false
 //first = true;
@@ -86,7 +87,8 @@ var mos6522NoMetal = new google.maps.ImageMapType({
   getTileUrl: function(ll, z) {
   	//TODO: consider not 0 padding if this is going to be a performance issue
   	//it does make organizing them easier though
-    var r = "http://localhost/map/tiles_out/y" + String("00" + ll.y).slice(-3) + "_x" + String("00" + ll.x).slice(-3) + ".png"; 
+    var r = "tiles_out/" + z + "/y" + String("00" + ll.y).slice(-3) + "_x" + String("00" + ll.x).slice(-3) + ".jpg"; 
+    //var r = "http://siliconpr0n.org/map/tiles_out/" + z + "/y" + String("00" + ll.y).slice(-3) + "_x" + String("00" + ll.x).slice(-3) + ".png"; 
     //var r = "http://localhost/map/tiles_out/y00" + ll.y + "_x00" + ll.x + ".png"; 
 	if (first) {
 	    first = false;
@@ -94,9 +96,10 @@ var mos6522NoMetal = new google.maps.ImageMapType({
     }
     return r;
   },
+  format:"jpg",
   tileSize: new google.maps.Size(256, 256),
-  isPng: true,
-  maxZoom: 0,
+  //isPng: true,
+  maxZoom: SI_MAX_ZOOM,
   name: "SM",
   alt: "6522 w/o metal"
 });
