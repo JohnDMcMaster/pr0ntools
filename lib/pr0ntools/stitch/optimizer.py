@@ -40,8 +40,6 @@ Usage:  autooptimiser [options] input.pto
     button in hugin is performed.
 '''
 class PositionOptimizer:
-	pto_project = None
-	
 	def __init__(self, pto_project):
 		self.pto_project = pto_project
 	
@@ -56,4 +54,35 @@ class PositionOptimizer:
 		if not rc == 0:
 			raise Exception('failed position optimization')
 		self.project.reopen()
+
+class PTOptimizer:
+	def __init__(self, pto_project):
+		self.pto_project = pto_project
+	
+	def optimize(self):
+		'''
+		The base Hugin project seems to work if you take out a few things:
+		Eb1 Eev0 Er1 Ra0 Rb0 Rc0 Rd0 Re0 Va1 Vb0 Vc0 Vd0 Vx-0 Vy-0
+		So say generate a project file with all of those replaced
+		
+		In particular we will generate new i lines
+		To keep our original object intact we will instead do a diff and replace the optimized things on the old project
+		'''
+		# Copy project so we can trash it
+		project = self.pto_project.to_ptoptimizer()
+		
+		# "PToptimizer out.pto"
+		args = list()
+		args.append(pto_project.get_a_file_name())
+		(rc, output) = Execute.with_output("PToptimizer", args)
+		if not rc == 0:
+			raise Exception('failed position optimization')
+		project.reopen()
+
+		print
+		print
+		print
+		print 'Optimized project:'
+		print project
+		sys.exit(1)
 

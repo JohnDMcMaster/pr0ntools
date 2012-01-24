@@ -30,6 +30,7 @@ class PanoEngineX:
 		self.image_file_names = None
 		self.subimage_control_points = True
 		self.control_point_gen = None
+		self.optimize = True
 
 	@staticmethod
 	def from_file_names(image_file_names, flip_col = False, flip_row = False, flip_pre_transpose = False, flip_post_transpose = False, depth = 1):
@@ -392,6 +393,8 @@ class PanoEngineX:
 		self.project.save()
 
 	def run(self):
+		raise Exception('Engine run')
+	
 		if not self.output_project_file_name and not self.output_image_file_name:
 			raise Exception("need either project or image file")
 		#if not self.output_project_file_name:
@@ -435,8 +438,15 @@ class PanoEngineX:
 		self.project.fixup_p_lines()		
 		
 		print
-		print '***PTO project final baseline (%s / %s)***' % (self.project.file_name, self.output_project_file_name)
+		print '***Full PTO project baseline (%s / %s)***' % (self.project.file_name, self.output_project_file_name)
 		print
+		
+		if self.optimize:
+			self.optimizer = optimizer.PTOptimizer(self.project)
+			self.optimizer.optimize()
+			print
+			print '***Optimized PTO project***'
+			print
 		
 		# Make dead sure its saved up to date
 		self.project.save()
@@ -450,6 +460,6 @@ class PanoEngineX:
 			self.remapper = Remapper(self.project, self.output_image_file_name)
 			self.remapper.run()
 		else:
-			print 'NOT stitching'
+			print 'NOT stitching (engine)'
 		
 

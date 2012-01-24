@@ -86,8 +86,11 @@ class Line:
 		else:
 			return '%s%s' % (k, v)
 
-	def __repr__(self):
+	#def __repr__(self):
+	def __str__(self, key_blacklist = None):
 		'''The primary line, ie not including any comments'''
+		if key_blacklist is None:
+			key_blacklist = []
 		
 		self.update()
 	
@@ -100,6 +103,8 @@ class Line:
 		printed = set()
 		if self.variable_print_order:
 			for k in self.variable_print_order:
+				if k in key_blacklist:
+					continue
 				if k in self.variables:
 					v = self.variables[k]
 					print_debug('k: %s, v: %s' % (repr(k), repr(v)))
@@ -109,6 +114,8 @@ class Line:
 			print 'WARNING; no variable print order'
 		
 		for k in self.variables:
+			if k in key_blacklist:
+				continue
 			if k in printed:
 				continue
 			ret += ' %s' % self.print_variable(k)
