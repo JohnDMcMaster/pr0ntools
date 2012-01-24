@@ -328,20 +328,7 @@ class PanoEngineX:
 		final_pair_project = PTOProject.from_text(out)
 		return final_pair_project
 
-	def run(self):
-		if not self.output_project_file_name and not self.output_image_file_name:
-			raise Exception("need either project or image file")
-		#if not self.output_project_file_name:
-			#self.project_temp_file = ManagedTempFile.get()
-			#self.output_project_file_name = self.project_temp_file.file_name
-		print 'output project file name: %s' % self.output_project_file_name
-		print 'output image file name: %s' % self.output_image_file_name
-		
-		#sys.exit(1)
-		'''
-		Generate control points
-		Generate to all neighbors to start with
-		'''
+	def init_project(self):
 		# Generate control points and merge them into a master project
 		self.control_point_gen = ControlPointGenerator()
 		# How many rows and cols to go to each side
@@ -358,6 +345,7 @@ class PanoEngineX:
 		
 		self.project.image_file_names = self.image_file_names
 
+	def run_subprojects(self):
 		temp_projects = list()
 
 		'''
@@ -402,6 +390,24 @@ class PanoEngineX:
 		
 		self.project.merge_into(temp_projects)
 		self.project.save()
+
+	def run(self):
+		if not self.output_project_file_name and not self.output_image_file_name:
+			raise Exception("need either project or image file")
+		#if not self.output_project_file_name:
+			#self.project_temp_file = ManagedTempFile.get()
+			#self.output_project_file_name = self.project_temp_file.file_name
+		print 'output project file name: %s' % self.output_project_file_name
+		print 'output image file name: %s' % self.output_image_file_name
+		
+		#sys.exit(1)
+		'''
+		Generate control points
+		Generate to all neighbors to start with
+		'''
+		self.init_project()
+		self.run_subprojects()
+		
 		print 'Sub projects (full image):'
 		for project in temp_projects:
 			# prefix so I can grep it for debugging
