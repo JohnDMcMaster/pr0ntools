@@ -6,6 +6,7 @@ Licensed under a 2 clause BSD license, see COPYING for details
 
 import os
 import shutil
+from pr0ntools.pimage import PImage
 from pr0ntools.temp_file import ManagedTempFile
 from pr0ntools.execute import Execute
 import line
@@ -116,15 +117,24 @@ class ImageLine(line.Line):
 	"""
 
 	def __init__(self, text, project):
-		self.prefix = 'i'
-		# i w2816 h2112 f0 Eb1 Eev0.463243792953809 Er1 Ra0 Rb0 Rc0 Rd0 Re0 Va1 Vb0.460215357389621 Vc-0.596925841345566 Vd0.120459501533104 Vx-0 Vy-0 a0 b0 c0 d-0 e-0 g-0 p0 r0 t-0 v51 y0  Vm5 u10 n"x00022_y00339.jpg"
-		self.variable_print_order = list(['w', 'h', 'f', 'Eb', 'Eev', 'Er', 'Ra', 'Rb', 'Rc', 'Rd', 'Re', 'Va', 'Vb', 'Vc', 'Vd', 'Vx', 'Vy', 'a', 'b', 'c', 'd', 'e', 'g', 'p', 'r', 't', 'v', 'y', 'Vm', 'u', 'n'])
-		self.key_variables = set([])
-		self.int_variables = set(['w', 'h', 'f', 'g', 't', 'Vm', 'u'])
-		self.float_variables = set(['Eb', 'Eev', 'Er', 'Ra', 'Rb', 'Rc', 'Rd', 'Re', 'Va', 'Vb', 'Vc', 'Vd', 'Vx', 'Vy', 'a', 'b', 'c', 'd', 'e', 'p', 'r', 'v', 'y'])
-		self.string_variables = set(['n'])
-
 		line.Line.__init__(self, text, project)
+		self.image = None
+		
+	def prefix(self):
+		return 'i'
+		
+	def variable_print_order(self):
+		# i w2816 h2112 f0 Eb1 Eev0.463243792953809 Er1 Ra0 Rb0 Rc0 Rd0 Re0 Va1 Vb0.460215357389621 Vc-0.596925841345566 Vd0.120459501533104 Vx-0 Vy-0 a0 b0 c0 d-0 e-0 g-0 p0 r0 t-0 v51 y0  Vm5 u10 n"x00022_y00339.jpg"
+		return list(['w', 'h', 'f', 'Eb', 'Eev', 'Er', 'Ra', 'Rb', 'Rc', 'Rd', 'Re', 'Va', 'Vb', 'Vc', 'Vd', 'Vx', 'Vy', 'a', 'b', 'c', 'd', 'e', 'g', 'p', 'r', 't', 'v', 'y', 'Vm', 'u', 'n'])
+	
+	def key_variables(self):
+		return set()
+	def int_variables(self):
+		return set(['w', 'h', 'f', 'g', 't', 'Vm', 'u'])
+	def float_variables(self):
+		return set(['Eb', 'Eev', 'Er', 'Ra', 'Rb', 'Rc', 'Rd', 'Re', 'Va', 'Vb', 'Vc', 'Vd', 'Vx', 'Vy', 'a', 'b', 'c', 'd', 'e', 'p', 'r', 'v', 'y'])
+	def string_variables(self):
+		return set(['n'])
 		
 	@staticmethod
 	def from_line(line, pto_project):
@@ -133,10 +143,24 @@ class ImageLine(line.Line):
 		ret.reparse()
 		return ret
 
+	def get_name(self):
+		return self.get_variable('n')
+
+	def x(self):
+		return self.get_variable('x')
+		
+	def y(self):
+		return self.get_variable('y')
+
 	def get_index(self):
 		i = 0
 		for line in self.project.image_lines:
 			if line is self:
 				return i
 			i += 1
+
+	def get_image(self):
+		if self.image is None:
+			self.image = PImage.from_file(self.get_name())
+		return self.image
 

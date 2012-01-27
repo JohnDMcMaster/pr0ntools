@@ -13,14 +13,10 @@ import line
 class CommentLine(line.Line):
 	
 	def __init__(self, text, project):
-		self.prefix = '#'
-		self.variable_print_order = set([])
-		self.key_variables = set([])
-		self.int_variables = set([])
-		self.float_variables = set([])
-		self.string_variables = set([])
-
 		line.Line.__init__(self, text, project)
+		
+	def prefix(self):
+		return '#'
 		
 	@staticmethod
 	def from_line(line, pto_project):

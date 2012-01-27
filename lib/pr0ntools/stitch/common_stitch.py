@@ -22,6 +22,8 @@ class CommonStitch:
 		self.project = None
 		self.remapper = None
 		self.photometric_optimizer = None
+		self.optimize = True
+		self.optimizer = None
 		self.cleaner = None
 		# Used before init, later ignore for project.file_name
 		self.output_project_file_name = None
@@ -104,7 +106,7 @@ class CommonStitch:
 		
 		
 		print
-		print '***PTO project final (%s / %s) data length %d***' % (self.project.file_name, self.output_project_file_name, len(self.project.get_text()))
+		print '***PTO project baseline final (%s / %s) data length %d***' % (self.project.file_name, self.output_project_file_name, len(self.project.get_text()))
 		print
 		
 		# Make dead sure its saved up to date
@@ -112,6 +114,11 @@ class CommonStitch:
 		# having issues with this..
 		if self.output_project_file_name and not self.project.file_name == self.output_project_file_name:
 			raise Exception('project file name changed %s %s', self.project.file_name, self.output_project_file_name)
+		
+		self.optimize = False
+		if self.optimize:
+			self.optimizer = optimizer.PTOptimizer(self.project)
+			self.optimizer.run()
 		
 		# Did we request an actual stitch?
 		if self.output_image_file_name:

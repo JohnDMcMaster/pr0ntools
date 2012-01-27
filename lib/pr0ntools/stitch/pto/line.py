@@ -11,36 +11,59 @@ from pr0ntools.execute import Execute
 from util import print_debug
 
 class Line:
-	# Variables for the line as dict
-	# If a value is not set, it should not have the key even present
-	# If a key is present and value is None, indicates it is a key only variable
-	variables = dict()
-	# Original raw text as string
-	text = None
-	# Really does seem easiest to just have this here
-	project = None
-	# Comments that went above this line
-	comments = list()
-	
-	# The following should be fixed for a type
-	# The letter that identifies the line
-	prefix = None
-	# List which specifies order in which variables must be printed
-	# Leftover is printed at end
-	variable_print_order = None
-	# No value, just a key
-	key_variables = set()
-	# Which variables are int values
-	int_variables = set()
-	float_variables = set()
-	# Contains a quoted string
-	# Quotes are needed to distinguish the data from the key
-	string_variables = set()
-
 	def __init__(self, text, project):
+		# Variables for the line as dict
+		# If a value is not set, it should not have the key even present
+		# If a key is present and value is None, indicates it is a key only variable
+		self.variables = dict()
+		# Original raw text as string
+		self.text = None
+		# Really does seem easiest to just have this here
+		self.project = None
+		# Comments that went above this line
+		self.comments = list()
+	
+		# The following should be fixed for a type
+		# The letter that identifies the line
+		#self.prefix = None
+		# List which specifies order in which variables must be printed
+		# Leftover is printed at end
+		#self.variable_print_order = None
+		# No value, just a key
+		#self.key_variables = set()
+		# Which variables are int values
+		#self.int_variables = set()
+		#self.float_variables = set()
+		# Contains a quoted string
+		# Quotes are needed to distinguish the data from the key
+		#string_variables = set()
+	
 		self.text = text.strip()
 		self.project = project
 		self.reparse()
+	
+
+
+
+	def prefix(self):
+		raise Exception("Required")
+		
+	def variable_print_order(self):
+		return []
+	
+	def key_variables(self):
+		return set()
+	def int_variables(self):
+		return set()
+	def float_variables(self):
+		return set()
+	def string_variables(self):
+		return set()
+
+
+
+	def is_variable(self, v):
+		return v in self.key_variables() + self.int_variables() + self.float_variables() + self.string_variables()	
 	
 	# this doesn't distingiush between a key only and not present
 	def get_variable(self, k):
@@ -60,9 +83,11 @@ class Line:
 			self.variables[k] = v
 		'''
 		self.variables[k] = v
+		#print 'new variables set (%s: %s): %s' % (str(k), str(v), str(self.variables))
 		
 	def remove_variable(self, k):
-		self.variables[k] = None
+		if k in self.variables:
+			del self.variables[k]
 
 	def update(self):
 		'''If variables have relocations, update them'''
@@ -75,12 +100,12 @@ class Line:
 		# Single type?
 		v = self.variables[k]
 		if v is None:
-			if not k in self.key_variables:
-				raise Exception('not key variable')
+			if not k in self.key_variables():
+				raise Exception('%s is not key variable' % k)
 			return k
 		
 		# Regular key/value type then
-		if k in self.string_variables:
+		if k in self.string_variables():
 			return '%s"%s"' % (k, v)
 		# Some other type, convert to string
 		else:
@@ -98,20 +123,17 @@ class Line:
 		print_debug('original: %s' % self.text)
 		print_debug('variables: %s' % self.variables)
 	
-		ret = self.prefix
+		ret = self.prefix()
 		
 		printed = set()
-		if self.variable_print_order:
-			for k in self.variable_print_order:
-				if k in key_blacklist:
-					continue
-				if k in self.variables:
-					v = self.variables[k]
-					print_debug('k: %s, v: %s' % (repr(k), repr(v)))
-					printed.add(k)
-					ret += ' %s' % self.print_variable(k)
-		else:
-			print 'WARNING; no variable print order'
+		for k in self.variable_print_order():
+			if k in key_blacklist:
+				continue
+			if k in self.variables:
+				v = self.variables[k]
+				print_debug('k: %s, v: %s' % (repr(k), repr(v)))
+				printed.add(k)
+				ret += ' %s' % self.print_variable(k)
 		
 		for k in self.variables:
 			if k in key_blacklist:
@@ -123,6 +145,13 @@ class Line:
 		print_debug('final: %s' % ret)
 		
 		return ret
+
+	def regen(self, key_blacklist = None):
+		text = ''
+		for comment_line in self.comments:
+			text += '%s\n' % comment_line
+		text += '%s\n' % self.__str__(key_blacklist)
+		return text
 
 	def get_tokens(self):
 		'''
@@ -212,22 +241,31 @@ class Line:
 			
 			# Convert if possible
 			try:
-				if k in self.key_variables:
+				if k in self.key_variables():
 					pass
-				elif k in self.int_variables:
+				elif k in self.int_variables():
 					v = int(v)
-				elif k in self.float_variables:
+				elif k in self.float_variables():
 					v = float(v)
-				elif k in self.string_variables:
+				elif k in self.string_variables():
 					# Already in string form
 					pass
 				else:
-					print 'WARNING: unknown data type on %s' % k
+					print 'WARNING: unknown data type on %s (full: %s)' % (k, self.text)
+					raise Exception('Unknown key')
 			except:
 				print 'line: %s' % self.text
 				print 'key: %s, value: %s' % (repr(k), repr(v))
+				self.print_variables()
 				raise
 				
 			# Ready to roll
 			self.set_variable(k, v)
+
+	def print_variables(self):
+		print 'Variables:'
+		print '  key: %s' % str(self.key_variables())
+		print '  int: %s' % str(self.int_variables())
+		print '  float: %s' % str(self.float_variables())
+		print '  string: %s' % str(self.string_variables())
 

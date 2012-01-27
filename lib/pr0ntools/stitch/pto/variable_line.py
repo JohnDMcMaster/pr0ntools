@@ -17,15 +17,22 @@ class VariableLine(line.Line):
 	def __init__(self, text, project):
 		# We need to parse this
 		#self.image = image
-
-		self.prefix = 'v'
-		self.variable_print_order = list(['d', 'e', 'p', 'r', 'x', 'y'])
-		self.key_variables = set([])
-		self.int_variables = set(['d', 'e', 'p', 'r', 'x', 'y'])
-		self.float_variables = set([])
-		self.string_variables = set([])
-
 		line.Line.__init__(self, text, project)
+
+	def prefix(self):
+		return 'v'
+		
+	def variable_print_order(self):
+		return list(['d', 'e', 'p', 'r', 'x', 'y'])
+	
+	def key_variables(self):
+		return set()
+	def int_variables(self):
+		return set(['d', 'e', 'p', 'r', 'x', 'y'])
+	def float_variables(self):
+		return set()
+	def string_variables(self):
+		return set()
 		
 	@staticmethod
 	def from_line(line, project):
