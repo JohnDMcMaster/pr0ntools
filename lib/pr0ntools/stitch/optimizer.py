@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 '''
 pr0ntools
 Copyright 2011 John McMaster <JohnDMcMaster@gmail.com>
