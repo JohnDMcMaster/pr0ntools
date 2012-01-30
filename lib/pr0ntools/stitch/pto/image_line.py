@@ -4,6 +4,101 @@ Copyright 2011 John McMaster <JohnDMcMaster@gmail.com>
 Licensed under a 2 clause BSD license, see COPYING for details
 '''
 
+'''
+http://search.cpan.org/~bpostle/Panotools-Script/lib/Panotools/Script/Line/Image.pm
+
+  w1000
+  h500     nona requires the width and height of input images wheras PTStitcher/mender don't
+
+  f0           projection format,
+                   0 - rectilinear (normal lenses)
+                   1 - Panoramic (Scanning cameras like Noblex)
+                   2 - Circular fisheye
+                   3 - full-frame fisheye
+                   4 - PSphere, equirectangular
+                   7 - Mirror (a spherical mirror)
+                   8 - Orthographic fisheye
+                  10 - Stereographic fisheye
+                  21 - Equisolid fisheye
+
+  v82          horizontal field of view of image (required)
+  y0           yaw angle (required)
+  p43          pitch angle (required)
+  r0           roll angle (required)
+  a,b,c        lens correction coefficients (optional)
+                   (see http://www.fh-furtwangen.de/~dersch/barrel/barrel.html)
+  d,e          initial lens offset in pixels(defaults d0 e0, optional).
+                   Used to correct for offset from center of image
+                   d - horizontal offset,
+                   e - vertical offset
+  g,t          initial lens shear.  Use to remove slight misalignment
+                   of the line scanner relative to the film transport
+                   g - horizontal shear
+                   t - vertical shear
+  j            stack number
+
+  Eev          exposure of image in EV (exposure values)
+  Er           white balance factor for red channel
+  Eb           white balance factor for blue channel
+
+  Ra           EMoR response model from the Computer Vision Lab at Columbia University
+  Rb           This models the camera response curve
+  Rc
+  Rd
+  Re
+
+  TiX,TiY,TiZ  Tilt on x axis, y axis, z axis
+  TiS           Scaling of field of view in the tilt transformation
+
+  TrX,TrY,TrZ  Translation on x axis, y axis, z axis
+
+  Te0,Te1,Te2,Te3  Test parameters
+
+  Vm           vignetting correction mode (default 0):
+                   0: no vignetting correction
+                   1: radial vignetting correction (see j,k,l,o options)
+                   2: flatfield vignetting correction (see p option)
+                   4: proportional correction: i_new = i / corr.
+                        This mode is recommended for use with linear data.
+                        If the input data is gamma corrected, try adding g2.2
+                        to the m line.
+
+                       default is additive correction: i_new = i + corr
+
+                     Both radial and flatfield correction can be combined with the
+                      proportional correction by adding 4.
+                  Examples: i1 - radial polynomial correction by addition.
+                                  The coefficients j,k,l,o must be specified.
+                            i5 - radial polynomial correction by division.
+                                  The coefficients j,k,l,o must be specified.
+                            i6 - flatfield correction by division.
+                                  The flatfield image should be specified with the p option
+
+  Va,Vb,Vc,Vd  vignetting correction coefficients. (defaults: 0,0,0,0)
+                ( 0, 2, 4, 6 order polynomial coefficients):
+                 corr = ( i + j*r^2 + k*r^4 + l*r^6), where r is the distance from the image center
+               The corrected pixel value is calculated with: i_new = i_old + corr
+               if additive correction is used (default)
+                           for proportional correction (h5): i_new = i_old / corr;
+
+  Vx,Vy        radial vignetting correction offset in pixels (defaults q0 w0, optional).
+                  Used to correct for offset from center of image
+                   Vx - horizontal offset
+                   Vy - vertical offset
+
+  S100,600,100,800   Selection(l,r,t,b), Only pixels inside the rectangle will be used for conversion.
+                        Original image size is used for all image parameters
+                        (e.g. field-of-view) refer to the original image.
+                        Selection can be outside image dimension.
+                        The selection will be circular for circular fisheye images, and
+                        rectangular for all other projection formats
+
+  nName        file name of the input image.
+
+  i f2 r0   p0    y0     v183    a0 b-0.1 c0  S100,600,100,800 n"photo1.jpg"
+  i f2 r0   p0    y180   v183    a0 b-0.1 c0  S100,600,100,800 n"photo1.jpg"
+'''
+
 import os
 import shutil
 from pr0ntools.pimage import PImage
@@ -77,6 +172,7 @@ class ImageLine(line.Line):
 	c = None
 
 	# d,e          initial lens offset in pixels(defaults d0 e0, optional).
+	# These are the center of the image (as opposed to, say upper left)
 	# ?, int
 	d = None
 	# ?, signed with decimal
@@ -143,15 +239,55 @@ class ImageLine(line.Line):
 		ret.reparse()
 		return ret
 
+	'''
+	In short upper left is the positive quadrant..no idea why this convention was adapted
+		Did I flip some variable somewhere?  Like I should use a negative fov?
+	Higher y moves the image up on the screen
+	Higher x moves the image left on the screen
+	'''
+	
+	def shift(dx, dy):
+		self.set_x(self.x() + dx)
+		self.set_y(self.y() + dy)
+
+	def set_x(self, x):
+		self.set_variable('d', x)
+	
+	def set_y(self, y):
+		self.set_variable('e', y)
+
 	def get_name(self):
 		return self.get_variable('n')
 
+	def left(self):
+		return self.x() - self.width() / 2.0
+		
+	def right(self):
+		return self.x() + self.width() / 2.0
+
+	def top(self):
+		return self.y() - self.height() / 2.0
+		
+	def bottom(self):
+		return self.y() + self.height() / 2.0
+	
 	def x(self):
-		return self.get_variable('x')
+		'''Center of image x position'''
+		return self.get_variable('d')
 		
 	def y(self):
-		return self.get_variable('y')
+		'''Center of image y position'''
+		return self.get_variable('e')
 
+	def width(self):
+		return self.get_variable('w')
+
+	def height(self):
+		return self.get_variable('h')
+		
+	def fov(self):
+		return self.get_variable('f')
+		
 	def get_index(self):
 		i = 0
 		for line in self.project.image_lines:

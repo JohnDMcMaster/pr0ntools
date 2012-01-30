@@ -5,62 +5,23 @@ Copyright 2011 John McMaster <JohnDMcMaster@gmail.com>
 Licensed under a 2 clause BSD license, see COPYING for details
 '''
 
+'''
+This file is used to optimize the size of an image project
+It works off of the following idea:
+-In the end all images must lie on the same focal plane to work as intended
+-Hugin likes a default per image FOV of 51 degrees since thats a typical camera FOV
+-With a fixed image width, height, and FOV as above we can form a natural focal plane
+-Adjust the project focal plane to match the image focal plane
+
+Unless I make the algorithm more advanced by correctly calculating all images into a focal plane (by taking a reference)
+it is a good idea to at least assert that all images are in the same focal plane
+
+
+'''
+
 from pr0ntools.execute import Execute
 from pr0ntools.pimage import PImage
 import sys
-
-
-'''
-Others
-celeste_standalone 
-ptscluster
-cpclean
-
- 
-autooptimiser: optimize image positions
-autooptimiser version 2010.0.0.5045
-
-Usage:  autooptimiser [options] input.pto
-   To read a project from stdio, specify - as input file.
-
-  Options:
-     -o file.pto  output file. If obmitted, stdout is used.
-
-    Optimisation options (if not specified, no optimisation takes place)
-     -a       auto align mode, includes various optimisation stages, depending
-               on the amount and distribution of the control points
-     -p       pairwise optimisation of yaw, pitch and roll, starting from
-              first image
-     -n       Optimize parameters specified in script file (like PTOptimizer)
-
-    Postprocessing options:
-     -l       level horizon (works best for horizontal panos)
-     -s       automatically select a suitable output projection and size
-    Other options:
-     -q       quiet operation (no progress is reported)
-     -v HFOV  specify horizontal field of view of input images.
-               Used if the .pto file contains invalid HFOV values
-               (autopano-SIFT writes .pto files with invalid HFOV)
-
-   When using -a -l and -s options together, a similar operation to the "Align"
-    button in hugin is performed.
-'''
-
-class PositionOptimizer:
-	def __init__(self, pto_project):
-		self.pto_project = pto_project
-	
-	def optimize(self):
-		# "autooptimiser -n -o project.pto project.pto"
-		args = list()
-		args.append("-n")
-		args.append("-o")
-		args.append(pto_project.get_a_file_name())
-		args.append(pto_project.get_a_file_name())
-		(rc, output) = Execute.with_output("autooptimiser", args)
-		if not rc == 0:
-			raise Exception('failed position optimization')
-		self.project.reopen()
 
 '''
 Convert output to PToptimizer form
@@ -205,9 +166,44 @@ def merge_pto(ptoopt, pto):
 		print
 	
 class PTOptimizer:
-	def __init__(self, pto_project):
-		self.pto_project = pto_project
+	def __init__(self, project):
+		self.project = project
 	
+	def verify_images(self):
+		first = True
+		for i in self.project.get_images():
+			if first:
+				self.w = i.width()
+				self.h = i.height()
+				self.v = i.fov()
+				first = False
+			else:
+				if self.w != i.width() or self.h != i.height() or self.v != i.fov():
+					raise Exception('Image %d does not match' % (i))
+		
+	def center_project(self):
+		self.calc_bounds()
+		xc = (self.xmin + self.xmax) / 2.0
+		yc = (self.ymin + self.ymax) / 2.0
+		for i in self.project.get_images():
+			i.shift(xc, yc)
+		
+	def calc_bounds(self):
+		# TODO: review pto coordinate system to see if this is accurate
+		self.xmin = min([i.left() for i in self.project.get_images())
+		self.xmax = max([i.right() for i in self.project.get_images())
+		self.ymin = min([i.top() for i in self.project.get_images())
+		self.ymax = max([i.bottom() for i in self.project.get_images())
+		
+	def calc_size(self):
+		self.calc_bounds()
+		self.width = xmax - xmin
+		self.height = ymax - ymin
+		
+	def calc_fov(self):
+		'''
+		'''
+		
 	def run(self):
 		'''
 		The base Hugin project seems to work if you take out a few things:
@@ -230,9 +226,11 @@ class PTOptimizer:
 		
 		There are several other lines that are just the repeats of previous lines
 		'''
+		# The following will assume all of the images have the same size
+		self.verify_images()
 		
 		# Copy project so we can trash it
-		project = self.pto_project.to_ptoptimizer()
+		project = self.project.to_ptoptimizer()
 		prepare_pto(project)
 		
 		pre_run_text = project.get_text()
@@ -278,8 +276,19 @@ class PTOptimizer:
 	 	print 'Optimized project parsed: %d' % project.parsed
 
 		print 'Merging project...'
-		merge_pto(project, self.pto_project)
-		print self.pto_project
+		merge_pto(project, self.project)
+		print self.project
+		
+		# The following will assume all of the images have the same size
+		self.verify_images()
+		
+		print 'Centering project...'
+		self.center_project()
+		
+		print 'Calculating optimial field of view to match desired size...'
+		self.calc_fov()
+				
+		print ''
 
 def usage():
 	print 'optimizer <file in> [file out]'
