@@ -46,6 +46,14 @@ from pr0ntools.stitch.pto.project import PTOProject
 import os
 from image_coordinate_map import ImageCoordinateMap
 from pr0ntools.temp_file import ManagedTempFile
+#from pr0ntiles.tile import Tiler as TilerCore
+
+def floor_mult(n, mult):
+	rem = n % mult
+	if rem == 0:
+		return n
+	else:
+		return n - rem
 
 def ceil_mult(n, mult):
 	rem = n % mult
@@ -54,7 +62,7 @@ def ceil_mult(n, mult):
 	else:
 		return n + mult - rem
 
-def PartialStitcher:
+class PartialStitcher:
 	def __init__(self, pto, bounds, out):
 		self.pto = pto
 		self.bounds = bounds
@@ -64,6 +72,10 @@ def PartialStitcher:
 		'''
 		Phase 1: remap the relevant source image areas onto a canvas
 		'''
+		if self.out.find('.') < 0:
+			raise Exception('Require image extension')
+		# Hugin likes to use the base filename as the intermediates, lets do the sames
+		out_name_base = self.out.substr(0, self.out.find('.'))
 		
 		pto = self.pto.copy()
 		print 'Making absolute'
@@ -84,6 +96,7 @@ def PartialStitcher:
 		blender = Blender(remapper.get_output_files(), self.out)
 		blender.run()
 
+# For managing the closed list		
 
 class Tiler:
 	def __init__(self, pto, out_dir, tile_width=250, tile_height=250):
@@ -91,7 +104,26 @@ class Tiler:
 		self.out_dir = out_dir
 		self.tw = tile_width
 		self.th = tile_height
+		self.set_size_heuristic(3224, 2448)
+		# We build this in run
 		self.map = None
+	
+	def set_size_heuristic(self, image_width, image_height):
+		'''
+		The idea is that we should have enough buffer to have crossed a safe area
+		If you take pictures such that each picture has at least some unique area (presumably in the center)
+		it means that if we leave at least one image width/height of buffer we should have an area where enblend is not extending to
+		Ultimately this means you lose 2 * image width/height on each stitch
+		so you should have at least 3 * image width/height for decent results
+		'''
+		self.clip_width = image_width
+		self.clip_height = image_height
+		
+		# These are less related
+		# They actually should be set as high as you think you can get away with
+		# Although setting a smaller number may have higher performance depending on input size
+		self.super_tw = image_width * 4
+		self.super_th = image_height * 4
 	
 	def build_spatial_map(self):
 		#image_file_names = self.pto.get_file_names()
@@ -100,6 +132,142 @@ class Tiler:
 		items = [PolygonQuadTreeItem(il.left(), il.right(), il.top(), il.bottom()) for il in self.pto.get_image_lines()]
 		self.map = PolygonQuadTree(items)	
 	
+	def try_supertile(self, x0, x1, y0, y1):
+		'''x0/1 and y0/1 are global absolute coordinates'''
+		# First generate all of the valid tiles across this area to see if we can get any useful work done?
+		# every supertile should have at least one solution or the bounds aren't good
+		
+		temp_file = ManagedTempFile.get(None, '.tif')
+
+		bounds = [x0, x1, y0, y1]
+		#out_name_base = "%s/r%03d_c%03d" % (self.out_dir, row, col)
+		#print 'Working on %s' % out_name_base
+		stitcher = PartialStitcher(self.pto, bounds, temp_file)
+		stitcher.run()
+		
+		i = PImage.from_file(fn)
+		new = 0
+		
+		'''
+		There is no garauntee that our supertile is a multiple of our tile size
+		This will particularly cause issues near the edges if we are not careful
+		'''
+		xt0 = ceil_mult(x0, self.tw)
+		xt1 = floor_mult(x1, self.tw)
+		if xt0 >= xt1:
+			print 'Bad input x dimensions'
+		yt0 = ceil_mult(y0, self.th)
+		yt1 = floor_mult(y1, self.th)
+		if yt0 >= yt1:
+			print 'Bad input y dimensions'
+		'''
+		A tile is valid if its in a safe location
+		There are two ways for the location to be safe:
+		-No neighboring tiles as found on canvas edges
+		-Sufficiently inside the blend area that artifacts should be minimal
+		'''
+		for x in xrange(xt0, xt1, self.tw):
+			if x0 != self.left() and x1 != self.right():
+				pass
+			col = self.x2col(x)
+			for y in xrange(yt0, yt1, self.th):
+				if y0 != self.top() and y1 != self.bottom():
+					pass
+				row = self.y2row(y)
+				# Did we already do this tile?
+				if self.is_done(row, col):
+					# No use repeating it although it would be good to diff some of these
+					continue
+				
+				# note that x and y are in whole pano coords
+				# we need to adjust to our frame
+				# row and col on the other hand are used for global naming
+				self.make_tile(i, x - x0, y - y0, row, col)
+	
+	def get_name(self, row, col):
+		out_dir = ''
+		if self.out_dir:
+			out_dir = '%s/' % self.out_dir
+		return '%sy%03d_x%03d%s' % (out_dir, row, col, out_extension)
+	
+	def make_tile(self, i, x, y, row, col):
+		'''Make a tile given an image, the upper left x and y coordinates in that image, and the global row/col indices'''
+		xmin = x
+		ymin = y
+		xmax = min(xmin + self.tw, i.width())
+		ymax = min(ymin + self.th, i.height())
+		nfn = self.get_name(row, col)
+
+		print '%s: (x %d:%d, y %d:%d)' % (nfn, xmin, xmax, ymin, ymax)
+		ip = i.subimage(xmin, xmax, ymin, ymax)
+		'''
+		Images must be padded
+		If they aren't they will be stretched in google maps
+		'''
+		if ip.width() != self.tw or ip.height() != self.th:
+			print 'WARNING: %s: expanding partial tile (%d X %d) to full tile size' % (nfn, ip.width(), ip.height())
+			ip.set_canvas_size(t_width, t_height)
+		ip.image.save(nfn)
+		
+		self.mark_done(row, col)
+				
+	def x2col(self, x):
+		return int((x - self.x0) / self.tw)
+	
+	def y2row(self, y):
+		return int((y - self.y0) / self.th)
+	
+	def is_done(self, row, col):
+		return (row, col) in self.closed_list()
+	
+	def mark_done(self, row, col):
+		self.closed_list.insert((row, col))
+	
+	def left(self):
+		return self.x0
+		
+	def right(self):
+		return self.x1
+	
+	def top(self):
+		return self.y0
+	
+	def bottom(self):
+		return self.y1
+	
+	def gen_supertiles(self):
+		# 0:256 generates a 256 width pano
+		# therefore, we don't want the upper bound included
+		#col = 0
+		x_done = False
+		for x in xrange(self.left(), self.right(), self.super_tw):
+			x0 = x
+			x1 = x + self.super_tw
+			# If we have rechead the right side align to it rather than truncating
+			# This makes blending better to give a wider buffer zone
+			if x1 >= self.right():
+				x_done = True
+				x0 = self.right() - self.super_tw
+				x1 = self.right()
+			
+			#row = 0
+			y_done = False
+			for y in xrange(self.top(), self.bottom(), self.super_th):
+				y0 = y
+				y1 = y + self.super_th
+				if y1 >= self.bottom():
+					y_done = True
+					y0 = self.bottom() - self.super_th
+					y1 = self.bottom()
+				
+				yield [x0, x1, y0, y1]
+				#row +=1 	
+				if y_done:
+					break
+			#col += 1
+			if x_done:
+				break
+
 	def run(self):
 		'''
 		if we have a width of 256 and 1 pixel we need total size of 256
@@ -107,32 +275,21 @@ class Tiler:
 		if we have a width of 256 and 257 pixel we need total size of 512
 		'''
 		spl = self.pto.get_panorama_line()
+		self.x0 = spl.left()
+		self.x1 = spl.right()
+		self.y0 = spl.top()
+		self.y1 = spl.bottom()
 		print 'Tile width: %d, height: %d' % (self.tw, self.th)
 		print spl
 		print 'Left: %d, right: %d, top: %d, bottom: %d' % (spl.left(), spl.right(), spl.top(), spl.bottom())
-		x0 = spl.left()
-		x1 = ceil_mult(spl.right(), self.tw)
-		y0 = spl.top()
-		y1 = ceil_mult(spl.bottom(), self.th)
 		
 		os.mkdir(self.out_dir)
+		# in form (row, col)
+		self.closed_list = set()
 		
+		print 'Generating %d supertiles' % len(list(self.gen_supertiles()))
 		#temp_file = 'partial.tif'
-		temp_file = ManagedTempFile.get(None, '.tif')
-		
-		# 0:256 generates a 256 width pano
-		# therefore, we don't want the upper bound included
-		col = 0
-		for x in xrange(x0, x1, self.tw):
-			row = 0
-			for y in xrange(y0, y1, self.th):
-				out_name_base = "%s/r%03d_c%03d" % (self.out_dir, row, col)
-				print 'Working on %s' % out_name_base
-				bounds = [x, x + self.tw, y, y + self.th]
-				stitcher = PartialStitcher(self.pto, bounds, temp_file)
-				stitcher.run()
-				
-				row +=1 	
-			col += 1
-				
+		for supertile in self.gen_supertiles():
+			[x0, x1, y0, y1] = supertile
+			self.try_supertile(x0, x1, y0, y1)
 				
