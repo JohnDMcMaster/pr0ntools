@@ -167,12 +167,19 @@ class Tiler:
 		-Sufficiently inside the blend area that artifacts should be minimal
 		'''
 		for x in xrange(xt0, xt1, self.tw):
+			# If this is an edge supertile skip the buffer check
 			if x0 != self.left() and x1 != self.right():
-				pass
+				# Are we trying to construct a tile in the buffer zone?
+				if xt0 < x0 + self.clip_width or xt1 >= x1 - self.clip_width:
+					continue
+				
 			col = self.x2col(x)
 			for y in xrange(yt0, yt1, self.th):
 				if y0 != self.top() and y1 != self.bottom():
-					pass
+					# Are we trying to construct a tile in the buffer zone?
+					if yt0 < y0 + self.clip_height or yt1 >= y1 - self.clip_height:
+						continue
+				# If we made it this far the tile can be constructed with acceptable enblend artifacts
 				row = self.y2row(y)
 				# Did we already do this tile?
 				if self.is_done(row, col):
