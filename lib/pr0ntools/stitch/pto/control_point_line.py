@@ -45,7 +45,7 @@ class ControlPointLine(line.Line):
 	def update(self):
 		# Do we not have the image entry?
 		if not self.lower_image:
-			print 'Missing lower image, creating'
+			#print 'Control point missing lower image, querying from index'
 			# Then get/create one
 			self.lower_image = self.project.index_to_image(self.get_variable('n'))
 		else:

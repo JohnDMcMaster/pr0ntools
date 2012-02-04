@@ -123,8 +123,8 @@ class CommonStitch:
 		# Did we request an actual stitch?
 		if self.output_image_file_name:
 			print 'Stitching...'
-			self.remapper = Remapper(self.project, self.output_image_file_name)
-			self.remapper.run()
+			self.remapper = Remapper(self.project)
+			self.remapper.remap(self.output_image_file_name)
 		else:
 			print 'NOT stitching (common stitch)'
 

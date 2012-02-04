@@ -23,12 +23,12 @@ class VariableLine(line.Line):
 		return 'v'
 		
 	def variable_print_order(self):
-		return list(['d', 'e', 'p', 'r', 'x', 'y'])
+		return list(['d', 'e', 'p', 'r', 'x', 'y', 'v'])
 	
 	def key_variables(self):
 		return set()
 	def int_variables(self):
-		return set(['d', 'e', 'p', 'r', 'x', 'y'])
+		return set('deprxyv')
 	def float_variables(self):
 		return set()
 	def string_variables(self):

@@ -68,6 +68,14 @@ class ImageCoordinateMap:
 		self.rows = rows
 		self.layout = [None] * (cols * rows)
 	
+	def width(self):
+		'''Return number of cols'''
+		return self.cols
+		
+	def height(self):
+		'''Return number of rows'''
+		return self.rows
+	
 	def get_image(self, col, row):
 		return self.layout[self.cols * row + col]
 	

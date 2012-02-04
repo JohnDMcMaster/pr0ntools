@@ -13,10 +13,18 @@ It works off of the following idea:
 -With a fixed image width, height, and FOV as above we can form a natural focal plane
 -Adjust the project focal plane to match the image focal plane
 
+
+Note the following:
+-Ultimately the project width/height determines the output width/height
+-FOV values are not very accurate: only 1 degree accuracy
+-Individual image width values are more about scaling as opposed to the total project size than their output width?
+	Hugin keeps the closest 
+
+A lot of this seems overcomplicated for my simple scenario
+Would I be better off 
+
 Unless I make the algorithm more advanced by correctly calculating all images into a focal plane (by taking a reference)
 it is a good idea to at least assert that all images are in the same focal plane
-
-
 '''
 
 from pr0ntools.execute import Execute
@@ -164,7 +172,7 @@ def merge_pto(ptoopt, pto):
 			il.set_variable(v, val)
 			print 'New IL: ' + str(il)
 		print
-	
+		
 class PTOptimizer:
 	def __init__(self, project):
 		self.project = project
@@ -190,19 +198,58 @@ class PTOptimizer:
 		
 	def calc_bounds(self):
 		# TODO: review pto coordinate system to see if this is accurate
-		self.xmin = min([i.left() for i in self.project.get_images())
-		self.xmax = max([i.right() for i in self.project.get_images())
-		self.ymin = min([i.top() for i in self.project.get_images())
-		self.ymax = max([i.bottom() for i in self.project.get_images())
+		self.xmin = min([i.left() for i in self.project.get_images()])
+		self.xmax = max([i.right() for i in self.project.get_images()])
+		self.ymin = min([i.top() for i in self.project.get_images()])
+		self.ymax = max([i.bottom() for i in self.project.get_images()])
 		
 	def calc_size(self):
 		self.calc_bounds()
 		self.width = xmax - xmin
 		self.height = ymax - ymin
 		
+	def image_fl(self, img):
+		'''Get image focal distance'''
+		'''
+		We have image width, height, and fov
+		Goal is to find FocalLength
+			Full )> = FOV
+		    /|\
+		   / | \
+		  /  |  \
+		 /   |FL \
+		/    |    \
+		-----------
+		|--width--|
+		
+		tan(FoV / 2) = (size / 2) / FocalLength
+		FocalLength = (size / 2) / tan(FoV / 2)
+		'''
+		return (img.width() / 2) / math.tan(img.fov() / 2)
+		
+	def calc_v(self, fl, width):
+		# Straight off of Hugin wiki (or looking above...)
+		# FoV = 2 * atan(size / (2 * FocalLength))
+		v = 2 * math.atan(width / (2 * fl))
+		if 1:
+			v = round(v)
+			v = min(v, 179)
+			v = max(v, 1)
+		return v
+		
 	def calc_fov(self):
 		'''
+		Calculate the focal distance on a single image
+		and then match the project to it using our net desired width and height
 		'''
+		# Step 1: calculate image focal length
+		# Note that even if we had mixed image parameters they should already been normalized to be on the same focal plane
+		self.fl = self.image_fl(self.project.get_images()[0])
+		
+		# Step 2: now use the focal distance to compute v, the angle (field) of view
+		self.v = self.calc_v(self.fl, self.width)
+		pl = self.project.get_panorama_line()
+		pl.set_fov(self.v)
 		
 	def run(self):
 		'''
@@ -282,13 +329,28 @@ class PTOptimizer:
 		# The following will assume all of the images have the same size
 		self.verify_images()
 		
+		# Final dimensions are determined by field of view and width
+		# Calculate optimial dimensions
+		self.calc_dimensions()
+		
 		print 'Centering project...'
 		self.center_project()
 		
+		'''
+		WARNING WARNING WARNING
+		The panotools model is too advanced for what I'm doing right now
+		The image correction has its merits but is mostly getting in the way to distort images
+		
+		Therefore, I'd like to complete this to understand the intended use but I suspect its not a good idea
+		and I could do my own nona style program much better
+		The only downside is that if / when I start doing lens model corrections I'll have to rethink this a little
+		
+		Actually, a lot of these problems go away if I trim to a single tile
+		I can use the same FOV as the source image or something similar
+		'''
 		print 'Calculating optimial field of view to match desired size...'
 		self.calc_fov()
-				
-		print ''
+			
 
 def usage():
 	print 'optimizer <file in> [file out]'

@@ -8,7 +8,7 @@ import unittest
 class OptimizeTest(unittest.TestCase):
     def setUp(self):
 		# Copy the project to be a little paranoid
-		shutil.copyfile('raw.pto', 'in.pto')
+		shutil.copyfile('source.pto', 'in.pto')
 		
     def test_load(self):
 		project = PTOProject.parse_from_file_name('in.pto')

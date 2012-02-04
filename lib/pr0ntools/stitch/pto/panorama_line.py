@@ -6,6 +6,12 @@ Licensed under a 2 clause BSD license, see COPYING for details
 
 import line
 
+'''
+p f0 w921 h681 v89  E0 R0 S233,891,57,670 n"TIFF_m c:NONE"
+
+S: crop
+	S<left>,<right>,<top>,<bottom>
+'''
 class PanoramaLine(line.Line):
 	def __init__(self, text, project):
 		line.Line.__init__(self, text, project)
@@ -25,10 +31,59 @@ class PanoramaLine(line.Line):
 	def string_variables(self):
 		return set(['n', 'T', 'P', 'S'])
 
+	def set_fov(self, v):		
+		self.set_variable('v', v)
 		
+	def set_crop(self, crop):
+		self.set_variable('S', '%d,%d,%d,%d' % tuple(crop))
+	
+	def get_crop(self):
+		c = self.get_variable('S')
+		#print 'got c to %s' % str(c)
+		if c is None:
+			return None
+		c  = c.split(',')
+		if len(c) != 4:
+			raise Exception('Malformed S line')
+		ret = [int(i) for i in c]
+		return ret
+	
+	def left(self):
+		return self.get_crop()[0]
+	
+	def set_left(self, left):
+		c = self.get_crop()
+		c[0] = left
+		self.set_crop(c)
+		
+	def right(self):
+		return self.get_crop()[1]
+	
+	def set_right(self, right):
+		c = self.get_crop()
+		c[1] = right
+		self.set_crop(c)
+		
+	def top(self):
+		return self.get_crop()[2]
+	
+	def set_top(self, top):
+		c = self.get_crop()
+		c[2] = top
+		self.set_crop(c)
+		
+	def bottom(self):
+		return self.get_crop()[3]
+	
+	def set_bottom(self, bottom):
+		c = self.get_crop()
+		c[3] = bottom
+		self.set_crop(c)
+	
 	@staticmethod
 	def from_line(line, pto_project):
 		ret = PanoramaLine()
 		ret.text = line
 		return ret
+
 

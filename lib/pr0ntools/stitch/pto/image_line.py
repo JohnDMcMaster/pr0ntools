@@ -5,6 +5,12 @@ Licensed under a 2 clause BSD license, see COPYING for details
 '''
 
 '''
+It seems width and heigh must be set to actual image width and heigh, ie can't be used for scaling like on the p line
+Changing in source file, opening in Hugin, re-saving puts back the old values
+Hugin doesn't seem to do anything different rendering the images if they are truncated either
+It is possible nona does differently but I haven't tried
+
+
 http://search.cpan.org/~bpostle/Panotools-Script/lib/Panotools/Script/Line/Image.pm
 
   w1000
@@ -258,6 +264,25 @@ class ImageLine(line.Line):
 
 	def get_name(self):
 		return self.get_variable('n')
+	
+	def set_name(self, name):
+		return self.set_variable('n', name)
+
+	def make_absolute(self, to):
+		'''Make image path absolute.  Location is assumed to be working dir unless otherwise specified'''
+		if to is None:
+			to = os.getcwd()
+		path = to + "/" + os.path.basename(self.get_name())
+		print 'Making absolute image name: %s' % path
+		self.set_name(path)
+		
+	def make_relative(self, to):
+		'''Make image path relative'''
+		if to is None:
+			to = ''
+		else:
+			to = to + '/'
+		self.set_name(to + os.path.basename(self.get_name()))
 
 	def left(self):
 		return self.x() - self.width() / 2.0
@@ -286,7 +311,8 @@ class ImageLine(line.Line):
 		return self.get_variable('h')
 		
 	def fov(self):
-		return self.get_variable('f')
+		'''Returns angle (field) of view in degrees'''
+		return self.get_variable('f')			
 		
 	def get_index(self):
 		i = 0

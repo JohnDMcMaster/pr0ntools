@@ -48,139 +48,54 @@ Usage: nona [options] -o output project_file (image files)
                    LZW       lzw compression
                    DEFLATE   deflate compression
 '''
-'''
-The final program
-Takes a collection of images and produces final output image
 
-Usage: enblend [options] [--output=IMAGE] INPUT...
-Blend INPUT images into a single IMAGE.
+from pr0ntools.temp_file import ManagedTempDir
+from pr0ntools.execute import Execute
 
-INPUT... are image filenames or response filenames.  Response
-filenames start with an "@" character.
-
-Common options:
-  -V, --version          output version information and exit
-  -a                     pre-assemble non-overlapping images
-  -h, --help             print this help message and exit
-  -l, --levels=LEVELS    number of blending LEVELS to use (1 to 29);
-                         negative number of LEVELS decreases maximum
-  -o, --output=FILE      write output to FILE; default: "a.tif"
-  -v, --verbose[=LEVEL]  verbosely report progress; repeat to
-                         increase verbosity or directly set to LEVEL
-  -w, --wrap[=MODE]      wrap around image boundary, where MODE is
-                         NONE, HORIZONTAL, VERTICAL, or BOTH; default: none;
-                         without argument the option selects horizontal wrapping
-  -x                     checkpoint partial results
-  --compression=COMPRESSION
-                         set compression of output image to COMPRESSION,
-                         where COMPRESSION is:
-                         NONE, PACKBITS, LZW, DEFLATE for TIFF files and
-                         0 to 100 for JPEG files
-
-Extended options:
-  -b BLOCKSIZE           image cache BLOCKSIZE in kilobytes; default: 2048KB
-  -c                     use CIECAM02 to blend colors
-  -d, --depth=DEPTH      set the number of bits per channel of the output
-                         image, where DEPTH is 8, 16, 32, r32, or r64
-  -g                     associated-alpha hack for Gimp (before version 2)
-                         and Cinepaint
-  --gpu                  use graphics card to accelerate seam-line optimization
-  -f WIDTHxHEIGHT[+xXOFFSET+yYOFFSET]
-                         manually set the size and position of the output
-                         image; useful for cropped and shifted input
-                         TIFF images, such as those produced by Nona
-  -m CACHESIZE           set image CACHESIZE in megabytes; default: 1024MB
-
-
-Mask generation options:
-  --coarse-mask[=FACTOR] shrink overlap regions by FACTOR to speedup mask
-                         generation; this is the default; if omitted FACTOR
-                         defaults to 8
-  --fine-mask            generate mask at full image resolution; use e.g.
-                         if overlap regions are very narrow
-  --smooth-difference=RADIUS
-                         smooth the difference image prior to seam-line
-                         optimization with a Gaussian blur of RADIUS;
-                         default: 0 pixels
-  --optimize             turn on mask optimization; this is the default
-  --no-optimize          turn off mask optimization
-  --optimizer-weights=DISTANCEWEIGHT[:MISMATCHWEIGHT]
-                         set the optimizer's weigths for distance and mismatch;
-                         default: 8:1
-  --mask-vectorize=LENGTH
-                         set LENGTH of single seam segment; append "%" for
-                         relative value; defaults: 4 for coarse masks and
-                         20 for fine masks
-  --anneal=TAU[:DELTAEMAX[:DELTAEMIN[:KMAX]]]
-                         set annealing parameters of optimizer strategy 1;
-                         defaults: 0.75:7000:5:32
-  --dijkstra=RADIUS      set search RADIUS of optimizer strategy 2; default:
-                         25 pixels
-  --save-masks[=TEMPLATE]
-                         save generated masks in TEMPLATE; default: "mask-%n.tif";
-                         conversion chars: %i: mask index, %n: mask number,
-                         %p: full path, %d: dirname, %b: basename,
-                         %f: filename, %e: extension; lowercase characters
-                         refer to input images uppercase to the output image
-  --load-masks[=TEMPLATE]
-                         use existing masks in TEMPLATE instead of generating
-                         them; same template characters as "--save-masks";
-                         default: "mask-%n.tif"
-  --visualize[=TEMPLATE] save results of optimizer in TEMPLATE; same template
-                         characters as "--save-masks"; default: "vis-%n.tif"
-'''
 class Remapper:
-	pto_project = None
-	output_file_name = None
-	managed_temp_dir = None
+	TIFF_SINGLE = "TIFF"
+	TIFF_MULTILAYER = "TIFF_m"
 	
-	def __init__(self, pto_project, output_file_name):
+	def __init__(self, pto_project):
 		self.pto_project = pto_project
-		self.output_file_name = output_file_name
+		# this is taken from the pto
+		#self.output_file_base = output_file_base
 		#self.output_managed_temp_dir = ManagedTempDir(self.pto_project.get_a_file_name() + "__")
 		self.managed_temp_dir = ManagedTempDir.get()
+		self.image_type = Remapper.TIFF_SINGLE
+		self.output_files = None
 		
 	def run(self):
-		self.remap()
-		# We now have my_prefix_0000.tif, my_prefix_0001.tif, etc
-		self.merge()
+		raise Exception('FIXME')
 		
-	def remap(self):
+	def remap(self, output_file_base):
 		args = list()
 		args.append("-m")
-		args.append("TIFF")
+		args.append(self.image_type)
 		args.append("-z")
 		args.append("LZW")
 		#args.append("-g")
 		args.append("-o")
-		args.append(output_prefix)
-		args.append(pto_project.get_a_file_name())
+		args.append(output_file_base)
+		args.append(self.pto_project.get_a_file_name())
 		(rc, output) = Execute.with_output("nona", args)
 		if not rc == 0:
+			print
+			print
+			print
+			print 'Failed to remap'
+			print output
 			raise Exception('failed to remap')
-		self.project.reopen()
-
-
-	def merge(self):
-		'''
-		[mcmaster@gespenst 2X2-ordered]$ enblend -o my_prefix.tif my_prefix_000*
-		enblend: info: loading next image: my_prefix_0000.tif 1/1
-		enblend: info: loading next image: my_prefix_0001.tif 1/1
-
-		enblend: excessive overlap detected; remove one of the images
-		enblend: info: remove invalid output image "my_prefix.tif"
-		'''
-		args = list()
-		args.append("-m")
-		args.append("TIFF_m")
-		args.append("-z")
-		args.append("LZW")
-		#args.append("-g")
-		args.append("-o")
-		args.append(pto_project.get_a_file_name())
-		args.append(pto_project.get_a_file_name())
-		(rc, output) = Execute.with_output("enblend", args)
-		if not rc == 0:
-			raise Exception('failed to blend')
-		self.project.reopen()
-
+		self.pto_project.reopen()
+		if self.image_type == TIFF_MULTILAYER:
+			self.output_files = [self.output_file_base + '.tif']
+		elif self.image_type == TIFF_SINGLE:
+			self.output_files = list()
+			for i in range(len(self.get_image_lines())):
+				self.output_files += '%s%04d.tif' % (self.output_file_base, i)
+		else:
+			raise Exception('bad image type')
+	def get_output_files(self):
+		return self.output_files
+		
+	

@@ -164,6 +164,10 @@ class PTOProject:
 		# Has this been loaded from the file?
 		self.parsed = False
 	
+	def copy(self):
+		'''Return an unsaved but identical project'''
+		return PTOProject.from_text(self.get_text())
+	
 	def index_to_image(self, index):
 		lines = self.get_image_lines()
 		if index >= len(lines):
@@ -344,7 +348,7 @@ class PTOProject:
 			print 'get_text: constructed version'
 			return self.to_str_core(False)
 		else:
-			print 'get_text: file version'
+			print 'get_text: file/text version'
 			# Not parsed?  Then just directly load from the file
 			self.ensure_text_loaded()
 			return self.text
@@ -357,6 +361,17 @@ class PTOProject:
 		self.text = open(self.file_name).read()
 		self.parsed = False
 
+	def make_absolute(self, to = None):
+		'''Make all image paths absolute'''
+		print 'Making %d images absolute' % len(self.get_image_lines())
+		for i in self.get_image_lines():
+			i.make_absolute(to)
+
+	def make_relative(self, to = None):
+		'''Make all image paths relative'''
+		for i in self.get_image_lines():
+			i.make_relative(to)
+			
 	def do_get_a_file_name(self, prefix = None, postfix = None):
 		'''If doesn't have a real file, create a temp file'''
 		if self.file_name:
@@ -470,6 +485,10 @@ class PTOProject:
 		self.text = f.read()
 		self.parsed = False
 
+	def get_file_names(self):
+		'''Get image file names'''
+		return [i.get_name() for i in self.get_image_lines()]
+	
 	def get_image_file_names(self):
 		return self.image_file_names
 
