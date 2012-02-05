@@ -75,7 +75,7 @@ class PartialStitcher:
 		if self.out.find('.') < 0:
 			raise Exception('Require image extension')
 		# Hugin likes to use the base filename as the intermediates, lets do the sames
-		out_name_base = self.out.substr(0, self.out.find('.'))
+		out_name_base = self.out[self.out.find('.')]
 		
 		pto = self.pto.copy()
 		print 'Making absolute'
@@ -86,7 +86,7 @@ class PartialStitcher:
 		pl = pto.get_panorama_line()
 		# It is fine to go out of bounds, it will be black filled
 		#pl.set_bounds(x, min(x + self.tw(), pto.right()), y, min(y + self.th(), pto.bottom()))
-		pl.set_crop(bounds)
+		pl.set_crop(self.bounds)
 		remapper = Remapper(pto)
 		remapper.remap(out_name_base)
 		
@@ -100,13 +100,30 @@ class PartialStitcher:
 
 class Tiler:
 	def __init__(self, pto, out_dir, tile_width=250, tile_height=250):
+		img_width = 3224
+		img_height = 2448
+		
 		self.pto = pto
 		self.out_dir = out_dir
 		self.tw = tile_width
 		self.th = tile_height
-		self.set_size_heuristic(3224, 2448)
+		
+		self.set_size_heuristic(img_width, img_height)
+		# These are less related
+		# They actually should be set as high as you think you can get away with
+		# Although setting a smaller number may have higher performance depending on input size
+		self.super_tw = img_width * 4
+		self.super_th = img_height * 4
+		
 		# We build this in run
 		self.map = None
+		
+		spl = self.pto.get_panorama_line()
+		self.x0 = spl.left()
+		self.x1 = spl.right()
+		self.y0 = spl.top()
+		self.y1 = spl.bottom()
+		#print spl
 	
 	def set_size_heuristic(self, image_width, image_height):
 		'''
@@ -118,12 +135,6 @@ class Tiler:
 		'''
 		self.clip_width = image_width
 		self.clip_height = image_height
-		
-		# These are less related
-		# They actually should be set as high as you think you can get away with
-		# Although setting a smaller number may have higher performance depending on input size
-		self.super_tw = image_width * 4
-		self.super_th = image_height * 4
 	
 	def build_spatial_map(self):
 		#image_file_names = self.pto.get_file_names()
@@ -142,7 +153,7 @@ class Tiler:
 		bounds = [x0, x1, y0, y1]
 		#out_name_base = "%s/r%03d_c%03d" % (self.out_dir, row, col)
 		#print 'Working on %s' % out_name_base
-		stitcher = PartialStitcher(self.pto, bounds, temp_file)
+		stitcher = PartialStitcher(self.pto, bounds, temp_file.file_name)
 		stitcher.run()
 		
 		i = PImage.from_file(fn)
@@ -160,13 +171,22 @@ class Tiler:
 		yt1 = floor_mult(y1, self.th)
 		if yt0 >= yt1:
 			print 'Bad input y dimensions'
+			
+			
+		'''
+		The ideal step is to advance to the next area where it will be legal to create a new 
+		Slightly decrease the step to avoid boundary conditions
+		Although we clip on both side we only have to get rid of one side each time
+		'''
+		txstep = self.tw - self.clip_width - 1
+		tystep = self.th - self.clip_height - 1
 		'''
 		A tile is valid if its in a safe location
 		There are two ways for the location to be safe:
 		-No neighboring tiles as found on canvas edges
 		-Sufficiently inside the blend area that artifacts should be minimal
 		'''
-		for x in xrange(xt0, xt1, self.tw):
+		for x in xrange(xt0, xt1, txstep):
 			# If this is an edge supertile skip the buffer check
 			if x0 != self.left() and x1 != self.right():
 				# Are we trying to construct a tile in the buffer zone?
@@ -174,7 +194,7 @@ class Tiler:
 					continue
 				
 			col = self.x2col(x)
-			for y in xrange(yt0, yt1, self.th):
+			for y in xrange(yt0, yt1, tystep):
 				if y0 != self.top() and y1 != self.bottom():
 					# Are we trying to construct a tile in the buffer zone?
 					if yt0 < y0 + self.clip_height or yt1 >= y1 - self.clip_height:
@@ -250,7 +270,7 @@ class Tiler:
 		for x in xrange(self.left(), self.right(), self.super_tw):
 			x0 = x
 			x1 = x + self.super_tw
-			# If we have rechead the right side align to it rather than truncating
+			# If we have reached the right side align to it rather than truncating
 			# This makes blending better to give a wider buffer zone
 			if x1 >= self.right():
 				x_done = True
@@ -281,14 +301,8 @@ class Tiler:
 		If we have a width of 256 and 256 pixels we need total size of 256
 		if we have a width of 256 and 257 pixel we need total size of 512
 		'''
-		spl = self.pto.get_panorama_line()
-		self.x0 = spl.left()
-		self.x1 = spl.right()
-		self.y0 = spl.top()
-		self.y1 = spl.bottom()
 		print 'Tile width: %d, height: %d' % (self.tw, self.th)
-		print spl
-		print 'Left: %d, right: %d, top: %d, bottom: %d' % (spl.left(), spl.right(), spl.top(), spl.bottom())
+		print 'Left: %d, right: %d, top: %d, bottom: %d' % (self.left(), self.right(), self.top(), self.bottom())
 		
 		os.mkdir(self.out_dir)
 		# in form (row, col)

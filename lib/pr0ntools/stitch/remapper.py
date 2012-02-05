@@ -46,15 +46,31 @@ Usage: nona [options] -o output project_file (image files)
                    NONE      no compression
                    PACKBITS  packbits compression
                    LZW       lzw compression
-                   DEFLATE   deflate compression
+                   DEFLATE   deflate
+                    compression
+
+
+panotools wiki says that hugin should be able to output cropped but I don't see it doing so
+	Checking nona...[OK]
+	Checking enblend...[OK]
+	Checking enfuse...[OK]
+	Checking hugin_hdrmerge...[OK]
+	Checking exiftool...[OK]
+	nona  -z LZW -r ldr -m TIFF_m -o test -i 1 /tmp/huginpto_H3PO0O
+	nona  -z LZW -r ldr -m TIFF_m -o test -i 2 /tmp/huginpto_H3PO0O
+	nona  -z LZW -r ldr -m TIFF_m -o test -i 4 /tmp/huginpto_H3PO0O
+	nona  -z LZW -r ldr -m TIFF_m -o test -i 6 /tmp/huginpto_H3PO0O
+	nona  -z LZW -r ldr -m TIFF_m -o test -i 7 /tmp/huginpto_H3PO0O
+	nona  -z LZW -r ldr -m TIFF_m -o test -i 9 /tmp/huginpto_H3PO0O
 '''
 
 from pr0ntools.temp_file import ManagedTempDir
 from pr0ntools.execute import Execute
+import os
 
 class Remapper:
-	TIFF_SINGLE = "TIFF"
-	TIFF_MULTILAYER = "TIFF_m"
+	TIFF_SINGLE = "TIFF_m"
+	TIFF_MULTILAYER = "TIFF_multilayer"
 	
 	def __init__(self, pto_project):
 		self.pto_project = pto_project
@@ -62,22 +78,46 @@ class Remapper:
 		#self.output_file_base = output_file_base
 		#self.output_managed_temp_dir = ManagedTempDir(self.pto_project.get_a_file_name() + "__")
 		self.managed_temp_dir = ManagedTempDir.get()
+		#self.image_type = Remapper.TIFF_MULTILAYER
 		self.image_type = Remapper.TIFF_SINGLE
 		self.output_files = None
+		# panotools wiki says enblend 2.4+ supports this
+		self.output_cropped = True
+		self.compression_opt = "c:LZW"
 		
 	def run(self):
-		raise Exception('FIXME')
+		project_name = self.pto_project.get_a_file_name()
+		project_name = os.path.basename(project_name)
+		project_name = project_name.split('.')[0]
+		if len(project_name) == 0:
+			project_name = 'out'
+			raise Exception('Require project name')
+		print 'Chose output prefix "%s"' % project_name
+		self.remap(project_name)
 		
 	def remap(self, output_file_base):
+		project = self.pto_project.copy()
 		args = list()
 		args.append("-m")
 		args.append(self.image_type)
+		pl = project.get_panorama_line()
+		crop_opt = ""
+		if self.image_type == Remapper.TIFF_SINGLE:
+			if self.output_cropped:
+				# FIXME: this needs to go into the n argument in the file, not a CLI option
+				#  p f0 w1000 h500 v120 n"TIFF_m c:LZW r:CROP"
+				#args.append("r:CROP")
+				pl.set_variable("n", "TIFF_m %s ", self.compression_opt)
+				# will be saved when we get the file name
+				#pl.save()
+				crop_opt = "r:CROP"
+		pl.set_variable("n", "%s %s c:LZW" % (self.image_type, self.compression_opt, crop_opt))
 		args.append("-z")
 		args.append("LZW")
 		#args.append("-g")
 		args.append("-o")
 		args.append(output_file_base)
-		args.append(self.pto_project.get_a_file_name())
+		args.append(project.get_a_file_name())
 		(rc, output) = Execute.with_output("nona", args)
 		if not rc == 0:
 			print
@@ -87,12 +127,12 @@ class Remapper:
 			print output
 			raise Exception('failed to remap')
 		self.pto_project.reopen()
-		if self.image_type == TIFF_MULTILAYER:
-			self.output_files = [self.output_file_base + '.tif']
-		elif self.image_type == TIFF_SINGLE:
+		if self.image_type == Remapper.TIFF_MULTILAYER:
+			self.output_files = [output_file_base + '.tif']
+		elif self.image_type == Remapper.TIFF_SINGLE:
 			self.output_files = list()
-			for i in range(len(self.get_image_lines())):
-				self.output_files += '%s%04d.tif' % (self.output_file_base, i)
+			for i in range(len(self.pto_project.get_image_lines())):
+				self.output_files += '%s%04d.tif' % (output_file_base, i)
 		else:
 			raise Exception('bad image type')
 	def get_output_files(self):
