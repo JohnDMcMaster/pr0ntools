@@ -7,6 +7,7 @@ Licensed under a 2 clause BSD license, see COPYING for details
 import random
 import os
 import shutil
+from pr0ntools.config import config
 
 g_default_prefix_dir = None
 g_default_prefix = None
@@ -67,8 +68,11 @@ class ManagedTempFile:
 	def __del__(self):
 		try:
 			if os.path.exists(self.file_name):
-				# os.remove(self.file_name)
-				print 'Deleted temp file %s' % self.file_name
+				if config.keep_temp_files():			
+					print 'KEEP: Deleted temp file %s' % self.file_name
+				else:
+					os.remove(self.file_name)
+					print 'Deleted temp file %s' % self.file_name
 			else:
 				print "Didn't delete inexistant temp file %s" % self.file_name
 		# Ignore if it was never created
@@ -92,8 +96,11 @@ class ManagedTempDir(ManagedTempFile):
 	def __del__(self):
 		try:
 			if os.path.exists(self.file_name):
-				# shutil.rmtree(self.file_name)
-				print 'Deleted temp dir %s' % self.file_name
+				if config.keep_temp_files():			
+					print 'KEEP: Deleted temp dir %s' % self.file_name
+				else:
+					shutil.rmtree(self.file_name)
+					print 'Deleted temp dir %s' % self.file_name
 			else:
 				print "Didn't delete inexistant temp dir %s" % self.file_name
 		# Ignore if it was never created

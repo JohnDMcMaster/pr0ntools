@@ -76,7 +76,7 @@ if __name__ == "__main__":
 		files_in += sys.argv[1:len(sys.argv)]
 		print 'Processing files %s' % str(files_in)
 		from_multi(files_in, max_level, min_level)
-	elif len(sys.argv) == 1:
+	elif len(sys.argv) == 2:
 		min_level = 0
 		max_level = 3
 		'''

@@ -1,3 +1,29 @@
+'''
+pr0ntools
+Copyright 2011 John McMaster <JohnDMcMaster@gmail.com>
+Licensed under a 2 clause BSD license, see COPYING for details
+'''
+
+'''
+If align is given it specifies an origin
+'''
+def floor_mult(n, mult, align=0):
+	'''Return the first number <= n that is a multiple of mult shifted by align'''
+	rem = (n - align) % mult
+	if rem == 0:
+		return n
+	else:
+		return n - rem
+
+def ceil_mult(n, mult, align=0):
+	'''Return the first number >= n that is a multiple of mult shifted by align'''
+	rem = (n - align) % mult
+	if rem == 0:
+		return n
+	else:
+		return n + mult - rem
+
+
 class PolygonQuadTreeItem:
 	def __init__(self, left, right, top, bottom):
 		self.left = left

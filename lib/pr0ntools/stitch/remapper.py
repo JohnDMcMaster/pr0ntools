@@ -64,7 +64,6 @@ panotools wiki says that hugin should be able to output cropped but I don't see 
 	nona  -z LZW -r ldr -m TIFF_m -o test -i 9 /tmp/huginpto_H3PO0O
 '''
 
-from pr0ntools.temp_file import ManagedTempDir
 from pr0ntools.execute import Execute
 import os
 
@@ -72,21 +71,26 @@ class Remapper:
 	TIFF_SINGLE = "TIFF_m"
 	TIFF_MULTILAYER = "TIFF_multilayer"
 	
-	def __init__(self, pto_project):
+	def __init__(self, pto_project, output_prefix="nonaout"):
+		if output_prefix is None or len(output_prefix) == 0 or output_prefix == '.' or output_prefix == '..':
+			raise Exception('Bad output file base "%s"' % str(output_prefix))
+		
 		self.pto_project = pto_project
 		# this is taken from the pto
 		#self.output_file_base = output_file_base
 		#self.output_managed_temp_dir = ManagedTempDir(self.pto_project.get_a_file_name() + "__")
-		self.managed_temp_dir = ManagedTempDir.get()
 		#self.image_type = Remapper.TIFF_MULTILAYER
 		self.image_type = Remapper.TIFF_SINGLE
 		self.output_files = None
 		# panotools wiki says enblend 2.4+ supports this
 		self.output_cropped = True
 		self.compression_opt = "c:LZW"
+		self.output_prefix = output_prefix
 		
 	def run(self):
 		project_name = self.pto_project.get_a_file_name()
+		#print
+		#print 'Remapping project %s' %  project_name
 		project_name = os.path.basename(project_name)
 		project_name = project_name.split('.')[0]
 		if len(project_name) == 0:
@@ -95,7 +99,7 @@ class Remapper:
 		print 'Chose output prefix "%s"' % project_name
 		self.remap(project_name)
 		
-	def remap(self, output_file_base):
+	def remap(self):
 		project = self.pto_project.copy()
 		args = list()
 		args.append("-m")
@@ -107,16 +111,16 @@ class Remapper:
 				# FIXME: this needs to go into the n argument in the file, not a CLI option
 				#  p f0 w1000 h500 v120 n"TIFF_m c:LZW r:CROP"
 				#args.append("r:CROP")
-				pl.set_variable("n", "TIFF_m %s ", self.compression_opt)
+				#pl.set_variable("n", "TIFF_m %s ", self.compression_opt)
 				# will be saved when we get the file name
 				#pl.save()
 				crop_opt = "r:CROP"
-		pl.set_variable("n", "%s %s c:LZW" % (self.image_type, self.compression_opt, crop_opt))
+		pl.set_variable("n", "%s %s %s" % (self.image_type, crop_opt, self.compression_opt))
 		args.append("-z")
 		args.append("LZW")
 		#args.append("-g")
 		args.append("-o")
-		args.append(output_file_base)
+		args.append(self.output_prefix)
 		args.append(project.get_a_file_name())
 		(rc, output) = Execute.with_output("nona", args)
 		if not rc == 0:
@@ -126,13 +130,18 @@ class Remapper:
 			print 'Failed to remap'
 			print output
 			raise Exception('failed to remap')
-		self.pto_project.reopen()
+		#project.reopen()
 		if self.image_type == Remapper.TIFF_MULTILAYER:
-			self.output_files = [output_file_base + '.tif']
+			self.output_files = [self.output_prefix + '.tif']
 		elif self.image_type == Remapper.TIFF_SINGLE:
 			self.output_files = list()
+			# The images shouldn't change, use the old loaded project
 			for i in range(len(self.pto_project.get_image_lines())):
-				self.output_files += '%s%04d.tif' % (output_file_base, i)
+				fn = '%s%04d.tif' % (self.output_prefix, i)
+				print 'Think we generated file %s' % fn
+				if not os.path.exists(fn):
+					raise Exception('Missing output file %s' % fn)
+				self.output_files.append(fn)
 		else:
 			raise Exception('bad image type')
 	def get_output_files(self):

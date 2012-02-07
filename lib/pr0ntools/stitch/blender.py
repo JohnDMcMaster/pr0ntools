@@ -85,6 +85,9 @@ Mask generation options:
 Report bugs at <http://sourceforge.net/projects/enblend/>.
 '''
 
+from pr0ntools.execute import Execute
+
+
 class Blender:
 	def __init__(self, input_files, output_file):
 		self.input_files = input_files
@@ -130,7 +133,7 @@ class Blender:
 		for f in self.input_files:
 			args.append(f)
 		
-		(rc, output) = Execute.with_output("nona", args)
+		(rc, output) = Execute.with_output("enblend", args)
 		if not rc == 0:
 			print
 			print
