@@ -227,27 +227,42 @@ class Tiler:
 		print 'y in xrange(%d, %d, %d)' % (yt0, yt1, tystep)
 		if txstep <= 0 or tystep <= 0:
 			raise Exception('Bad step values')
-		for x in xrange(xt0, xt1, txstep):
-			# If this is an edge supertile skip the buffer check
-			if x0 != self.left() and x1 != self.right():
-				# Are we trying to construct a tile in the buffer zone?
-				if xt0 < x0 + self.clip_width or xt1 >= x1 - self.clip_width:
-					print 'Rejecting tile: x clip'
-					continue
+			
+		skip_x_check = False
+		# If this is an edge supertile skip the buffer check
+		if x0 == self.left():
+			print 'X check skip (%d): left border' % x0
+			skip_x_check = True
+		if x1 == self.right():
+			print 'X check skip (%d): right border' % x1
+			skip_x_check = True
+			
+		skip_y_check = False
+		if y0 == self.top():
+			print 'Y check skip (%d): top border' % y0
+			skip_y_check = True
+		if y1 == self.bottom():
+			print 'Y check skip (%d): bottom border' % y1
+			skip_y_check = True
+			
+		for x in xrange(xt0, xt1, txstep):			 	
+			# Are we trying to construct a tile in the buffer zone?
+			if (not skip_x_check) and x < x0 + self.clip_width or x + self.tw >= x1 - self.clip_width:
+				print 'Rejecting tiles @ x%d: x clip' % (x)
+				continue
 				
 			col = self.x2col(x)
 			for y in xrange(yt0, yt1, tystep):
-				if y0 != self.top() and y1 != self.bottom():
-					# Are we trying to construct a tile in the buffer zone?
-					if yt0 < y0 + self.clip_height or yt1 >= y1 - self.clip_height:
-						print 'Rejecting tile: y clip'
-						continue
+				# Are we trying to construct a tile in the buffer zone?
+				if (not skip_y_check) and y < y0 + self.clip_height or y + self.th >= y1 - self.clip_height:
+					print 'Rejecting tile @ x%d, y%d: y clip' % (x, y)
+					continue
 				# If we made it this far the tile can be constructed with acceptable enblend artifacts
 				row = self.y2row(y)
 				# Did we already do this tile?
 				if self.is_done(row, col):
 					# No use repeating it although it would be good to diff some of these
-					print 'Rejecting tile: already done'
+					print 'Rejecting tile x%d, y%d / r%d, c%d: already done' % (x, y, row, col)
 					continue
 				
 				# note that x and y are in whole pano coords
@@ -271,25 +286,23 @@ class Tiler:
 		'''Make a tile given an image, the upper left x and y coordinates in that image, and the global row/col indices'''	
 		if self.dry:
 			print 'Dry: not making tile w/ x%d y%d r%d c%d' % (x, y, row, col)
-			return
+		else:
+			xmin = x
+			ymin = y
+			xmax = min(xmin + self.tw, i.width())
+			ymax = min(ymin + self.th, i.height())
+			nfn = self.get_name(row, col)
 
-		xmin = x
-		ymin = y
-		xmax = min(xmin + self.tw, i.width())
-		ymax = min(ymin + self.th, i.height())
-		nfn = self.get_name(row, col)
-
-		print 'Subtile %s: (x %d:%d, y %d:%d)' % (nfn, xmin, xmax, ymin, ymax)
-		ip = i.subimage(xmin, xmax, ymin, ymax)
-		'''
-		Images must be padded
-		If they aren't they will be stretched in google maps
-		'''
-		if ip.width() != self.tw or ip.height() != self.th:
-			print 'WARNING: %s: expanding partial tile (%d X %d) to full tile size' % (nfn, ip.width(), ip.height())
-			ip.set_canvas_size(t_width, t_height)
-		ip.image.save(nfn)
-		
+			print 'Subtile %s: (x %d:%d, y %d:%d)' % (nfn, xmin, xmax, ymin, ymax)
+			ip = i.subimage(xmin, xmax, ymin, ymax)
+			'''
+			Images must be padded
+			If they aren't they will be stretched in google maps
+			'''
+			if ip.width() != self.tw or ip.height() != self.th:
+				print 'WARNING: %s: expanding partial tile (%d X %d) to full tile size' % (nfn, ip.width(), ip.height())
+				ip.set_canvas_size(t_width, t_height)
+			ip.image.save(nfn)	
 		self.mark_done(row, col)
 				
 	def x2col(self, x):
