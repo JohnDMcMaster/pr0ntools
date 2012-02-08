@@ -287,6 +287,73 @@ class PImage:
 		return PImage(image)
 	
 	@staticmethod
+	def from_blank(width, height, mode="RGB"):
+		'''Create a blank canvas'''
+		return PImage.from_image(Image.new(mode, (width, height)))
+
+	@staticmethod
+	def from_image_array(images):
+		'''Return an image constructed from a 2-D array of image objects'''
+		return PImage.from_array_core(images)
+	
+	@staticmethod
+	def from_filename_array(fns):
+		'''Return an image constructed from a 2-D array of image file names'''
+		return PImage.from_array_core(images)
+
+	@staticmethod
+	def from_array_core(images_in):
+		# FIXME: all I need is 2x2, enhance later if needed
+		# but allow entries to be none
+		
+		tw = None
+		th = None
+		mode = None
+		
+		'''
+		This layout allows for
+		dat = [[imgA, imgB],
+				[imgC, imgD]]
+		'''
+		rows = len(images_in)
+		cols = len(images_in[0])
+		# Ensure all images loaded
+		for rowi in range(rows):
+			row = images_in[coli]
+			if len(row) != cols:
+				raise Exception('row size mismatch')
+			for coli in range(cols):
+				# Ensure its a PImge object
+				src = images_in[rowi][coli]
+				if not src is None:
+					img = PImage.from_unknown(src)
+					if mode is None:
+						mode = img.mode()
+					elif img.mode() != mode:
+						raise Exception('mode mismatch')
+					if tw is None:
+						tw = img.width()
+					elif tw != img.width():
+						raise Exception('tile width mismatch')
+					if th is None:
+						th = img.height()
+					elif th != img.height():
+						raise Exception('tile height mismatch')
+					images_in[rowi][coli] = img
+		
+		# Images are now all either PImage or None with uniform width/height
+		width = tw * cols
+		height = th * rows
+		#ret = PImage.from_blank(width, height, mode=mode):
+		ret = Image.new(mode, (width, height))
+		for rowi in range(rows):
+			for coli in range(cols):
+				src = images_in[rowi][coli]
+				ret.paste(src.to_image(), (coli * tw, rowi * th))
+		
+		return PImage.from_image(ret)
+		
+	@staticmethod
 	def from_unknown(image):
 		if isinstance(image, str):
 			return PImage.from_file(image).trim()

@@ -1,3 +1,4 @@
+import math
 import os
 from pr0ntools.pimage import PImage
 
@@ -48,6 +49,34 @@ class ImageCoordinatePair:
 	def from_spatial_points(first, second):
 		return ImageCoordinatePair(ImageCoordinateMapPairing(first.coordinates[1], first.coordinates[0]), ImageCoordinateMapPairing(second.coordinates[1], second.coordinates[0]))
 
+def get_row_col(file_name):
+	row = None
+	col = None
+	
+	basename = os.path.basename(file_name)
+	core_file_name = basename.split('.')[0]
+	parts = core_file_name.split('_')
+	if len(parts) != 2:
+		raise Exception('Expect files named like cXXXX_rXXXX.tif for automagic stitching, got %s' % file_name)
+	
+	p0 = parts[0]
+	if p0.find('x') >= 0 or p0.find('c') >= 0:
+		row = int(p0[1:])
+	if p0.find('y') >= 0 or p0.find('r') >= 0:
+		col = int(p0[1:])
+	
+	p1 = parts[1]
+	if p1.find('x') >= 0 or p1.find('c') >= 0:
+		if not row is None:
+			raise Exception('conflicting row info')
+		row = int(p1[1:])
+	if p1.find('y') >= 0 or p1.find('r') >= 0:
+		if not col is None:
+			raise Exception('conflicting row info')
+		col = int(p1[1:])
+
+	return (row, col)
+	
 class ImageCoordinateMap:
 	'''
 				col/x
@@ -67,6 +96,11 @@ class ImageCoordinateMap:
 		# ie y in range(0, rows)
 		self.rows = rows
 		self.layout = [None] * (cols * rows)
+	
+	def images(self):
+		'''Returns a generator giving (file name, row, col) tuples'''
+		for i in range(0, len(self.layout)):
+			yield (sefl.layout[i], i / self.cols, i % self.width())
 	
 	def width(self):
 		'''Return number of cols'''
@@ -102,6 +136,47 @@ class ImageCoordinateMap:
 		return file_names
 		
 	@staticmethod
+	def from_tagged_file_names(file_names, rows=None, cols=None):
+		print 'Constructing image coordinate map from tagged file names...'
+		'''
+		rows: hard code number input rows
+		cols: hard code number input cols
+		'''
+		if rows is None and not cols is None:
+			rows = math.ceil(len(file_names) / cols)
+		if rows is None and not cols is None:
+			cols = math.ceil(len(file_names) / rows)
+		
+		if rows is None or cols is None:
+			print 'Row / col hints insufficient, guessing row / col layout from file names'
+			row_parts = set()
+			col_parts = set()			
+			
+			for file_name in file_names:
+				(row, col) = get_row_col(file_name)
+				row_parts.add(row)
+				col_parts.add(col)
+			
+			# Assume X first so that files read x_y.jpg which seems most intuitive (to me FWIW)
+			if cols is None:
+				print 'Constructing columns from set %s' % str(col_parts)
+				cols = len(col_parts)
+			if rows is None:
+				print 'Constructing rows from set %s' % str(row_parts)
+				rows = len(row_parts)
+		print 'initial cols / X dim / width: %d, rows / Y dim / height: %d' % (cols, rows)
+		
+		ret = ImageCoordinateMap(cols, rows)
+		file_names = sorted(file_names)
+		for file_name in file_names:
+			# Not canonical, but resolved well enough
+			(row, col) = get_row_col(file_name)
+				
+			ret.set_image(col, row, file_name)
+		
+		return ret	
+	
+	@staticmethod
 	def from_file_names(file_names_in, flip_col = False, flip_row = False, flip_pre_transpose = False, flip_post_transpose = False, depth = 1,
 			alt_rows = False, alt_cols = False, rows = None, cols = None):
 		file_names = ImageCoordinateMap.get_file_names(file_names_in, depth)
@@ -134,25 +209,57 @@ class ImageCoordinateMap:
 			cols = len(file_names) / rows
 		
 		if rows is None or cols is None:
+			'''
+			this code seems to assume format col_row.tif
+			I always tag them with either c001_r031.tif or x322_y32.tif type formatting
+			so lets use that instead
+			'''
 			print 'Row / col hints insufficient, guessing row / col layout from file names'
 			first_parts = set()
 			second_parts = set()
+			
+			first_rows = 0
+			first_cols = 0
+			second_rows = 0
+			second_cols = 0
+			
 			for file_name in file_names:
 				basename = os.path.basename(file_name)
 				core_file_name = basename.split('.')[0]
 				parts = core_file_name.split('_')
 				if len(parts) != 2:
 					raise Exception('Expect files named like cXXXX_rXXXX.tif for automagic stitching')
-				first_parts.add(parts[0])
-				second_parts.add(parts[1])
-		
+				
+				p0 = parts[0]
+				if p0.find('x') >= 0 or p0.find('c') >= 0:
+					first_cols += 1
+				if p0.find('y') >= 0 or p0.find('r') >= 0:
+					first_rows += 1
+				first_parts.add(p0)
+				
+				p1 = parts[1]
+				if p1.find('x') >= 0 or p1.find('c') >= 0:
+					second_cols += 1
+				if p1.find('y') >= 0 or p1.find('r') >= 0:
+					second_rows += 1
+				second_parts.add(p1)
+					
+			if first_rows != 0 and first_cols == 0 and second_rows == 0 and second_cols != 0:
+				row_parts = first_parts
+				col_parts = second_parts
+			elif first_rows == 0 and first_cols != 0 and second_rows != 0 and second_cols == 0:
+				row_parts = second_parts
+				col_parts = first_parts
+			else:
+				raise Exception('Could not determine row/col source')
+			
 			# Assume X first so that files read x_y.jpg which seems most intuitive (to me FWIW)
 			if cols is None:
-				print 'Constructing columns from set %s' % str(first_parts)
-				cols = len(first_parts)
+				print 'Constructing columns from set %s' % str(col_parts)
+				cols = len(col_parts)
 			if rows is None:
-				print 'Constructing rows from set %s' % str(second_parts)
-				rows = len(second_parts)
+				print 'Constructing rows from set %s' % str(row_parts)
+				rows = len(row_parts)
 		print 'initial cols / X dim / width: %d, rows / Y dim / height: %d' % (cols, rows)
 		
 		print 'Flip status = pre transpose: %d, post transpose: %d' % (flip_pre_transpose, flip_post_transpose)

@@ -14,13 +14,12 @@ from pr0ntools.stitch.wander_stitch import WanderStitch
 from pr0ntools.stitch.grid_stitch import GridStitch
 from pr0ntools.stitch.fortify_stitch import FortifyStitch
 from pr0ntools.execute import Execute
+import Image
 
-def from_multi(fn, max_level, min_level = 0):
-	'''
-	Stitch source images together and output tiles instead of a large panorama
-	'''
-
-def Tiler:
+'''
+Take a single large image and break it into tiles
+'''
+class ImageTiler:
 	def __init__(self, image, x0 = None, x1 = None, y0 = None, y1 = None, tw = 256, th = 256):
 		self.image = image
 		
@@ -86,46 +85,127 @@ def Tiler:
 				row += 1
 			col += 1
 
+'''
+Creates smaller tiles from source tiles
+'''
+class TileTiler:
+	def __init__(self, file_names, max_level, min_level = 0, out_dir_base=None):
+		self.map = ImageCoordinateMap.from_tagged_file_names(file_names)
+		self.max_level = max_level
+		self.min_level = min_level
+		self.out_dir_base = out_dir_base
+		self.out_extension = '.jpg'
+		self.zoom_factor = 2
+		#self.out_extension = '.png'
 
-def from_single(fn, max_level, min_level = 0, out_dir_base=None):
-	t_width = 256
-	t_height = 256
-	out_extension = '.jpg'
-	#out_extension = '.png'
-	'''
-	Expect that will not need images larger than 1 terapixel in the near future
-	sqrt(1 T / (256 * 256)) = 3906, in hex = 0xF42
-	so three hex digits should last some time
-	'''
-	if out_dir_base is None:
-		out_dir_base = 'tiles_out/'
+	def prep_out_dir_base(self):
+		if self.out_dir_base is None:
+			self.out_dir_base = 'tiles_out/'
+		if os.path.exists(out_dir_base):
+			os.system('rm -rf %s' % out_dir_base)
+		os.mkdir(out_dir_base)
+
+	def get_old(self, col, row):
+		return self.map.get_image(col, row)
+
+	def get_fn(self, row, col):
+		return '%s/%d/y%03d_x%03d%s' % (self.out_dir_base, self.zoom_level, row, col, self.out_extension)
+
+	def run(self):
+		self.prep_out_dir_base()
+		t_width = 256
+		t_height = 256
+		
+		for self.zoom_level in xrange(max_level, min_level - 1, -1):
+			print
+			print '************'
+			print 'Zoom level %d' % zoom_level
+			out_dir = '%s/%d' % (out_dir_base, zoom_level)
+			if os.path.exists(out_dir):
+				os.system('rm -rf %s' % out_dir)
+			os.mkdir(out_dir)
+			
+			# For the first level we copy things over
+			if zoom_level == max_level:
+				for (img_fn, row, col) in self.map.images():
+					dst = self.get_fn(row, col)
+					shutil.copy(img_fn, dst)
+			# Additional levels we take the image coordinate map and shrink
+			else:
+				# Prepare a new image coordinate map so we can form the next tile set
+				new_cols = math.ceil(self.map.width() / self.zoom_factor)
+				new_rows = math.ceil(self.map.height() / self.zoom_factor)
+				new_map = ImageCoordinateMap(new_cols, new_rows)
+				for new_row in new_rows:
+					old_row = new_row * self.zoom_factor
+					for col in new_cols:
+						old_col = new_col * self.zoom_factor
+						# Paste the old (4) images together
+						imgp = PImage.from_filename_array([[self.get_old(old_row + 0, old_col + 0), self.get_old(old_row + 0, old_col + 1)],
+								[self.get_old(old_row + 1, old_col + 0), self.get_old(old_row + 1, old_col + 1)]])
+						if imgp.width() != t_width * self.zoom_factor or imgp.height() != t_height * self.zoom_factor:
+							raise Exception('Combined image incorrect size')
+						scaled = imgp.get_scaled(0.5, file=Image.ANTIALIAS)
+						if scaled.width() != t_width or scaled.height() != t_height:
+							raise Exception('Scaled image incorrect size')
+						
+						new_fn = self.get_fn(new_row, new_col)
+						new_map.set_image(new_col, new_row)
+				# Next shrink will be on the previous tile set, not the original
+				self.map = new_map
+# replaces from_single
+class SingleTiler:
+	def __init__(self, fn, max_level, min_level = 0, out_dir_base=None):
+		self.fn = fn
+		self.max_level = max_level
+		self.min_level = min_level
+		self.out_dir_base = out_dir_base
+
+	def run(self):
+		fn = self.fn
+		max_level = self.max_level
+		min_level = self.min_level
+		out_dir_base = self.out_dir_base
 	
-	'''
-	Test file is the carved out metal sample of the 6522
-	It is 5672 x 4373 pixels
-	I might do a smaller one first
-	'''
-	i = PImage.from_file(fn)
-	if os.path.exists(out_dir_base):
-		os.system('rm -rf %s' % out_dir_base)
-	os.mkdir(out_dir_base)
-	for zoom_level in xrange(max_level, min_level - 1, -1):
-		print
-		print '************'
-		print 'Zoom level %d' % zoom_level
-		out_dir = '%s/%d' % (out_dir_base, zoom_level)
-		if os.path.exists(out_dir):
-			os.system('rm -rf %s' % out_dir)
-		os.mkdir(out_dir)
+	
+		t_width = 256
+		t_height = 256
+		out_extension = '.jpg'
+		#out_extension = '.png'
+		'''
+		Expect that will not need images larger than 1 terapixel in the near future
+		sqrt(1 T / (256 * 256)) = 3906, in hex = 0xF42
+		so three hex digits should last some time
+		'''
+		if out_dir_base is None:
+			out_dir_base = 'tiles_out/'
+	
+		'''
+		Test file is the carved out metal sample of the 6522
+		It is 5672 x 4373 pixels
+		I might do a smaller one first
+		'''
+		i = PImage.from_file(fn)
+		if os.path.exists(out_dir_base):
+			os.system('rm -rf %s' % out_dir_base)
+		os.mkdir(out_dir_base)
+		for zoom_level in xrange(max_level, min_level - 1, -1):
+			print
+			print '************'
+			print 'Zoom level %d' % zoom_level
+			out_dir = '%s/%d' % (out_dir_base, zoom_level)
+			if os.path.exists(out_dir):
+				os.system('rm -rf %s' % out_dir)
+			os.mkdir(out_dir)
 		
-		tiler = Tiler(i)
-		tiler.run()
+			tiler = ImageTiler(i)
+			tiler.run()
 		
-		if zoom_level != min_level:
-			# Each zoom level is half smaller than previous
-			i = i.get_scaled(0.5)
-			if 0:
-				i.save('test.jpg')
-				sys.exit(1)
+			if zoom_level != min_level:
+				# Each zoom level is half smaller than previous
+				i = i.get_scaled(0.5)
+				if 0:
+					i.save('test.jpg')
+					sys.exit(1)
 
 
