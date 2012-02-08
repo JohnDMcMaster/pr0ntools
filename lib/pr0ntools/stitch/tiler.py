@@ -44,13 +44,14 @@ Greedy algorithm to generate a tile if its legal (and safe)
 from pr0ntools.stitch.remapper import Remapper
 from pr0ntools.stitch.blender import Blender
 from pr0ntools.stitch.pto.project import PTOProject
-import os
 from image_coordinate_map import ImageCoordinateMap
 from pr0ntools.temp_file import ManagedTempFile
 from pr0ntools.temp_file import ManagedTempDir
 #from pr0ntiles.tile import Tiler as TilerCore
 from pr0ntools.pimage import PImage
 from pr0ntools.util.geometry import floor_mult, ceil_mult
+import os
+import math
 
 
 class PartialStitcher:
@@ -136,6 +137,7 @@ class Tiler:
 		
 		print 'Input images width %d, height %d' % (img_width, img_height)
 		print 'Super tile width %d, height %d from scalar %d' % (self.super_tw, self.super_th, st_scalar_heuristic)
+		print 'Supertile clip width %d, height %d' % (self.clip_width, self.clip_height)
 		
 		# We build this in run
 		self.map = None
@@ -154,9 +156,11 @@ class Tiler:
 		it means that if we leave at least one image width/height of buffer we should have an area where enblend is not extending to
 		Ultimately this means you lose 2 * image width/height on each stitch
 		so you should have at least 3 * image width/height for decent results
+		
+		However if we do assume its on the center the center of the image should be unique and thus not a stitch boundry
 		'''
-		self.clip_width = image_width
-		self.clip_height = image_height
+		self.clip_width = image_width / 2
+		self.clip_height = image_height / 2
 	
 	def build_spatial_map(self):
 		#image_file_names = self.pto.get_file_names()
@@ -172,7 +176,7 @@ class Tiler:
 		
 		print
 		print
-		print "Creating supertile %d / %d with x%d:%d, y%d:%d" % (self.nthis, self.ntotal, x0, x1, y0, y1)
+		print "Creating supertile %d / %d with x%d:%d, y%d:%d" % (self.n_supertiles, self.n_expected_supertiles, x0, x1, y0, y1)
 		
 		temp_file = ManagedTempFile.get(None, '.tif')
 
@@ -228,34 +232,42 @@ class Tiler:
 		if txstep <= 0 or tystep <= 0:
 			raise Exception('Bad step values')
 			
-		skip_x_check = False
+		skip_xl_check = False
+		skip_xh_check = False
 		# If this is an edge supertile skip the buffer check
 		if x0 == self.left():
 			print 'X check skip (%d): left border' % x0
-			skip_x_check = True
+			skip_xl_check = True
 		if x1 == self.right():
 			print 'X check skip (%d): right border' % x1
-			skip_x_check = True
+			skip_xh_check = True
 			
-		skip_y_check = False
+		skip_yl_check = False
+		skip_yh_check = False
 		if y0 == self.top():
 			print 'Y check skip (%d): top border' % y0
-			skip_y_check = True
+			skip_yl_check = True
 		if y1 == self.bottom():
 			print 'Y check skip (%d): bottom border' % y1
-			skip_y_check = True
+			skip_yh_check = True
 			
 		for x in xrange(xt0, xt1, txstep):			 	
 			# Are we trying to construct a tile in the buffer zone?
-			if (not skip_x_check) and x < x0 + self.clip_width or x + self.tw >= x1 - self.clip_width:
-				print 'Rejecting tiles @ x%d: x clip' % (x)
+			if (not skip_xl_check) and x < x0 + self.clip_width:
+				print 'Rejecting tiles @ x%d: xl clip' % (x)
+				continue
+			if (not skip_xh_check) and x + self.tw >= x1 - self.clip_width:
+				print 'Rejecting tiles @ x%d: xh clip' % (x)
 				continue
 				
 			col = self.x2col(x)
 			for y in xrange(yt0, yt1, tystep):
 				# Are we trying to construct a tile in the buffer zone?
-				if (not skip_y_check) and y < y0 + self.clip_height or y + self.th >= y1 - self.clip_height:
-					print 'Rejecting tile @ x%d, y%d: y clip' % (x, y)
+				if (not skip_yl_check) and y < y0 + self.clip_height:
+					print 'Rejecting tile @ x%d, y%d: yl clip' % (x, y)
+					continue
+				if (not skip_yh_check) and y + self.th >= y1 - self.clip_height:
+					print 'Rejecting tile @ x%d, y%d: yh clip' % (x, y)
 					continue
 				# If we made it this far the tile can be constructed with acceptable enblend artifacts
 				row = self.y2row(y)
@@ -316,6 +328,15 @@ class Tiler:
 	
 	def mark_done(self, row, col):
 		self.closed_list.add((row, col))
+	
+	def tiles_done(self):
+		return len(self.closed_list)
+	
+	def width(self):
+		return abs(self.right() - self.left())
+	
+	def height(self):
+		return abs(self.top() - self.bottom())
 	
 	def left(self):
 		return self.x0
@@ -387,13 +408,21 @@ class Tiler:
 		# in form (row, col)
 		self.closed_list = set()
 		
-		self.ntotal = len(list(self.gen_supertiles()))
-		print 'Generating %d supertiles' % self.ntotal
+		self.n_expected_supertiles = len(list(self.gen_supertiles()))
+		print 'Generating %d supertiles' % self.n_expected_supertiles
+		
+		x_tiles = math.ceil(self.width() / self.tw)
+		y_tiles = math.ceil(self.height() / self.th)
+		net_tiles = x_tiles * y_tiles
+		print 'Expecting to generate x%d, y%d (%d) basic tiles' % (x_tiles, y_tiles, net_tiles)
+		
 		#temp_file = 'partial.tif'
-		self.nthis = 0
+		self.n_supertiles = 0
 		for supertile in self.gen_supertiles():
-			self.nthis += 1
+			self.n_supertiles += 1
 			[x0, x1, y0, y1] = supertile
 			self.try_supertile(x0, x1, y0, y1)
 
+		if self.tiles_done() != net_tiles:
+			raise Exception('Expected to do %d basic tiles but did %d' % (net_tiles, self.tiles_done()))
 
