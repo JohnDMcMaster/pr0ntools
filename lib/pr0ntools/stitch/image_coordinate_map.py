@@ -50,6 +50,7 @@ class ImageCoordinatePair:
 		return ImageCoordinatePair(ImageCoordinateMapPairing(first.coordinates[1], first.coordinates[0]), ImageCoordinateMapPairing(second.coordinates[1], second.coordinates[0]))
 
 def get_row_col(file_name):
+	'''Return (row, col) tuple identify file name position'''
 	row = None
 	col = None
 	
@@ -61,20 +62,21 @@ def get_row_col(file_name):
 	
 	p0 = parts[0]
 	if p0.find('x') >= 0 or p0.find('c') >= 0:
-		row = int(p0[1:])
-	if p0.find('y') >= 0 or p0.find('r') >= 0:
 		col = int(p0[1:])
+	if p0.find('y') >= 0 or p0.find('r') >= 0:
+		row = int(p0[1:])
 	
 	p1 = parts[1]
 	if p1.find('x') >= 0 or p1.find('c') >= 0:
-		if not row is None:
-			raise Exception('conflicting row info')
-		row = int(p1[1:])
-	if p1.find('y') >= 0 or p1.find('r') >= 0:
 		if not col is None:
 			raise Exception('conflicting row info')
 		col = int(p1[1:])
+	if p1.find('y') >= 0 or p1.find('r') >= 0:
+		if not row is None:
+			raise Exception('conflicting row info')
+		row = int(p1[1:])
 
+	#print '%s => r%d c%d' % (file_name, row, col)
 	return (row, col)
 	
 class ImageCoordinateMap:
@@ -100,7 +102,7 @@ class ImageCoordinateMap:
 	def images(self):
 		'''Returns a generator giving (file name, row, col) tuples'''
 		for i in range(0, len(self.layout)):
-			yield (sefl.layout[i], i / self.cols, i % self.width())
+			yield (self.layout[i], i / self.cols, i % self.width())
 	
 	def width(self):
 		'''Return number of cols'''
@@ -110,15 +112,35 @@ class ImageCoordinateMap:
 		'''Return number of rows'''
 		return self.rows
 	
+	def debug_print(self):
+		print 'height %d rows, width %d cols' % (self.height(), self.width())
+		for row in range(self.height()):
+			for col in range(self.width()):
+				print '  [r%d][c%d] = %s' % (row, col, self.get_image(col, row))
+	
+	def get_image_safe(self, col, row):
+		'''Returns none if out of bounds'''
+		if col >= self.width() or row >= self.height():
+			return None
+		else:
+			return self.get_image(col, row)
+	
 	def get_image(self, col, row):
-		return self.layout[self.cols * row + col]
+		try:
+			return self.layout[self.cols * row + col]
+		except:
+			print 'col %d row %d out of range for width %d height %d and length %d' % (col, row, self.width(), self.height(), len(self.layout))
+			raise
 	
 	def get_images_from_pair(self, pair):
 		# ImageCoordinatePair
 		return (self.get_image(pair.first.col, pair.first.row), self.get_image(pair.second.col, pair.second.row))
 	
-	def set_image(self, col, row, file_name):
+	def set_image_rc(self, row, col, file_name):
 		self.layout[self.cols * row + col] = file_name
+	
+	def set_image(self, col, row, file_name):
+		self.set_image_rc(row, col, file_name)
 
 	@staticmethod
 	def get_file_names(file_names_in, depth):
@@ -172,7 +194,7 @@ class ImageCoordinateMap:
 			# Not canonical, but resolved well enough
 			(row, col) = get_row_col(file_name)
 				
-			ret.set_image(col, row, file_name)
+			ret.set_image_rc(row, col, file_name)
 		
 		return ret	
 	
@@ -323,7 +345,7 @@ class ImageCoordinateMap:
 					print 'effective_col %d >= effective_cols %d or effective_row %d >= effective_rows %d' % (effective_col, effective_cols, effective_row, effective_rows)
 					raise Exception('die')
 				
-				ret.set_image(effective_col, effective_row, file_name)
+				ret.set_image_rc(effective_row, effective_col, file_name)
 				file_names_index += 1
 		
 		

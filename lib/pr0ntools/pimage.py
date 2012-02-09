@@ -299,7 +299,7 @@ class PImage:
 	@staticmethod
 	def from_filename_array(fns):
 		'''Return an image constructed from a 2-D array of image file names'''
-		return PImage.from_array_core(images)
+		return PImage.from_array_core(fns)
 
 	@staticmethod
 	def from_array_core(images_in):
@@ -310,6 +310,7 @@ class PImage:
 		th = None
 		mode = None
 		
+		#print "Constructing parent tile"
 		'''
 		This layout allows for
 		dat = [[imgA, imgB],
@@ -319,17 +320,24 @@ class PImage:
 		cols = len(images_in[0])
 		# Ensure all images loaded
 		for rowi in range(rows):
-			row = images_in[coli]
+			row = images_in[rowi]
 			if len(row) != cols:
 				raise Exception('row size mismatch')
 			for coli in range(cols):
 				# Ensure its a PImge object
 				src = images_in[rowi][coli]
 				if not src is None:
+					print src
 					img = PImage.from_unknown(src)
+					print img.image.size
+					# img.file_name()
+					if 1:
+						i = Image.open('tiles_out/4//y001_x000.jpg')
+						print i.size
+					print 'Source image %s width %d, height %d' % (src, img.width(), img.height())
 					if mode is None:
-						mode = img.mode()
-					elif img.mode() != mode:
+						mode = img.get_mode()
+					elif img.get_mode() != mode:
 						raise Exception('mode mismatch')
 					if tw is None:
 						tw = img.width()
@@ -345,24 +353,34 @@ class PImage:
 		width = tw * cols
 		height = th * rows
 		#ret = PImage.from_blank(width, height, mode=mode):
+		print 'New image width %d, height %d from %d pix * %d cols, %d pix * %d rows' % (width, height, tw, cols, th, rows)
 		ret = Image.new(mode, (width, height))
 		for rowi in range(rows):
 			for coli in range(cols):
 				src = images_in[rowi][coli]
-				ret.paste(src.to_image(), (coli * tw, rowi * th))
+				# Allowed to be empty
+				if src:
+					# (left, upper)
+					cpix = coli * tw
+					rpix = rowi * th
+					print '%s => (row %d / %d pix, col %d / %d pix)' % (src.file_name(), rowi, rpix, coli, cpix)
+					ret.paste(src.to_image(), (cpix, rpix))
 		
 		return PImage.from_image(ret)
 		
 	@staticmethod
-	def from_unknown(image):
+	def from_unknown(image, trim=False):
 		if isinstance(image, str):
-			return PImage.from_file(image).trim()
+			ret = PImage.from_file(image)
 		elif isinstance(image, PImage):
-			return image
+			ret = image
 		elif isinstance(image, image.Image):
-			return PImage.from_image(image).trim()
+			ret = PImage.from_image(image)
 		else:
 		   raise Exception("unknown parameter: %s" % repr(image))
+		if trim:
+			ret = ret.trim()
+		return ret
 
 	@staticmethod
 	def get_default_mode():
@@ -443,9 +461,6 @@ class PImage:
 		return filename.find('.tif') > 0 or filename.find('.jpg') > 0 or filename.find('.png') > 0 or filename.find('.bmp') > 0
 
 class TempPImage:
-	file_name = None
-	pimage = None
-	
 	def __init__(self, file_name):
 		if file_name:
 			self.file_name = file_name

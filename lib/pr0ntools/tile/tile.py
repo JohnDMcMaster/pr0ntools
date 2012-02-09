@@ -15,7 +15,9 @@ from pr0ntools.stitch.grid_stitch import GridStitch
 from pr0ntools.stitch.fortify_stitch import FortifyStitch
 from pr0ntools.execute import Execute
 import Image
-
+from pr0ntools.stitch.image_coordinate_map import ImageCoordinateMap
+import shutil
+import math
 '''
 Take a single large image and break it into tiles
 '''
@@ -61,9 +63,9 @@ class ImageTiler:
 		Images must be padded
 		If they aren't they will be stretched in google maps
 		'''
-		if ip.width() != t_width or ip.height() != t_height:
+		if ip.width() != self.tw or ip.height() != self.th:
 			print 'WARNING: %s: expanding partial tile (%d X %d) to full tile size' % (nfn, ip.width(), ip.height())
-			ip.set_canvas_size(t_width, t_height)
+			ip.set_canvas_size(self.tw, self.th)
 		ip.image.save(nfn)
 		
 	def run(self):
@@ -101,56 +103,70 @@ class TileTiler:
 	def prep_out_dir_base(self):
 		if self.out_dir_base is None:
 			self.out_dir_base = 'tiles_out/'
-		if os.path.exists(out_dir_base):
-			os.system('rm -rf %s' % out_dir_base)
-		os.mkdir(out_dir_base)
+		if os.path.exists(self.out_dir_base):
+			os.system('rm -rf %s' % self.out_dir_base)
+		os.mkdir(self.out_dir_base)
 
-	def get_old(self, col, row):
-		return self.map.get_image(col, row)
+	def get_old(self, row, col):
+		# Because we are shrinking there isn't necessarily an old tile around the edges
+		return self.map.get_image_safe(col, row)
 
 	def get_fn(self, row, col):
 		return '%s/%d/y%03d_x%03d%s' % (self.out_dir_base, self.zoom_level, row, col, self.out_extension)
 
 	def run(self):
 		self.prep_out_dir_base()
-		t_width = 256
-		t_height = 256
+		t_width = 250
+		t_height = 250
 		
-		for self.zoom_level in xrange(max_level, min_level - 1, -1):
+		for self.zoom_level in xrange(self.max_level, self.min_level - 1, -1):
 			print
 			print '************'
-			print 'Zoom level %d' % zoom_level
-			out_dir = '%s/%d' % (out_dir_base, zoom_level)
+			print 'Zoom level %d' % self.zoom_level
+			out_dir = '%s/%d' % (self.out_dir_base, self.zoom_level)
 			if os.path.exists(out_dir):
 				os.system('rm -rf %s' % out_dir)
 			os.mkdir(out_dir)
 			
 			# For the first level we copy things over
-			if zoom_level == max_level:
+			if self.zoom_level == self.max_level:
 				for (img_fn, row, col) in self.map.images():
 					dst = self.get_fn(row, col)
+					print 'Direct copying %s => %s' % (img_fn, dst)
 					shutil.copy(img_fn, dst)
 			# Additional levels we take the image coordinate map and shrink
 			else:
 				# Prepare a new image coordinate map so we can form the next tile set
-				new_cols = math.ceil(self.map.width() / self.zoom_factor)
-				new_rows = math.ceil(self.map.height() / self.zoom_factor)
+				new_cols = int(math.ceil(1.0 * self.map.width() / self.zoom_factor))
+				new_rows = int(math.ceil(1.0 * self.map.height() / self.zoom_factor))
+				print 'Shrink by %s: cols %s => %s, rows %s => %s' % (str(self.zoom_factor), self.map.width(), new_cols, self.map.height(), new_rows)
+				if 0:
+					print
+					self.map.debug_print()
+					print
 				new_map = ImageCoordinateMap(new_cols, new_rows)
-				for new_row in new_rows:
+				todo = new_rows * new_cols
+				this = 0
+				for new_row in xrange(new_rows):
 					old_row = new_row * self.zoom_factor
-					for col in new_cols:
+					for new_col in xrange(new_cols):
+						this += 1
 						old_col = new_col * self.zoom_factor
+						print
+						print 'z%d %d/%d: transforming row %d => %d, col %d => %d' % (self.zoom_level, this, todo, old_row, new_row, old_col, new_col)
 						# Paste the old (4) images together
 						imgp = PImage.from_filename_array([[self.get_old(old_row + 0, old_col + 0), self.get_old(old_row + 0, old_col + 1)],
 								[self.get_old(old_row + 1, old_col + 0), self.get_old(old_row + 1, old_col + 1)]])
 						if imgp.width() != t_width * self.zoom_factor or imgp.height() != t_height * self.zoom_factor:
+							print 'New image width %d, height: %d from tile width %d, height %d' % (imgp.width(), imgp.height(), t_width, t_height)
 							raise Exception('Combined image incorrect size')
-						scaled = imgp.get_scaled(0.5, file=Image.ANTIALIAS)
+						scaled = imgp.get_scaled(0.5, filt=Image.ANTIALIAS)
 						if scaled.width() != t_width or scaled.height() != t_height:
 							raise Exception('Scaled image incorrect size')
-						
 						new_fn = self.get_fn(new_row, new_col)
-						new_map.set_image(new_col, new_row)
+						scaled.save(new_fn)
+						#sys.exit(1)
+						new_map.set_image(new_col, new_row, new_fn)
 				# Next shrink will be on the previous tile set, not the original
 				self.map = new_map
 # replaces from_single

@@ -62,12 +62,12 @@ class TileMapSource(MapSource):
 		
 		tw = 256
 		th = 256
-		file_names = set()
+		self.file_names = set()
 		for f in os.listdir(dir_in):
-			file_names.add(dir_in + "/" + f)
+			self.file_names.add(dir_in + "/" + f)
 		
 		self.dir_in = dir_in
-		self.map = ImageCoordinateMap.from_tagged_file_names(file_names)
+		self.map = ImageCoordinateMap.from_tagged_file_names(self.file_names)
 		
 		self.x_tiles = self.map.width()
 		self.y_tiles = self.map.height()
@@ -92,7 +92,8 @@ class TileMapSource(MapSource):
 		return self.th * self.y_tiles
 	
 	def generate_tiles(self, max_level, min_level, out_dir_base):
-		TileTiler(file_names, max_level, min_level, out_dir_base=out_dir_base)
+		print 'From multi tiles'
+		TileTiler(self.file_names, max_level, min_level, out_dir_base=out_dir_base).run()
 	
 class Map:
 	def __init__(self, source):
@@ -286,7 +287,7 @@ siMap.setOptions({
 
 
 </script>
-''' % (self.map_type(), self.type_obj_name(), self.map_type(), self.type_obj_name(), self.map_type())
+''' % (self.type_obj_name(), self.type_obj_name(), self.type_obj_name(), self.type_obj_name(), self.map_type())
 
 	def footer(self):
 		return '''
