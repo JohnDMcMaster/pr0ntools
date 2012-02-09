@@ -67,6 +67,16 @@ panotools wiki says that hugin should be able to output cropped but I don't see 
 from pr0ntools.execute import Execute
 import os
 
+def get_nona_files(output_prefix, max_images):
+	ret = set()
+	'''Get all the files that nona could have generated based on what exists'''
+	# The images shouldn't change, use the old loaded project
+	for i in xrange(max_images):
+		fn = '%s%04d.tif' % (output_prefix, i)
+		if os.path.exists(fn):	
+			ret.add(fn)
+	return ret
+
 class Remapper:
 	TIFF_SINGLE = "TIFF_m"
 	TIFF_MULTILAYER = "TIFF_multilayer"
@@ -101,6 +111,12 @@ class Remapper:
 		
 	def remap(self):
 		project = self.pto_project.copy()
+		old_files = get_nona_files(self.output_prefix, len(self.pto_project.get_image_lines()))
+		# For my purposes right now I think this will always be 0
+		if len(old_files) != 0:
+			print old_files
+			raise Exception('Found some old files')
+		
 		args = list()
 		args.append("-m")
 		args.append(self.image_type)
@@ -135,13 +151,20 @@ class Remapper:
 			self.output_files = [self.output_prefix + '.tif']
 		elif self.image_type == Remapper.TIFF_SINGLE:
 			self.output_files = list()
-			# The images shouldn't change, use the old loaded project
-			for i in range(len(self.pto_project.get_image_lines())):
-				fn = '%s%04d.tif' % (self.output_prefix, i)
-				print 'Think we generated file %s' % fn
-				if not os.path.exists(fn):
-					raise Exception('Missing output file %s' % fn)
-				self.output_files.append(fn)
+			# This algorithm breaks down once you start doing cropping
+			if 0:
+				# The images shouldn't change, use the old loaded project
+				for i in range(len(self.pto_project.get_image_lines())):
+					fn = '%s%04d.tif' % (self.output_prefix, i)
+					print 'Think we generated file %s' % fn
+					if not os.path.exists(fn):
+						raise Exception('Missing output file %s' % fn)
+					self.output_files.append(fn)
+			new_files = get_nona_files(self.output_prefix, len(self.pto_project.get_image_lines()))
+			self.output_files = new_files.difference(old_files)
+			print 'Think nona just generated files (%d new - %d old = %d delta):' % (len(new_files), len(old_files), len(self.output_files))
+			for f in sorted(list(self.output_files)):
+				print '  %s' % f
 		else:
 			raise Exception('bad image type')
 	def get_output_files(self):

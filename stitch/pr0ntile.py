@@ -53,19 +53,23 @@ If a lower res image was availible it might be nice to match features and scale 
 
 import sys 
 import os.path
-from pr0ntools.tile.tile import from_single
+from pr0ntools.tile.tile import SingleTiler, TileTiler
+from pr0ntools.stitch.tiler import Tiler
 from pr0ntools.stitch.wander_stitch import WanderStitch
 from pr0ntools.stitch.grid_stitch import GridStitch
 from pr0ntools.stitch.fortify_stitch import FortifyStitch
 from pr0ntools.execute import Execute
+from pr0ntools.stitch.pto.project import PTOProject
 
 VERSION = '0.1'
 
 
 def usage():
+	print 'pr0ntile: generate tiles'
+	print 'Usage:'
 	print 'pr0ntile <image file names>'
-	print 'single file name will expect one gigantic input'
-	print 'multiple file names will be stitched together and must overlap'
+	print 'single file name will expect one gigantic input.  .pto will stitch from tile'
+	print 'FIXME broken: multiple file names (TODO: or directory) will be stitched together and must overlap'
 
 
 if __name__ == "__main__":
@@ -75,23 +79,26 @@ if __name__ == "__main__":
 		#	files_in.append(
 		files_in += sys.argv[1:len(sys.argv)]
 		print 'Processing files %s' % str(files_in)
-		from_multi(files_in, max_level, min_level)
+		TileTiler(files_in, max_level, min_level).run()
 	elif len(sys.argv) == 2:
-		min_level = 0
-		max_level = 3
-		'''
-		Test file is the carved out metal sample of the 6522
-		It is 5672 x 4373 pixels
-		I might do a smaller one first
-		'''
-		#fn = 'xc9536xl_vqg44awn1105__neo50xulwd__semipol_lev_noz_dirty.jpg'
-		if len(sys.argv) < 2:
-			#fn = '1024x1024.jpg'
-			# filename I typically put out from hugin
-			fn = 'out.jpg'
+		fn = sys.argv[1]
+		if fn.find('.pto') > 0:
+			print 'Assuming input is pto project to be stitched'
+			project = PTOProject.parse_from_file_name(fn)
+			print 'Creating tiler'
+			t = Tiler(project, 'out')
+			print 'Running tiler'
+			t.run()
+			print 'Tiler done!'
 		else:
-			fn = sys.argv[1]
-		from_single(fn, max_level, min_level)
+			print 'Assuming input is image file'
+			'''
+			Test file is the carved out metal sample of the 6522
+			It is 5672 x 4373 pixels
+			I might do a smaller one first
+			'''
+			#fn = 'xc9536xl_vqg44awn1105__neo50xulwd__semipol_lev_noz_dirty.jpg'
+			SingleTiler(fn, max_level, min_level).run()
 	else:
 		usage()
 		sys.exit(1)

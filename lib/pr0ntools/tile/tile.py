@@ -18,6 +18,27 @@ import Image
 from pr0ntools.stitch.image_coordinate_map import ImageCoordinateMap
 import shutil
 import math
+
+def calc_max_level_from_image(image, zoom_factor=None):
+	return calc_max_level(image.height(), image.width(), zoom_factor)
+
+def calc_max_level(height, width, zoom_factor=None):
+	if zoom_factor is None:
+		zoom_factor = 2
+	'''
+	Calculate such that max level is a nice screen size
+	Lets be generous for small viewers...especially considering limitations of mobile devices
+	'''
+	fit_width = 640
+	fit_height = 480
+	
+	width_levels = math.ceil(math.log(width, zoom_factor) - math.log(fit_width, zoom_factor))
+	height_levels = math.ceil(math.log(height, zoom_factor) - math.log(fit_height, zoom_factor))
+	max_level = int(max(width_levels, height_levels, 0))
+	# Take the number of zoom levels required to fit the entire thing on screen
+	print 'Calc max zoom level for %d X %d screen: %d (wmax: %d lev / %d pix, hmax: %d lev / %d pix)' % (fit_width, fit_height, max_level, width_levels, width, height_levels, height)
+	return max_level
+
 '''
 Take a single large image and break it into tiles
 '''
@@ -171,7 +192,7 @@ class TileTiler:
 				self.map = new_map
 # replaces from_single
 class SingleTiler:
-	def __init__(self, fn, max_level, min_level = 0, out_dir_base=None):
+	def __init__(self, fn, max_level = None, min_level = None, out_dir_base=None):
 		self.fn = fn
 		self.max_level = max_level
 		self.min_level = min_level
@@ -182,7 +203,12 @@ class SingleTiler:
 		max_level = self.max_level
 		min_level = self.min_level
 		out_dir_base = self.out_dir_base
-	
+
+		if min_level is None:
+			min_level = 0
+		i = PImage.from_file(fn)
+		if max_level is None:
+			max_level = calc_max_level_from_image(i)
 	
 		t_width = 256
 		t_height = 256
@@ -201,7 +227,6 @@ class SingleTiler:
 		It is 5672 x 4373 pixels
 		I might do a smaller one first
 		'''
-		i = PImage.from_file(fn)
 		if os.path.exists(out_dir_base):
 			os.system('rm -rf %s' % out_dir_base)
 		os.mkdir(out_dir_base)

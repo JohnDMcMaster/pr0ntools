@@ -1,5 +1,5 @@
 from pr0ntools.pimage import PImage
-from pr0ntools.tile.tile import SingleTiler, TileTiler
+from pr0ntools.tile.tile import SingleTiler, TileTiler, calc_max_level_from_image
 from pr0ntools.stitch.image_coordinate_map import ImageCoordinateMap
 import os
 import os.path
@@ -299,19 +299,7 @@ siMap.setOptions({
 		return 2
 
 	def calc_max_level(self):
-		'''
-		Calculate such that max level is a nice screen size
-		Lets be generous for small viewers...especially considering limitations of mobile devices
-		'''
-		fit_width = 640
-		fit_height = 480
-		
-		image = self.image
-		width_levels = math.ceil(math.log(self.width(), self.zoom_factor()) - math.log(fit_width, self.zoom_factor()))
-		height_levels = math.ceil(math.log(self.height(), self.zoom_factor()) - math.log(fit_height, self.zoom_factor()))
-		self.max_level = int(max(width_levels, height_levels, 0))
-		# Take the number of zoom levels required to fit the entire thing on screen
-		print 'Calc max zoom level for %d X %d screen: %d (wmax: %d lev / %d pix, hmax: %d lev / %d pix)' % (fit_width, fit_height, self.max_level, width_levels, self.width(), height_levels, self.height())
+		self.max_level = calc_max_level_from_image(self.image)
 
 	def gen_js(self):
 		if self.page_title is None:
