@@ -38,6 +38,6 @@ if __name__ == "__main__":
 	m.max_level = args.level_max
 	m.out_dir = args.out_dir
 	m.js_only = args.js_only
-	m.skip_missing = skip_missing
+	m.skip_missing = args.skip_missing
 	m.generate()
 
