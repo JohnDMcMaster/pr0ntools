@@ -155,9 +155,30 @@ class Tiler:
 		else:
 			self.super_th = super_th
 		
+		
+		
+		'''
+		We won't stitch any tiles in the buffer zone
+		We don't stitch on the right to the current supertile and won't stitch to the left on the next supertile
+		So, we must take off 2 clip widths to get a safe area
+		We probably only have to take off one tw, I haven't thought about it carefully enough
+		
+		If you don't do this you will not stitch anything in the center that isn't perfectly aligned
+		Will get worse the more tiles you create
+		'''
+		if 0:
+			self.super_t_xstep = self.super_tw
+			self.super_t_ystep = self.super_th
+		else:
+			self.super_t_xstep = self.super_tw - 2 * self.clip_width - 2 * self.tw
+			self.super_t_ystep = self.super_th - 2 * self.clip_height - 2 * self.th
+		
+		
+		
 		print 'Input images width %d, height %d' % (img_width, img_height)
 		print 'Output to %s' % self.out_dir
 		print 'Super tile width %d, height %d from scalar %d' % (self.super_tw, self.super_th, st_scalar_heuristic)
+		print 'Super tile x step %d, y step %d' % (self.super_t_xstep, self.super_t_ystep)
 		print 'Supertile clip width %d, height %d' % (self.clip_width, self.clip_height)
 		
 		# We build this in run
@@ -273,26 +294,27 @@ class Tiler:
 			print 'Y check skip (%d): bottom border' % y1
 			skip_yh_check = True
 			
-		for x in xrange(xt0, xt1, txstep):			 	
+		for y in xrange(yt0, yt1, tystep):
 			# Are we trying to construct a tile in the buffer zone?
-			if (not skip_xl_check) and x < x0 + self.clip_width:
-				print 'Rejecting tiles @ x%d: xl clip' % (x)
+			if (not skip_yl_check) and y < y0 + self.clip_height:
+				print 'Rejecting tile @ y%d, x*: yl clip' % (y)
 				continue
-			if (not skip_xh_check) and x + self.tw >= x1 - self.clip_width:
-				print 'Rejecting tiles @ x%d: xh clip' % (x)
+			if (not skip_yh_check) and y + self.th >= y1 - self.clip_height:
+				print 'Rejecting tile @ y%d, x*: yh clip' % (y)
 				continue
-				
-			col = self.x2col(x)
-			for y in xrange(yt0, yt1, tystep):
+			# If we made it this far the tile can be constructed with acceptable enblend artifacts
+			row = self.y2row(y)
+			for x in xrange(xt0, xt1, txstep):			 	
 				# Are we trying to construct a tile in the buffer zone?
-				if (not skip_yl_check) and y < y0 + self.clip_height:
-					print 'Rejecting tile @ x%d, y%d: yl clip' % (x, y)
+				if (not skip_xl_check) and x < x0 + self.clip_width:
+					print 'Rejecting tiles @ y%d, x%d: xl clip' % (y, x)
 					continue
-				if (not skip_yh_check) and y + self.th >= y1 - self.clip_height:
-					print 'Rejecting tile @ x%d, y%d: yh clip' % (x, y)
+				if (not skip_xh_check) and x + self.tw >= x1 - self.clip_width:
+					print 'Rejecting tiles @ y%d, x%d: xh clip' % (y, x)
 					continue
-				# If we made it this far the tile can be constructed with acceptable enblend artifacts
-				row = self.y2row(y)
+				
+				col = self.x2col(x)
+				
 				# Did we already do this tile?
 				if self.is_done(row, col):
 					# No use repeating it although it would be good to diff some of these
@@ -356,11 +378,29 @@ class Tiler:
 	def tiles_done(self):
 		return len(self.closed_list)
 	
-	def width(self):
-		return abs(self.right() - self.left())
+	def gen_open_list(self):
+		open_list = set()
+		for y in xrange(self.rows()):
+			for x in xrange(self.cols()):
+				if not self.is_done(y, x):
+					yield (y, x)
 	
+	def dump_open_list(self):
+		print 'Open list:'
+		for (row, col) in self.gen_open_list():
+			print '  r%d c%d' % (row, col)
+			
+	def rows(self):
+		return int(math.ceil(self.height() / self.th))
+	
+	def cols(self):
+		return int(math.ceil(self.width() / self.tw))
+			
 	def height(self):
 		return abs(self.top() - self.bottom())
+	
+	def width(self):
+		return abs(self.right() - self.left())
 	
 	def left(self):
 		return self.x0
@@ -389,36 +429,39 @@ class Tiler:
 	def gen_supertiles(self):
 		# 0:256 generates a 256 width pano
 		# therefore, we don't want the upper bound included
-		#col = 0
-		x_done = False
-		for x in xrange(self.left(), self.right(), self.super_tw):
-			x0 = x
-			x1 = x + self.super_tw
-			# If we have reached the right side align to it rather than truncating
-			# This makes blending better to give a wider buffer zone
-			if x1 >= self.right():
-				x_done = True
-				x0 = self.right() - self.super_tw
-				x1 = self.right()
 			
-			#row = 0
-			y_done = False
-			for y in xrange(self.top(), self.bottom(), self.super_th):
-				y0 = y
-				y1 = y + self.super_th
-				if y1 >= self.bottom():
-					y_done = True
-					y0 = self.bottom() - self.super_th
-					y1 = self.bottom()
+		#row = 0
+		y_done = False
+		for y in xrange(self.top(), self.bottom(), self.super_t_ystep):
+			y0 = y
+			y1 = y + self.super_th
+			if y1 >= self.bottom():
+				y_done = True
+				y0 = self.bottom() - self.super_th
+				y1 = self.bottom()
+				
+			#col = 0
+			x_done = False
+			for x in xrange(self.left(), self.right(), self.super_t_xstep):
+				x0 = x
+				x1 = x + self.super_tw
+				# If we have reached the right side align to it rather than truncating
+				# This makes blending better to give a wider buffer zone
+				if x1 >= self.right():
+					x_done = True
+					x0 = self.right() - self.super_tw
+					x1 = self.right()
 				
 				yield [x0, x1, y0, y1]
-				#row +=1 	
-				if y_done:
+				
+				#col += 1
+				if x_done:
 					break
-			#col += 1
-			if x_done:
+			#row +=1 	
+			if y_done:
 				break
-
+		print 'All supertiles generated'
+		
 	def run(self):
 		if not self.dry:
 			self.dry = True
@@ -442,8 +485,9 @@ class Tiler:
 		print 'Net - left: %d, right: %d, top: %d, bottom: %d' % (self.left(), self.right(), self.top(), self.bottom())
 		
 		if os.path.exists(self.out_dir):
-			if self.force and not self.dry:
-				shutil.rmtree(self.out_dir)
+			if self.force:
+				if not self.dry:
+					shutil.rmtree(self.out_dir)
 			else:
 				raise Exception("Must set force to override output")
 		if not self.dry:
@@ -467,5 +511,7 @@ class Tiler:
 			self.try_supertile(x0, x1, y0, y1)
 
 		if self.tiles_done() != net_tiles:
-			raise Exception('Expected to do %d basic tiles but did %d' % (net_tiles, self.tiles_done()))
+			print 'ERROR: expected to do %d basic tiles but did %d' % (net_tiles, self.tiles_done())
+			self.dump_open_list()
+			raise Exception('State mismatch')
 
