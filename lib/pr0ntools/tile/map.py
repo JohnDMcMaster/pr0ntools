@@ -106,6 +106,8 @@ class Map:
 		self.max_level = None
 		self.min_level = 0
 		self.image = None
+		# don't error on missing tiles in grid
+		self.skip_missing
 		
 	def header(self):
 		return '''	

@@ -45,6 +45,7 @@ from pr0ntools.stitch.remapper import Remapper
 from pr0ntools.stitch.blender import Blender
 from pr0ntools.stitch.pto.project import PTOProject
 from image_coordinate_map import ImageCoordinateMap
+from pr0ntools.config import config
 from pr0ntools.temp_file import ManagedTempFile
 from pr0ntools.temp_file import ManagedTempDir
 #from pr0ntiles.tile import Tiler as TilerCore
@@ -107,6 +108,10 @@ class PartialStitcher:
 		print 'Supertile phase 2: blending (enblend)'
 		blender = Blender(remapper.get_output_files(), self.out)
 		blender.run()
+		# We are done with these files, they should be nuked
+		if not config.keep_temp_files():
+			for f in remapper.get_output_files():
+				os.remove(f)
 		
 		print 'Supertile ready!'
 
@@ -303,6 +308,7 @@ class Tiler:
 		print 'Generated %d new tiles for a total of %d in %s' % (gen_tiles, len(self.closed_list), str(bench))
 		if gen_tiles == 0:
 			raise Exception("Didn't generate any tiles")
+		# temp_file should be automatically deleted upon exit
 	
 	def get_name(self, row, col):
 		out_extension = '.jpg'
