@@ -420,6 +420,19 @@ class Tiler:
 				break
 
 	def run(self):
+		if not self.dry:
+			self.dry = True
+			print
+			print
+			print
+			print '***BEGIN DRY RUN***'
+			self.run()
+			print '***END DRY RUN***'
+			print
+			print
+			print
+			self.dry = False
+	
 		'''
 		if we have a width of 256 and 1 pixel we need total size of 256
 		If we have a width of 256 and 256 pixels we need total size of 256
@@ -429,11 +442,12 @@ class Tiler:
 		print 'Net - left: %d, right: %d, top: %d, bottom: %d' % (self.left(), self.right(), self.top(), self.bottom())
 		
 		if os.path.exists(self.out_dir):
-			if self.force:
+			if self.force and not self.dry:
 				shutil.rmtree(self.out_dir)
 			else:
 				raise Exception("Must set force to override output")
-		os.mkdir(self.out_dir)
+		if not self.dry:
+			os.mkdir(self.out_dir)
 		# in form (row, col)
 		self.closed_list = set()
 		
