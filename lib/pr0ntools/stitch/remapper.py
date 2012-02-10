@@ -146,7 +146,7 @@ class Remapper:
 			print
 			print
 			print 'Failed to remap'
-			print output
+			#print output
 			raise Exception('failed to remap')
 		#project.reopen()
 		if self.image_type == Remapper.TIFF_MULTILAYER:

@@ -151,6 +151,7 @@ class Tiler:
 			self.super_th = super_th
 		
 		print 'Input images width %d, height %d' % (img_width, img_height)
+		print 'Output to %s' % self.out_dir
 		print 'Super tile width %d, height %d from scalar %d' % (self.super_tw, self.super_th, st_scalar_heuristic)
 		print 'Supertile clip width %d, height %d' % (self.clip_width, self.clip_height)
 		
