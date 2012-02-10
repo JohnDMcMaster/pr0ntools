@@ -11,7 +11,11 @@ class Config:
 	def __init__(self, fn = None):
 		if fn is None:
 			fn = Config.get_default_fn()
-		self.json = json.loads(open(fn).read())
+		if os.path.exists(fn):
+			js = open(fn).read()
+		else:
+			js = "{}"
+		self.json = json.loads(js)
 	
 	@staticmethod
 	def get_default_fn():
@@ -25,6 +29,10 @@ class Config:
 	
 	def keep_temp_files(self):
 		return self.get('keep_temp', 0)
+
+	def enblend_opts(self):
+		return self.get('enblend', {'opts':''})['opts']
+	
 
 config = Config()
 

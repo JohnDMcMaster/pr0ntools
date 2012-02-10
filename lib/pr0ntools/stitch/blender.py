@@ -86,7 +86,7 @@ Report bugs at <http://sourceforge.net/projects/enblend/>.
 '''
 
 from pr0ntools.execute import Execute
-
+from pr0ntools.config import config
 
 class Blender:
 	def __init__(self, input_files, output_file):
@@ -132,6 +132,9 @@ class Blender:
 			args.append(arg)
 		for f in self.input_files:
 			args.append(f)
+		
+		for opt in config.enblend_opts().split():
+			args.append(opt)
 		
 		rc = Execute.show_output("enblend", args)
 		if not rc == 0:
