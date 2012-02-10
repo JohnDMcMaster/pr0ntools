@@ -133,7 +133,7 @@ class Blender:
 		for f in self.input_files:
 			args.append(f)
 		
-		(rc, output) = Execute.with_output("enblend", args)
+		rc = Execute.show_output("enblend", args)
 		if not rc == 0:
 			print
 			print
