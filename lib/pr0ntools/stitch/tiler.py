@@ -49,9 +49,11 @@ from pr0ntools.temp_file import ManagedTempFile
 from pr0ntools.temp_file import ManagedTempDir
 #from pr0ntiles.tile import Tiler as TilerCore
 from pr0ntools.pimage import PImage
+from pr0ntools.benchmark import Benchmark
 from pr0ntools.util.geometry import floor_mult, ceil_mult
 import os
 import math
+import shutil
 
 
 class PartialStitcher:
@@ -63,6 +65,10 @@ class PartialStitcher:
 	def run(self):
 		'''
 		Phase 1: remap the relevant source image areas onto a canvas
+		
+		Note that nona will load ALL of the images (one at a time)
+		but will only generate output for those that matter
+		Each one takes a noticible amount of time but its relatively small compared to the time spent actually mapping images
 		'''
 		print
 		print 'Supertile phase 1: remapping (nona)'
@@ -107,7 +113,7 @@ class PartialStitcher:
 # For managing the closed list		
 
 class Tiler:
-	def __init__(self, pto, out_dir, tile_width=250, tile_height=250, st_scalar_heuristic=4, dry=False):
+	def __init__(self, pto, out_dir, tile_width=250, tile_height=250, st_scalar_heuristic=4, dry=False, super_tw=None, super_th=None):
 		img_width = None
 		img_height = None
 		self.dry = dry
@@ -128,12 +134,21 @@ class Tiler:
 		self.tw = tile_width
 		self.th = tile_height
 		
+		# Delete files in the way?
+		self.force = False
+		
 		self.set_size_heuristic(img_width, img_height)
 		# These are less related
 		# They actually should be set as high as you think you can get away with
 		# Although setting a smaller number may have higher performance depending on input size
-		self.super_tw = img_width * st_scalar_heuristic
-		self.super_th = img_height * st_scalar_heuristic
+		if super_tw is None:
+			self.super_tw = img_width * st_scalar_heuristic
+		else:
+			self.super_tw = super_tw
+		if super_th is None:
+			self.super_th = img_height * st_scalar_heuristic
+		else:
+			self.super_th = super_th
 		
 		print 'Input images width %d, height %d' % (img_width, img_height)
 		print 'Super tile width %d, height %d from scalar %d' % (self.super_tw, self.super_th, st_scalar_heuristic)
@@ -177,6 +192,7 @@ class Tiler:
 		print
 		print
 		print "Creating supertile %d / %d with x%d:%d, y%d:%d" % (self.n_supertiles, self.n_expected_supertiles, x0, x1, y0, y1)
+		bench = Benchmark()
 		
 		temp_file = ManagedTempFile.get(None, '.tif')
 
@@ -282,7 +298,8 @@ class Tiler:
 				# row and col on the other hand are used for global naming
 				self.make_tile(img, x - x0, y - y0, row, col)
 				gen_tiles += 1
-		print 'Generated %d new tiles for a total of %d' % (gen_tiles, len(self.closed_list))
+		bench.stop()
+		print 'Generated %d new tiles for a total of %d in %s' % (gen_tiles, len(self.closed_list), str(bench))
 		if gen_tiles == 0:
 			raise Exception("Didn't generate any tiles")
 	
@@ -404,6 +421,11 @@ class Tiler:
 		print 'Tile width: %d, height: %d' % (self.tw, self.th)
 		print 'Net - left: %d, right: %d, top: %d, bottom: %d' % (self.left(), self.right(), self.top(), self.bottom())
 		
+		if os.path.exists(self.out_dir):
+			if self.force:
+				shutil.rmtree(self.out_dir)
+			else:
+				raise Exception("Must set force to override output")
 		os.mkdir(self.out_dir)
 		# in form (row, col)
 		self.closed_list = set()

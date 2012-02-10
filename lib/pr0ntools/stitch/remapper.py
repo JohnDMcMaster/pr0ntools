@@ -132,13 +132,15 @@ class Remapper:
 				#pl.save()
 				crop_opt = "r:CROP"
 		pl.set_variable("n", "%s %s %s" % (self.image_type, crop_opt, self.compression_opt))
+		args.append("-verbose")
 		args.append("-z")
 		args.append("LZW")
 		#args.append("-g")
 		args.append("-o")
 		args.append(self.output_prefix)
 		args.append(project.get_a_file_name())
-		(rc, output) = Execute.with_output("nona", args)
+		#(rc, output) = Execute.with_output("nona", args)
+		rc = Execute.show_output("nona", args)
 		if not rc == 0:
 			print
 			print

@@ -273,7 +273,7 @@ class ImageLine(line.Line):
 		if to is None:
 			to = os.getcwd()
 		path = to + "/" + os.path.basename(self.get_name())
-		print 'Making absolute image name: %s' % path
+		#print 'Making absolute image name: %s' % path
 		self.set_name(path)
 		
 	def make_relative(self, to):
