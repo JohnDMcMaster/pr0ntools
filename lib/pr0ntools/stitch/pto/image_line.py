@@ -118,6 +118,9 @@ class ImageLine(line.Line):
 	#-hugin  cropFactor=6.05334
 	i w2816 h2112 f0 Eb1 Eev0 Er1 Ra0 Rb0 Rc0 Rd0 Re0 Va1 Vb0 Vc0 Vd0 Vx0 Vy0 a0 b-0.01 c0 d0 e-964.732609921273 g0 p0 r90 t0 v18.6619860596508 y12  Vm5 u10 n"data/c0_r0.jpg"
 	
+	i w3264 h2448 f0 v51 Ra0 Rb0 Rc0 Rd0 Re0 Eev0 Er1 Eb1 r0 p0 y0 TrX0 TrY0 TrZ0 j0 a0 b0 c0 d-0 e-0 g-0 t-0 Va1 Vb0 Vc0 Vd0 Vx-0 Vy-0  Vm5 n"c0000_r0000.jpg"
+		where did TrX,.. entries come from?
+	
 	to script creation
 	"i w h f Eb Eev Er Ra Rb Rc Rd Re Va Vb Vc Vd Vx Vy a b c d e g p r t v y Vm u n".split()
 	'''
@@ -227,12 +230,12 @@ class ImageLine(line.Line):
 		
 	def variable_print_order(self):
 		# i w2816 h2112 f0 Eb1 Eev0.463243792953809 Er1 Ra0 Rb0 Rc0 Rd0 Re0 Va1 Vb0.460215357389621 Vc-0.596925841345566 Vd0.120459501533104 Vx-0 Vy-0 a0 b0 c0 d-0 e-0 g-0 p0 r0 t-0 v51 y0  Vm5 u10 n"x00022_y00339.jpg"
-		return list(['w', 'h', 'f', 'Eb', 'Eev', 'Er', 'Ra', 'Rb', 'Rc', 'Rd', 'Re', 'Va', 'Vb', 'Vc', 'Vd', 'Vx', 'Vy', 'a', 'b', 'c', 'd', 'e', 'g', 'p', 'r', 't', 'v', 'y', 'Vm', 'u', 'n'])
+		return list(['w', 'h', 'f', 'Eb', 'Eev', 'Er', 'Ra', 'Rb', 'Rc', 'Rd', 'Re', 'Va', 'Vb', 'Vc', 'Vd', 'Vx', 'Vy', 'a', 'b', 'c', 'd', 'e', 'g', 'p', 'r', 't', 'v', 'y', 'TrX', 'TrY', 'TrZ', 'Vm', 'u', 'n'])
 	
 	def key_variables(self):
 		return set()
 	def int_variables(self):
-		return set(['w', 'h', 'f', 'g', 't', 'Vm', 'u'])
+		return set(['w', 'h', 'f', 'g', 't', 'Vm', 'u', 'TrX', 'TrY', 'TrZ'])
 	def float_variables(self):
 		return set(['Eb', 'Eev', 'Er', 'Ra', 'Rb', 'Rc', 'Rd', 'Re', 'Va', 'Vb', 'Vc', 'Vd', 'Vx', 'Vy', 'a', 'b', 'c', 'd', 'e', 'p', 'r', 'v', 'y'])
 	def string_variables(self):
