@@ -310,7 +310,11 @@ class PImage:
 		th = None
 		mode = None
 		
-		#print "Constructing parent tile"
+		def dbg(s):
+			if 0:
+				print s
+		
+		dbg("Constructing parent tile")
 		'''
 		This layout allows for
 		dat = [[imgA, imgB],
@@ -327,14 +331,11 @@ class PImage:
 				# Ensure its a PImge object
 				src = images_in[rowi][coli]
 				if not src is None:
-					print src
+					#print src
 					img = PImage.from_unknown(src)
-					print img.image.size
+					#print img.image.size
 					# img.file_name()
-					if 1:
-						i = Image.open('tiles_out/4//y001_x000.jpg')
-						print i.size
-					print 'Source image %s width %d, height %d' % (src, img.width(), img.height())
+					#print 'Source image %s width %d, height %d' % (src, img.width(), img.height())
 					if mode is None:
 						mode = img.get_mode()
 					elif img.get_mode() != mode:
@@ -353,7 +354,7 @@ class PImage:
 		width = tw * cols
 		height = th * rows
 		#ret = PImage.from_blank(width, height, mode=mode):
-		print 'New image width %d, height %d from %d pix * %d cols, %d pix * %d rows' % (width, height, tw, cols, th, rows)
+		dbg('New image width %d, height %d from %d pix * %d cols, %d pix * %d rows' % (width, height, tw, cols, th, rows))
 		ret = Image.new(mode, (width, height))
 		for rowi in range(rows):
 			for coli in range(cols):
@@ -363,7 +364,7 @@ class PImage:
 					# (left, upper)
 					cpix = coli * tw
 					rpix = rowi * th
-					print '%s => (row %d / %d pix, col %d / %d pix)' % (src.file_name(), rowi, rpix, coli, cpix)
+					dbg('%s => (row %d / %d pix, col %d / %d pix)' % (src.file_name(), rowi, rpix, coli, cpix))
 					ret.paste(src.to_image(), (cpix, rpix))
 		
 		return PImage.from_image(ret)

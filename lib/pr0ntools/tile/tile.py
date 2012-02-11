@@ -114,6 +114,7 @@ Creates smaller tiles from source tiles
 class TileTiler:
 	def __init__(self, file_names, max_level, min_level = 0, out_dir_base=None):
 		self.map = ImageCoordinateMap.from_tagged_file_names(file_names)
+		#self.map.debug_print()
 		self.max_level = max_level
 		self.min_level = min_level
 		self.out_dir_base = out_dir_base
@@ -160,7 +161,7 @@ class TileTiler:
 				# Prepare a new image coordinate map so we can form the next tile set
 				new_cols = int(math.ceil(1.0 * self.map.width() / self.zoom_factor))
 				new_rows = int(math.ceil(1.0 * self.map.height() / self.zoom_factor))
-				print 'Shrink by %s: cols %s => %s, rows %s => %s' % (str(self.zoom_factor), self.map.width(), new_cols, self.map.height(), new_rows)
+				#print 'Shrink by %s: cols %s => %s, rows %s => %s' % (str(self.zoom_factor), self.map.width(), new_cols, self.map.height(), new_rows)
 				if 0:
 					print
 					self.map.debug_print()
@@ -173,7 +174,7 @@ class TileTiler:
 					for new_col in xrange(new_cols):
 						this += 1
 						old_col = new_col * self.zoom_factor
-						print
+						#print
 						print 'z%d %d/%d: transforming row %d => %d, col %d => %d' % (self.zoom_level, this, todo, old_row, new_row, old_col, new_col)
 						# Paste the old (4) images together
 						imgp = PImage.from_filename_array([[self.get_old(old_row + 0, old_col + 0), self.get_old(old_row + 0, old_col + 1)],
@@ -189,6 +190,7 @@ class TileTiler:
 						#sys.exit(1)
 						new_map.set_image(new_col, new_row, new_fn)
 				# Next shrink will be on the previous tile set, not the original
+				print 'Rotating image map'
 				self.map = new_map
 # replaces from_single
 class SingleTiler:

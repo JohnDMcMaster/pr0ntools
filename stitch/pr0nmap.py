@@ -24,10 +24,11 @@ if __name__ == "__main__":
 		sys.exit(1)
 	elif len(args.images_in) == 1:
 		image_in = args.images_in[0]
-		print 'Working on singe input image %s' % image_in
 		if os.path.isdir(image_in):
+			print 'Working on directory of max zoomed tiles'
 			source = TileMapSource(image_in)
 		else:
+			print 'Working on singe input image %s' % image_in
 			source = ImageMapSource(image_in)
 	else:
 		#images_in = args.images_in
