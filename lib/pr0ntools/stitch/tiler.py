@@ -485,6 +485,8 @@ class Tiler:
 		print 'Net size: %d width X %d height = %d MP' % (self.width(), self.height(), self.width() * self.height() / 1000000)
 		print 'Net - left: %d, right: %d, top: %d, bottom: %d' % (self.left(), self.right(), self.top(), self.bottom())
 		
+		bench = Benchmark()
+		
 		if os.path.exists(self.out_dir):
 			if self.force:
 				if not self.dry:
@@ -511,8 +513,14 @@ class Tiler:
 			[x0, x1, y0, y1] = supertile
 			self.try_supertile(x0, x1, y0, y1)
 
+		bench.stop()
+		print 'Processed %d supertiles to generate %d tiles in %s' % (self.n_expected_supertiles, self.tiles_done(), str(bench))
+		tiles_s = self.tiles_done() / bench.delta_s()
+		print '%f tiles / sec, %f pix / sec' % (tiles_s, tiles_s * self.tw * self.th)
+		
 		if self.tiles_done() != net_tiles:
 			print 'ERROR: expected to do %d basic tiles but did %d' % (net_tiles, self.tiles_done())
 			self.dump_open_list()
 			raise Exception('State mismatch')
+
 

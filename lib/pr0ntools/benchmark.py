@@ -43,6 +43,12 @@ class Benchmark:
         hours = delta
         return '%02d:%02d:%02d.%04d' % (hours, minutes, seconds, fraction * 10000)
     
+    def delta_s(self):    
+        if self.end_time:
+            return self.end_time - self.start_time
+        else:
+            return time.time() - self.start_time
+    
     def __str__(self):
         if self.end_time:
             return self.time_str(self.end_time - self.start_time)
