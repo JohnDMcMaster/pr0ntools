@@ -38,6 +38,7 @@ if __name__ == "__main__":
 	parser.add_argument('--super-tw', action="store", dest="super_tw", type=int, default=None, help='Supertile width')
 	parser.add_argument('--super-th', action="store", dest="super_th", type=int, default=None, help='Supertile height')
 	parser.add_argument('--force', action="store_true", dest="force", default=False, help='Force by replacing old files')
+	parser.add_argument('--out-extension', action="store", dest="out_extension", type=str, default='.jpg', help='Select output image extension (and type), .jpg, .png, .tif, etc')
 
 	args = parser.parse_args()
 	fn = args.pto[0]
@@ -47,6 +48,7 @@ if __name__ == "__main__":
 	print 'Creating tiler'
 	t = Tiler(project, 'out', super_tw=args.super_tw, super_th=args.super_th)
 	t.force = args.force
+	t.out_extension = args.out_extension
 	print 'Running tiler'
 	t.run()
 	print 'Tiler done!'

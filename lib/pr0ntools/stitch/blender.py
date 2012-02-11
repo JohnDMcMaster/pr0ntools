@@ -142,6 +142,7 @@ class Blender:
 			print
 			print
 			print 'Failed to blend'
-			print output
+			print 'rc: %d' % rc
+			print args
 			raise Exception('failed to remap')
 

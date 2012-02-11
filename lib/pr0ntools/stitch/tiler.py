@@ -139,6 +139,9 @@ class Tiler:
 		self.tw = tile_width
 		self.th = tile_height
 		
+		#out_extension = '.png'
+		self.out_extension = '.jpg'
+				
 		# Delete files in the way?
 		self.force = False
 		
@@ -333,12 +336,10 @@ class Tiler:
 		# temp_file should be automatically deleted upon exit
 	
 	def get_name(self, row, col):
-		out_extension = '.jpg'
-		#out_extension = '.png'
 		out_dir = ''
 		if self.out_dir:
 			out_dir = '%s/' % self.out_dir
-		return '%sy%03d_x%03d%s' % (out_dir, row, col, out_extension)
+		return '%sy%03d_x%03d%s' % (out_dir, row, col, self.out_extension)
 	
 	def make_tile(self, i, x, y, row, col):
 		'''Make a tile given an image, the upper left x and y coordinates in that image, and the global row/col indices'''	
@@ -484,6 +485,7 @@ class Tiler:
 		print 'Tile width: %d, height: %d' % (self.tw, self.th)
 		print 'Net size: %d width X %d height = %d MP' % (self.width(), self.height(), self.width() * self.height() / 1000000)
 		print 'Net - left: %d, right: %d, top: %d, bottom: %d' % (self.left(), self.right(), self.top(), self.bottom())
+		print 'Output image extension: %s' % self.out_extension
 		
 		bench = Benchmark()
 		
