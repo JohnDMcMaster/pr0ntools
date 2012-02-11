@@ -161,7 +161,7 @@ class TileTiler:
 					# Presumably the conversion process for jps should be lossless although I haven't verified
 					else:
 						print 'Basic conversion %s => %s' % (img_fn, dst)
-						pi = PImage.from_filename(img_fn)
+						pi = PImage.from_file(img_fn)
 						pi.save(dst)
 					
 			# Additional levels we take the image coordinate map and shrink
