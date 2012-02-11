@@ -482,7 +482,7 @@ class Tiler:
 		if we have a width of 256 and 257 pixel we need total size of 512
 		'''
 		print 'Tile width: %d, height: %d' % (self.tw, self.th)
-		print 'Net size: %d width X %d height = %d MP' % (self.width(), self.height(), self.width() * self.height() / 1000)
+		print 'Net size: %d width X %d height = %d MP' % (self.width(), self.height(), self.width() * self.height() / 1000000)
 		print 'Net - left: %d, right: %d, top: %d, bottom: %d' % (self.left(), self.right(), self.top(), self.bottom())
 		
 		if os.path.exists(self.out_dir):
