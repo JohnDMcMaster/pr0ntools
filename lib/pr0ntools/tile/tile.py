@@ -154,8 +154,16 @@ class TileTiler:
 			if self.zoom_level == self.max_level:
 				for (img_fn, row, col) in self.map.images():
 					dst = self.get_fn(row, col)
-					print 'Direct copying %s => %s' % (img_fn, dst)
-					shutil.copy(img_fn, dst)
+					if 0:
+						print 'Direct copying %s => %s' % (img_fn, dst)
+						shutil.copy(img_fn, dst)
+					# This allows to do type conversions if needed
+					# Presumably the conversion process for jps should be lossless although I haven't verified
+					else:
+						print 'Basic conversion %s => %s' % (img_fn, dst)
+						pi = PImage.from_filename(img_fn)
+						pi.save(dst)
+					
 			# Additional levels we take the image coordinate map and shrink
 			else:
 				# Prepare a new image coordinate map so we can form the next tile set
