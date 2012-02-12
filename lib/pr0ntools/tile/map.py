@@ -331,7 +331,8 @@ siMap.setOptions({
 		# If it looks like there is old output and we are trying to re-generate js don't nuke it
 		if os.path.exists(self.out_dir) and not self.js_only:
 			os.system('rm -rf %s' % self.out_dir)
-		os.mkdir(self.out_dir)
+		if not os.path.exists(self.out_dir)
+			os.mkdir(self.out_dir)
 
 		if self.max_level is None:
 			self.calc_max_level()
