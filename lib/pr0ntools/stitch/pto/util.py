@@ -123,7 +123,7 @@ def center_anchor(pto):
 		xref = i.width() / 2.0
 		yd = abs(y - ybar)
 		yref = i.height() / 2.0
-		print 'x%d, y%d: %f <= %f and %f <= %f' % (x, y, xd, xref, yd, yref)
+		#print 'x%d, y%d: %f <= %f and %f <= %f' % (x, y, xd, xref, yd, yref)
 		if xd <= xref and yd <= yref:
 			# Found a suitable anchor
 			
@@ -131,10 +131,14 @@ def center_anchor(pto):
 				lindex = l.index()
 				if lindex is None:
 					raise Exception("Couldn't determine existing index")			
+				#print '%d vs %d' % 
 				# The line we want to optimize?
+				#print '%d vs %d' % (lindex, iindex)
 				if lindex == iindex:
+					print 'Removing old anchor'
 					l.remove_variable('d')
 					l.remove_variable('e')
+					print 'new line: %s' % l
 				else:
 					# more than likely they are already equal to this
 					l.set_variable('d', lindex)
@@ -151,6 +155,7 @@ def center_anchor(pto):
 				if lindex is None:
 					continue
 				process_line(l, iindex)
+				#print 'L is now %s' % l
 				closed_set.add(lindex)
 				# If we just anchored the line clean it out
 				if l.empty():
@@ -159,7 +164,8 @@ def center_anchor(pto):
 			This could be any number of values if it was empty before
 			'''
 			for i in xrange(pto.nimages()):
-				if not i in closed_set:
+				if not i in closed_set and i != iindex:
+					print 'Index %d not in closed set' % i
 					'''
 					Expect this to be the old anchor, if we had one at all
 					As a heuristic put it in its index

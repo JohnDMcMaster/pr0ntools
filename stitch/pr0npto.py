@@ -30,7 +30,7 @@ if __name__ == "__main__":
 	print 'In: %s' % pto_in
 	print 'Out: %s' % pto_out
 
-	pto = PTOProject(pto_in)
+	pto = PTOProject.from_file_name(pto_in)
 	# Make sure we don't accidently override the original
 	pto.remove_file_name()
 	
