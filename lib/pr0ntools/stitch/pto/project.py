@@ -325,6 +325,14 @@ class PTOProject:
 	# XXX: a lot of this logic was moved out since it was more complicated than anticipated
 	def to_ptoptimizer(self):
 		'''Create a new, unusaved version compatible with PToptimizer'''
+		'''
+		FIXME: this was a hack
+		Really utilities should create a new PToptimizer compatible project
+		and then return the string repr if users want it
+		
+		
+		Illegal token in 'p'-line [83] [S] [S"103,21061,28,16889"]
+		'''
 		return PTOProject.from_text(self.to_str_core(True))
 	
 	def regen(self):
@@ -341,7 +349,7 @@ class PTOProject:
 
 		key_blacklist = None
 		if ptoptimizer_form:
-			key_blacklist = 'E R'.split()
+			key_blacklist = 'E R S'.split()
 			pass
 		text += self.panorama_line.regen(key_blacklist)
 

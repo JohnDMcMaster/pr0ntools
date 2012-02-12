@@ -180,7 +180,7 @@ class PTOptimizer:
 	
 	def verify_images(self):
 		first = True
-		for i in self.project.get_images():
+		for i in self.project.get_image_lines():
 			if first:
 				self.w = i.width()
 				self.h = i.height()
@@ -279,17 +279,11 @@ class PTOptimizer:
 		args = list()
 		args.append(project.get_a_file_name())
 		#project.save()
-		(rc, output) = Execute.with_output("PToptimizer", args)
-		print output
+		rc = Execute.show_output("PToptimizer", args)
 		if not rc == 0:
 			print
 			print
-			print 'Failed output:'
-			print output
-			print
-			print
-			print
-			print
+			print 'Failed rc: %d' % rc
 			print 'Failed project:'
 			print pre_run_text
 			print
