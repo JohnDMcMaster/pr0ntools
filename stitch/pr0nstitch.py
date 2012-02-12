@@ -8,6 +8,8 @@ Command refernece:
 http://wiki.panotools.org/Panorama_scripting_in_a_nutshell
 Some parts of this code inspired by Christian Sattler's tool
 (https://github.com/JohnDMcMaster/csstitch)
+pr0nstitch is described in detail at
+http://uvicrec.blogspot.com/2011/02/scaling-up-image-stitching.html
 '''
 
 import sys 

@@ -8,6 +8,8 @@ Licensed under a 2 clause BSD license, see COPYING for details
 '''
 pr0nts: pr0ntools tile stitcher
 This takes in a .pto project and outputs 
+Described in detail here: 
+http://uvicrec.blogspot.com/2012/02/tile-stitch.html
 '''
 
 import sys 
