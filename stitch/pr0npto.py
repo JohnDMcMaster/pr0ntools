@@ -5,6 +5,9 @@ pr0pto
 Copyright 2012 John McMaster
 '''
 import argparse		
+from pr0ntools.stitch.optimizer import PTOptimizer
+from pr0ntools.stitch.pto.project import PTOProject
+from pr0ntools.stitch.pto.util import center, center_anchor
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description='Manipulate .pto files')
@@ -13,27 +16,33 @@ if __name__ == "__main__":
 	parser.add_argument('--optimize', action="store_true", dest="optimize", default=False, help='Optimize the project')
 	parser.add_argument('--lens-model', action="store", type=str, dest="lens_model", default=None, help='Apply lens model file')
 	parser.add_argument('--reset-photometrics', action="store_true", dest="reset_photometrics", default=False, help='Reset photometrics')
+	#parser.add_argument('--prepare', action="store_true", dest="prepare", default=False, help='Center, anchor center image, optimize')
 	parser.add_argument('pto', metavar='.pto in', type=str, nargs=1,
                    help='project to work on')
 	parser.add_argument('out', metavar='.pto out', type=str, nargs='?',
                    help='output file, default to override input')
 	args = parser.parse_args()
-	pto = args.pto[0]
+	pto_in = args.pto[0]
 	pto_out = args.out
 	if pto_out is None:
-		pto_out = pto
+		pto_out = pto_in
 
-	print 'In: %s' % pto
+	print 'In: %s' % pto_in
 	print 'Out: %s' % pto_out
 
+	pto = PTOProject(pto_in)
+	# Make sure we don't accidently override the original
+	pto.remove_file_name()
+	
 	if args.center:
-		print 'Centering pto'
+		center(pto)
 	
 	if args.anchor:
 		print 'Re-finding anchor'
+		center_anchor(pto)
 	
 	if args.lens_model:
-		print 'Applying lens model'
+		print 'Applying lens model (FIXME)'
 
 	if args.reset_photometrics:
 		# Overall exposure
@@ -54,8 +63,12 @@ if __name__ == "__main__":
 			image_line.set_variable('Rd', 0)
 			image_line.set_variable('Re', 0)
 	
+	# Needs to be late to get the earlier additions if we used them
 	if args.optimize:
 		print 'Optimizing'
+		opt = PTOptimizer(pto)
+		opt.run()
 
-	#project.save_as(pto_out)
+	pto.save_as(pto_out)
+
 

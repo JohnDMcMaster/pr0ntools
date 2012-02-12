@@ -9,6 +9,7 @@ Common code for various stitching strategies
 from pr0ntools.image.soften import Softener
 from pr0ntools.stitch.control_point import ControlPointGenerator
 from pr0ntools.stitch.pto.project import PTOProject
+from pr0ntools.stitch.pto.util import *
 from pr0ntools.stitch.remapper import Remapper
 import os
 from pr0ntools.pimage import PImage
@@ -100,9 +101,10 @@ class CommonStitch:
 			self.cleaner = PTOClean(self.project)
 			self.cleaner.run()
 		
-		self.project.optimize_xy_only()
-		self.project.fixup_i_lines()
-		self.project.fixup_p_lines()		
+		optimize_xy_only(self.project)
+		center_anchor(self.project)
+		fixup_i_lines(self.project)
+		fixup_p_lines(self.project)
 		
 		
 		print
@@ -119,6 +121,9 @@ class CommonStitch:
 		if self.optimize:
 			self.optimizer = optimizer.PTOptimizer(self.project)
 			self.optimizer.run()
+			center(self.project)
+
+		# TODO: missing calc opt size/width/height/fov and crop
 		
 		# Did we request an actual stitch?
 		if self.output_image_file_name:

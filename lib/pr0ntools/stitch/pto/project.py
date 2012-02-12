@@ -164,6 +164,11 @@ class PTOProject:
 		# Has this been loaded from the file?
 		self.parsed = False
 	
+	def remove_file_name(self):
+		'''Unbound this from the filesystem'''
+		self.ensure_text_loaded()
+		self.file_name = None
+	
 	def copy(self):
 		'''Return an unsaved but identical project'''
 		return PTOProject.from_text(self.get_text())
@@ -174,9 +179,26 @@ class PTOProject:
 			raise IndexError('index: %d, items: %d' % (index, len(lines)))
 		return lines[index]
 	
+	def assert_uniform_images(self):
+		'''All images have same width and height'''
+		w = None
+		h = None
+		for i in self.get_image_lines():
+			if w is None:
+				w = i.width()
+			if h is None:
+				h = i.height()
+			if w != i.width():
+				raise Exception('Mismatched width')
+			if h != i.height():
+				raise Exception('Mismatched height')
+	
 	def get_image_lines(self):
 		self.parse()
 		return self.image_lines
+	
+	def nimages(self):
+		return len(self.get_image_lines())
 	
 	def get_optimizer_lines(self):
 		self.parse()
@@ -186,6 +208,10 @@ class PTOProject:
 		print 'getting p line, parsed: %d' % self.parsed
 		self.parse()
 		return self.panorama_line
+	
+	def get_variable_lines(self):
+		self.parse()
+		return self.variable_lines
 	
 	@staticmethod
 	def from_file_name(file_name, is_temporary = False):
@@ -491,118 +517,6 @@ class PTOProject:
 	
 	def get_image_file_names(self):
 		return self.image_file_names
-
-	def optimize_xy_only(self):
-		# XXX: move this to earlier if possible
-		'''
-		Added by pto_merge or something
-		v Ra0 Rb0 Rc0 Rd0 Re0 Vb0 Vc0 Vd0
-		v Eb1 Eev1 Er1
-		v Eb2 Eev2 Er2
-		v Eb3 Eev3 Er3
-		v
-		
-		
-		Need something like (assume image 0 is anchor)
-		v d1 e1 
-		v d2 e2 
-		v d3 e3 
-		v 
-
-		
-		After saving, get huge i lines
-		#-hugin  cropFactor=1
-		i w2816 h2112 f-2 Eb1 Eev0 Er1 Ra0 Rb0 Rc0 Rd0 Re0 Va1 Vb0 Vc0 Vd0 Vx-0 Vy-0 a0 b0 c0 d-0 e-0 g-0 p0 r0 t-0 v51 y0  Vm5 u10 n"x00000_y00033.jpg"
-		'''
-		print_debug('Fixing up v (optimization variable) lines...')
-		new_project_text = ''
-		new_lines = ''
-		for i in range(1, len(self.get_image_file_names())):
-			# optimize d (x) and e (y) for all other than anchor
-			new_lines += 'v d%d e%d \n' % (i, i)
-		new_lines += 'v \n'
-		for line in self.text.split('\n'):
-			if line == '':
-				new_project_text += '\n'				
-			elif line[0] == 'v':
-				# Replace once, ignore others
-				new_project_text += new_lines
-				new_lines = ''
-			else:
-				new_project_text += line + '\n'
-		self.text = new_project_text
-		print
-		print
-		print_debug(self.text)
-		print
-		print
-
-	def fixup_p_lines(self):
-		'''
-		f0: rectilinear
-		f2: equirectangular
-		# p f2 w8000 h24 v179  E0 R0 n"TIFF_m c:NONE"
-		# p f0 w8000 h24 v179  E0 R0 n"TIFF_m c:NONE"
-		'''
-		print 'Fixing up single lines'
-		new_project_text = ''
-		for line in self.text.split('\n'):
-			if line == '':
-				new_project_text += '\n'				
-			elif line[0] == 'p':
-				new_line = ''
-				for part in line.split():
-					if part[0] == 'p':
-						new_line += 'p'
-					elif part[0] == 'f':
-						new_line += ' f0'
-					else:
-						new_line += ' ' + part
-
-				new_project_text += new_line + '\n'
-			else:
-				new_project_text += line + '\n'
-		self.text = new_project_text
-		print
-		print
-		print self.text
-		print
-		print
-
-	def fixup_i_lines(self):
-		print 'Fixing up i (image attributes) lines...'
-		new_project_text = ''
-		new_lines = ''
-		for line in self.text.split('\n'):
-			if line == '':
-				new_project_text += '\n'				
-			elif line[0] == 'i':
-				# before replace
-				# i Eb1 Eev0 Er1 Ra0.0111006880179048 Rb-0.00838561356067657 Rc0.0198899246752262 Rd0.0135543448850513 Re-0.0435801632702351 Va1 Vb0.366722181378024 Vc-1.14825880321425 Vd0.904996105280657 Vm5 Vx0 Vy0 a0 b0 c0 d0 e0 f0 g0 h2112 n"x00000_y00033.jpg" p0 r0 t0 v70 w2816 y0
-				new_line = ''
-				for part in line.split():
-					if part[0] == 'i':
-						new_line += part
-						# Force lense type 0 (rectilinear)
-						# Otherwise, it gets added as -2 if we are unlucky ("Error on line 6")
-						# or 2 (fisheye) if we are lucky (screwed up image)
-						new_line += ' f0'
-					# Keep image file name
-					elif part[0] == 'n':
-						new_line += ' ' + part
-					# Script is getting angry, try to slim it up
-					else:
-						print 'Skipping unknown garbage: %s' % part
-				new_project_text += new_line + '\n'
-			else:
-				new_project_text += line + '\n'
-		self.text = new_project_text
-		print
-		print
-		print self.text
-		print
-		print
-	
 
 	def hugin_form(self):
 		'''

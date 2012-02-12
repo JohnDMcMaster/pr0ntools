@@ -29,6 +29,7 @@ it is a good idea to at least assert that all images are in the same focal plane
 
 from pr0ntools.execute import Execute
 from pr0ntools.pimage import PImage
+from pr0ntools.stitch.pto.util import *
 import sys
 
 '''
@@ -209,23 +210,7 @@ class PTOptimizer:
 		self.height = ymax - ymin
 		
 	def image_fl(self, img):
-		'''Get image focal distance'''
-		'''
-		We have image width, height, and fov
-		Goal is to find FocalLength
-			Full )> = FOV
-		    /|\
-		   / | \
-		  /  |  \
-		 /   |FL \
-		/    |    \
-		-----------
-		|--width--|
-		
-		tan(FoV / 2) = (size / 2) / FocalLength
-		FocalLength = (size / 2) / tan(FoV / 2)
-		'''
-		return (img.width() / 2) / math.tan(img.fov() / 2)
+		return image_fl(img)
 		
 	def calc_v(self, fl, width):
 		# Straight off of Hugin wiki (or looking above...)

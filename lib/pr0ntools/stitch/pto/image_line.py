@@ -5,7 +5,7 @@ Licensed under a 2 clause BSD license, see COPYING for details
 '''
 
 '''
-It seems width and heigh must be set to actual image width and heigh, ie can't be used for scaling like on the p line
+It seems width and heigth must be set to actual image width and heigh, ie can't be used for scaling like on the p line
 Changing in source file, opening in Hugin, re-saving puts back the old values
 Hugin doesn't seem to do anything different rendering the images if they are truncated either
 It is possible nona does differently but I haven't tried
@@ -315,7 +315,7 @@ class ImageLine(line.Line):
 		
 	def fov(self):
 		'''Returns angle (field) of view in degrees'''
-		return self.get_variable('f')			
+		return self.get_variable('v')			
 		
 	def get_index(self):
 		i = 0
@@ -323,6 +323,7 @@ class ImageLine(line.Line):
 			if line is self:
 				return i
 			i += 1
+		raise Exception('Image is no in panorama')
 
 	def get_image(self):
 		if self.image is None:

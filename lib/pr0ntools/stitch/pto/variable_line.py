@@ -34,6 +34,27 @@ class VariableLine(line.Line):
 	def string_variables(self):
 		return set()
 		
+	def x(self):
+		'''Get image index corresponding to x optimization'''
+		return self.get_variable('d')
+	
+	def y(self):
+		'''Get image index corresponding to y optimization'''
+		return self.get_variable('e')
+	
+	def index(self):
+		'''Check optimization variables for consistency and return the image index'''
+		# Note that these can both be None
+		x = self.x()
+		y = self.y()
+		if x is None:
+			return y
+		if y is None:
+			return x
+		if x != y:
+			raise Exception("Variables don't match")
+		return x
+		
 	@staticmethod
 	def from_line(line, project):
 		return VariableLine(line, project)

@@ -60,7 +60,9 @@ class Line:
 	def string_variables(self):
 		return set()
 
-
+	def empty(self):
+		'''return true if there are no variables set'''
+		return len(self.variables) == 0
 
 	def is_variable(self, v):
 		return v in self.key_variables() + self.int_variables() + self.float_variables() + self.string_variables()	

@@ -34,6 +34,9 @@ class PanoramaLine(line.Line):
 	def set_fov(self, v):		
 		self.set_variable('v', v)
 		
+	def fov(self):
+		return self.get_variable('v')
+		
 	def set_crop(self, crop):
 		self.set_variable('S', '%d,%d,%d,%d' % tuple(crop))
 	
@@ -47,6 +50,10 @@ class PanoramaLine(line.Line):
 			raise Exception('Malformed S line')
 		ret = [int(i) for i in c]
 		return ret
+		
+	def width(self):
+		c = self.get_crop()
+		return c[0] - c[1]
 	
 	def left(self):
 		return self.get_crop()[0]
@@ -64,6 +71,10 @@ class PanoramaLine(line.Line):
 		c[1] = right
 		self.set_crop(c)
 		
+	def height(self):
+		c = self.get_crop()
+		return c[2] - c[3]
+	
 	def top(self):
 		return self.get_crop()[2]
 	
