@@ -13,7 +13,10 @@ Two options:
 '''
 class MapSource:
 	def __init__(self):
-		self.out_extension = '.jpg'
+		self.set_out_extension('.jpg')
+	
+	def set_out_extension(self, s):
+		self.out_extension = s
 	
 	if 0:
 		def get(self):
@@ -57,7 +60,7 @@ class ImageMapSource(MapSource):
 		# Generate tiles
 		print 'From single image in %s' % self.image_in
 		gen = SingleTiler(self.image_in, max_level, min_level, out_dir_base=out_dir_base)
-		gen.out_extension = self.out_extension
+		gen.set_out_extension(out_extension)
 		gen.run()
 	
 class TileMapSource(MapSource):
@@ -100,7 +103,7 @@ class TileMapSource(MapSource):
 	def generate_tiles(self, max_level, min_level, out_dir_base):
 		print 'From multi tiles'
 		gen = TileTiler(self.file_names, max_level, min_level, out_dir_base=out_dir_base)
-		gen.out_extension = self.out_extension
+		gen.set_out_extension(self.out_extension)
 		gen.run()
 	
 class Map:
@@ -121,7 +124,12 @@ class Map:
 	def set_out_extension(self, s):
 		self.out_extension = s
 		self.source.out_extension = s
-		
+		self.out_format = s.replace('.', '')
+		if self.out_format == 'png':
+			self.is_png_str = 'isPng: true,'
+		else:
+			self.is_png_str = ''
+	
 	def header(self):
 		return '''	
 <html>
@@ -266,14 +274,14 @@ var %s = new google.maps.ImageMapType({
     }
     return r;
   },
-  format:"jpg",
+  format:"%s",
   tileSize: new google.maps.Size(256, 256),
-  //isPng: true,
+  %s
   maxZoom: %d,
   name: "SM",
   alt: "IC map"
 });
-''' % (self.min_level, self.type_obj_name(), self.out_extension, self.SI_MAX_ZOOM())
+''' % (self.min_level, self.type_obj_name(), self.out_extension, self.out_format, self.is_png_str, self.SI_MAX_ZOOM())
 
 	def type_obj_name(self):
 		#return 'mos6522NoMetal'
