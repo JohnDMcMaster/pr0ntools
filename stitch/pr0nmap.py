@@ -17,6 +17,7 @@ if __name__ == "__main__":
 	parser.add_argument('--out', action="store", dest="out_dir", type=str, default="map", help='Output directory')
 	parser.add_argument('--js-only', action="store_true", dest="js_only", default=False, help='No tiles, only JavaScript')
 	parser.add_argument('--skip-missing', action="store_true", dest="skip_missing", default=False, help='Skip missing tiles')
+	parser.add_argument('--out-extension', action="store", dest="out_extension", type=str, default='.jpg', help='Select output image extension (and type), .jpg, .png, .tif, etc')
 	args = parser.parse_args()
 	
 	if len(args.images_in) == 0:
@@ -40,5 +41,6 @@ if __name__ == "__main__":
 	m.out_dir = args.out_dir
 	m.js_only = args.js_only
 	m.skip_missing = args.skip_missing
+	m.set_out_extension(args.out_extension)
 	m.generate()
 

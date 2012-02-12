@@ -13,7 +13,7 @@ Two options:
 '''
 class MapSource:
 	def __init__(self):
-		pass
+		self.out_extension = '.jpg'
 	
 	if 0:
 		def get(self):
@@ -56,7 +56,9 @@ class ImageMapSource(MapSource):
 	def generate_tiles(self, max_level, min_level, out_dir_base):
 		# Generate tiles
 		print 'From single image in %s' % self.image_in
-		SingleTiler(self.image_in, max_level, min_level, out_dir_base=out_dir_base).run()
+		gen = SingleTiler(self.image_in, max_level, min_level, out_dir_base=out_dir_base)
+		gen.out_extension = self.out_extension
+		gen.run()
 	
 class TileMapSource(MapSource):
 	def __init__(self, dir_in):
@@ -97,7 +99,9 @@ class TileMapSource(MapSource):
 	
 	def generate_tiles(self, max_level, min_level, out_dir_base):
 		print 'From multi tiles'
-		TileTiler(self.file_names, max_level, min_level, out_dir_base=out_dir_base).run()
+		gen = TileTiler(self.file_names, max_level, min_level, out_dir_base=out_dir_base)
+		gen.out_extension = self.out_extension
+		gen.run()
 	
 class Map:
 	def __init__(self, source):
@@ -112,6 +116,11 @@ class Map:
 		self.image = None
 		# don't error on missing tiles in grid
 		self.skip_missing = False
+		self.set_out_extension('.jpg')
+		
+	def set_out_extension(self, s):
+		self.out_extension = s
+		self.source.out_extension = s
 		
 	def header(self):
 		return '''	
@@ -250,7 +259,7 @@ var %s = new google.maps.ImageMapType({
   getTileUrl: function(ll, z) {
   	//TODO: consider not 0 padding if this is going to be a performance issue
   	//it does make organizing them easier though
-    var r = "tiles_out/" + z + "/y" + String("00" + ll.y).slice(-3) + "_x" + String("00" + ll.x).slice(-3) + ".jpg"; 
+    var r = "tiles_out/" + z + "/y" + String("00" + ll.y).slice(-3) + "_x" + String("00" + ll.x).slice(-3) + "%s"; 
 	if (first) {
 	    first = false;
 	    alert(r);
@@ -264,7 +273,7 @@ var %s = new google.maps.ImageMapType({
   name: "SM",
   alt: "IC map"
 });
-''' % (self.min_level, self.type_obj_name(), self.SI_MAX_ZOOM());
+''' % (self.min_level, self.type_obj_name(), self.out_extension, self.SI_MAX_ZOOM())
 
 	def type_obj_name(self):
 		#return 'mos6522NoMetal'
@@ -311,7 +320,8 @@ siMap.setOptions({
 		if self.page_title is None:
 			self.page_title = 'SiMap: %s' % self.source.get_name()
 	
-		if os.path.exists(self.out_dir):
+		# If it looks like there is old output and we are trying to re-generate js don't nuke it
+		if os.path.exists(self.out_dir) and not self.js_only:
 			os.system('rm -rf %s' % self.out_dir)
 		os.mkdir(self.out_dir)
 
