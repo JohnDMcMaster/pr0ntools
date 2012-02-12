@@ -18,15 +18,16 @@ class OptimizerLine(line.Line):
 		return 'o'
 		
 	def variable_print_order(self):
-		return ['f', 'r', 'p', 'y', 'v', 'd', 'e', 'u', '+', '-']
+		# o f0 r0 p0 y0 v51 d891633.755919 e-6050.673128 u10 +buf -buf
+		# o f0 r0 p0 y0 v51 a0.000000 b0.000000 c0.000000 g0.000000 t0.000000 d8858.024163 e7238.662139 u10 -buf
+		return ['f', 'r', 'p', 'y', 'v', 'a', 'b', 'c', 'g', 't', 'd', 'e', 'u', '+', '-']
 	
-	# o f0 r0 p0 y0 v51 d891633.755919 e-6050.673128 u10 +buf -buf
 	def key_variables(self):
 		return set()
 	def int_variables(self):
 		return set(['f', 'r', 'p', 'y', 'v', 'u'])
 	def float_variables(self):
-		return set(['d', 'e'])
+		return set(['a', 'b', 'c', 'g', 't', 'd', 'e'])
 	def string_variables(self):
 		return set(['+', '-'])
 		

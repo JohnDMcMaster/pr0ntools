@@ -118,7 +118,7 @@ def prepare_pto(pto):
 		#print il
 		#sys.exit(1)
 	
-	if 1:
+	if 0:
 		print
 		print	
 		print 'prepare_pto final:'
@@ -177,6 +177,7 @@ def merge_pto(ptoopt, pto):
 class PTOptimizer:
 	def __init__(self, project):
 		self.project = project
+		self.debug = False
 	
 	def verify_images(self):
 		first = True
@@ -291,44 +292,51 @@ class PTOptimizer:
 			raise Exception('failed position optimization')
 		# API assumes that projects don't change under us
 		project.reopen()
-		print 'Parsed: %s' % str(project.parsed)
+		if self.debug:
+			print 'Parsed: %s' % str(project.parsed)
 
-		print
-		print
-		print
-		print 'Optimized project:'
-		print project
-	 	#sys.exit(1)
+		if self.debug:
+			print
+			print
+			print
+			print 'Optimized project:'
+			print project
+		 	#sys.exit(1)
 	 	print 'Optimized project parsed: %d' % project.parsed
 
 		print 'Merging project...'
 		merge_pto(project, self.project)
-		print self.project
+		if self.debug:
+			print self.project
 		
-		# The following will assume all of the images have the same size
-		self.verify_images()
 		
-		# Final dimensions are determined by field of view and width
-		# Calculate optimial dimensions
-		self.calc_dimensions()
+		# These are beyond this scope
+		# Move them somewhere else if we want them
+		if 0:
+			# The following will assume all of the images have the same size
+			self.verify_images()
 		
-		print 'Centering project...'
-		self.center_project()
+			# Final dimensions are determined by field of view and width
+			# Calculate optimial dimensions
+			self.calc_dimensions()
 		
-		'''
-		WARNING WARNING WARNING
-		The panotools model is too advanced for what I'm doing right now
-		The image correction has its merits but is mostly getting in the way to distort images
+			print 'Centering project...'
+			self.center_project()
 		
-		Therefore, I'd like to complete this to understand the intended use but I suspect its not a good idea
-		and I could do my own nona style program much better
-		The only downside is that if / when I start doing lens model corrections I'll have to rethink this a little
+			'''
+			WARNING WARNING WARNING
+			The panotools model is too advanced for what I'm doing right now
+			The image correction has its merits but is mostly getting in the way to distort images
 		
-		Actually, a lot of these problems go away if I trim to a single tile
-		I can use the same FOV as the source image or something similar
-		'''
-		print 'Calculating optimial field of view to match desired size...'
-		self.calc_fov()
+			Therefore, I'd like to complete this to understand the intended use but I suspect its not a good idea
+			and I could do my own nona style program much better
+			The only downside is that if / when I start doing lens model corrections I'll have to rethink this a little
+		
+			Actually, a lot of these problems go away if I trim to a single tile
+			I can use the same FOV as the source image or something similar
+			'''
+			print 'Calculating optimial field of view to match desired size...'
+			self.calc_fov()
 			
 
 def usage():

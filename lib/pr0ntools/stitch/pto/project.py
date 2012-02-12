@@ -205,7 +205,7 @@ class PTOProject:
 		return self.optimizer_lines
 		
 	def get_panorama_line(self):
-		print 'getting p line, parsed: %d' % self.parsed
+		#print 'getting p line, parsed: %d' % self.parsed
 		self.parse()
 		return self.panorama_line
 	
@@ -379,10 +379,10 @@ class PTOProject:
 	def get_text(self):
 		# If parsed then convert the intermediate repr since we may have modified from the saved value
 		if self.parsed:
-			print 'get_text: constructed version'
+			#print 'get_text: constructed version'
 			return self.to_str_core(False)
 		else:
-			print 'get_text: file/text version'
+			#print 'get_text: file/text version'
 			# Not parsed?  Then just directly load from the file
 			self.ensure_text_loaded()
 			return self.text
@@ -432,12 +432,12 @@ class PTOProject:
 
 	def merge_into(self, others):
 		'''Merge project into this one'''
-		print 'others: %d' % len(others)
+		print 'merge_into: others: %d' % len(others)
 		temp = self.merge(others)
 		self.text = temp.__repr__()
-		print 'text len: %d' % len(self.text)
+		print 'merge_into: text len: %d' % len(self.text)
 		if self.file_name:
-			print 'saving'
+			print 'merge_into: saving'
 			self.save()	
 
 	def merge(self, others):
