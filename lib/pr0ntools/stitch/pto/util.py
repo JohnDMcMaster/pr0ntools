@@ -105,6 +105,8 @@ def center(pto):
 	
 def center_anchor(pto):
 	'''Chose an anchor in the center of the pto'''
+	from pr0ntools.stitch.pto.variable_line import VariableLine
+
 	
 	print 'Centering anchor'
 	# We require the high level representation
@@ -143,7 +145,7 @@ def center_anchor(pto):
 			closed_set = set()
 			# Try to modify other parameters as little as possible
 			# Modify only d and e parmaeters so as to not disturb lens parameters
-			for l in list(project.get_variable_line()):
+			for l in list(pto.get_variable_lines()):
 				# There is one line that is just an empty v at the end...not sure if it actually does anything
 				lindex = l.index()
 				if lindex is None:
@@ -152,11 +154,11 @@ def center_anchor(pto):
 				closed_set.add(lindex)
 				# If we just anchored the line clean it out
 				if l.empty():
-					project.variable_lines.remove(l)
+					pto.variable_lines.remove(l)
 			'''
 			This could be any number of values if it was empty before
 			'''
-			for i in xrange(len(project.nimages())):
+			for i in xrange(pto.nimages()):
 				if not i in closed_set:
 					'''
 					Expect this to be the old anchor, if we had one at all
@@ -165,9 +167,9 @@ def center_anchor(pto):
 					if it wasn't who cares
 					note that for empty project we will keep appending to the end
 					'''
-					v = VariableLine('d%d e%d' % (i, i), project)
-					pos = min(i, len(project.variable_lines))
-					project.variable_lines.insert(pos)
+					v = VariableLine('v d%d e%d' % (i, i), pto)
+					pos = min(i, len(pto.variable_lines))
+					pto.variable_lines.insert(pos, v)
 			return
 			
 	raise Exception('Center heuristic failed')

@@ -8,16 +8,16 @@ import os
 import shutil
 from pr0ntools.temp_file import ManagedTempFile
 from pr0ntools.execute import Execute
-import line
+from pr0ntools.stitch.pto.line import Line
 
-class VariableLine(line.Line):
+class VariableLine(Line):
 	# Need to know image index to write these
 	image = None
 	
 	def __init__(self, text, project):
 		# We need to parse this
 		#self.image = image
-		line.Line.__init__(self, text, project)
+		Line.__init__(self, text, project)
 
 	def prefix(self):
 		return 'v'

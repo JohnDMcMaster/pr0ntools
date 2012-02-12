@@ -29,6 +29,7 @@ class StitchUtilTest(unittest.TestCase):
 		Image 4 at (1, 1) is the correct answer
 		'''
 		#vl = project.get_variable_lines()[4]
+		project.save()
 		
 			
 if __name__ == '__main__':
