@@ -1,8 +1,13 @@
 from distutils.core import setup
 
+with open('README') as file:
+    long_description = file.read()
+
 setup(name='pr0ntools',
 	version='1.0',
+	comment='Integrated circuit reverse engineering research and development',
 	description='Integrated circuit reverse engineering research and development',
+	long_description = long_description,
 	package_dir={
 			'pr0ntools': 'lib/pr0ntools',
 			'pr0ntools.image': 'lib/pr0ntools/image',

@@ -3,3 +3,10 @@ Integrated Circuit (IC) Reverse Engineering (RE) tools
 Copyright 2010-2011 John McMaster <JohnDMcMaster@gmail.com>
 Licensed under a 2 clause BSD license, see COPYING for details
 
+This is a collection of tools that I've developed for automating tasks while
+learning about ICs
+The most developed tools are related to image stitching and are certainly
+useful for more than just IC work
+
+Home page: https://github.com/JohnDMcMaster/pr0ntools/
+
