@@ -81,6 +81,9 @@ def get_row_col(file_name):
 	
 class ImageCoordinateMap:
 	'''
+	Note that the values are undefined
+	Original code used ImageCoordinatePair or something but later code just uses strings
+	
 				col/x
 		       	0		1		2
 	row  0		[0, 0]	[1, 0]	[2, 0]
@@ -137,6 +140,8 @@ class ImageCoordinateMap:
 		return (self.get_image(pair.first.col, pair.first.row), self.get_image(pair.second.col, pair.second.row))
 	
 	def set_image_rc(self, row, col, file_name):
+		if row >= self.height() or col >= self.width():
+			raise Exception('row %d, col %d are out of bounds height %d, width %d' % (row, col, self.height(), self.width()))
 		self.layout[self.cols * row + col] = file_name
 	
 	def set_image(self, col, row, file_name):

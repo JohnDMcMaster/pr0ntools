@@ -118,9 +118,12 @@ class TileTiler:
 		self.max_level = max_level
 		self.min_level = min_level
 		self.out_dir_base = out_dir_base
-		#self.out_extension = '.png'
-		self.out_extension = '.jpg'
+		#self.set_out_extension('.png')
+		self.set_out_extension('.jpg')
 		self.zoom_factor = 2
+
+	def set_out_extension(self, s):
+		self.out_extension = s
 
 	def prep_out_dir_base(self):
 		if self.out_dir_base is None:

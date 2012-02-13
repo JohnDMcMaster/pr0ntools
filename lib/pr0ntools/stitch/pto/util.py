@@ -5,6 +5,7 @@ Licensed under a 2 clause BSD license, see COPYING for details
 '''
 
 import math
+from pr0ntools.stitch.image_coordinate_map import ImageCoordinateMap
 
 def print_debug(s = None):
 	if False:
@@ -65,12 +66,25 @@ def center(pto):
 	# We require the high level representation
 	pto.parse()
 	
+	print 'lines old:'
+	for i in range(3):
+		il = pto.get_image_lines()[i]
+		print il
+		
+		
 	(ybar, xbar) = calc_center(pto)	
-	print 'Cernter adjustment by x %f, y %f' % (xbar, ybar)
+	print 'Center adjustment by x %f, y %f' % (xbar, ybar)
 	# If they were already centered this should be 0
 	for i in pto.get_image_lines():
 		i.set_x(i.x() - xbar)
 		i.set_y(i.y() - ybar)
+	
+	print 'lines new:'
+	for i in range(3):
+		il = pto.get_image_lines()[i]
+		print il
+	#import sys
+	#sys.exit(1)
 	
 	# Adjust pano crop if present
 	pl = pto.get_panorama_line()
@@ -103,12 +117,69 @@ def center(pto):
 	else:
 		print 'No crop to adjust'
 	
-def center_anchor(pto):
-	'''Chose an anchor in the center of the pto'''
+def anchor(pto, i_in):
 	from pr0ntools.stitch.pto.variable_line import VariableLine
-
 	
-	print 'Centering anchor'
+	'''anchor pto image number i or obj for xy'''
+	if type(i_in) is int:
+		i = pto.get_image(i_in)
+	else:
+		i = i_in
+		
+	def process_line(l, iindex):
+		lindex = l.index()
+		if lindex is None:
+			raise Exception("Couldn't determine existing index")			
+		#print '%d vs %d' % 
+		# The line we want to optimize?
+		#print '%d vs %d' % (lindex, iindex)
+		if lindex == iindex:
+			print 'Removing old anchor'
+			l.remove_variable('d')
+			l.remove_variable('e')
+			print 'new line: %s' % l
+		else:
+			# more than likely they are already equal to this
+			l.set_variable('d', lindex)
+			l.set_variable('e', lindex)
+	
+	iindex = i.get_index()
+	print 'Anchoring to %s (%d)' % (i.get_name(), iindex)
+	closed_set = set()
+	# Try to modify other parameters as little as possible
+	# Modify only d and e parmaeters so as to not disturb lens parameters
+	for l in list(pto.get_variable_lines()):
+		# There is one line that is just an empty v at the end...not sure if it actually does anything
+		lindex = l.index()
+		if lindex is None:
+			continue
+		process_line(l, iindex)
+		#print 'L is now %s' % l
+		closed_set.add(lindex)
+		# If we just anchored the line clean it out
+		if l.empty():
+			pto.variable_lines.remove(l)
+	'''
+	This could be any number of values if it was empty before
+	'''
+	for i in xrange(pto.nimages()):
+		if not i in closed_set and i != iindex:
+			print 'Index %d not in closed set' % i
+			'''
+			Expect this to be the old anchor, if we had one at all
+			As a heuristic put it in its index
+			If it was organized its in place
+			if it wasn't who cares
+			note that for empty project we will keep appending to the end
+			'''
+			v = VariableLine('v d%d e%d' % (i, i), pto)
+			pos = min(i, len(pto.variable_lines))
+			pto.variable_lines.insert(pos, v)
+	
+def center_anchor_by_de(pto):
+	'''Centering technique that requires an already optimized project, limited use'''
+	# I used this for experimenting with anchor choice with some pre-optimized projects
+	
 	# We require the high level representation
 	pto.parse()
 	(ybar, xbar) = calc_center(pto)
@@ -126,64 +197,48 @@ def center_anchor(pto):
 		#print 'x%d, y%d: %f <= %f and %f <= %f' % (x, y, xd, xref, yd, yref)
 		if xd <= xref and yd <= yref:
 			# Found a suitable anchor
-			
-			def process_line(l, iindex):
-				lindex = l.index()
-				if lindex is None:
-					raise Exception("Couldn't determine existing index")			
-				#print '%d vs %d' % 
-				# The line we want to optimize?
-				#print '%d vs %d' % (lindex, iindex)
-				if lindex == iindex:
-					print 'Removing old anchor'
-					l.remove_variable('d')
-					l.remove_variable('e')
-					print 'new line: %s' % l
-				else:
-					# more than likely they are already equal to this
-					l.set_variable('d', lindex)
-					l.set_variable('e', lindex)
-			
-			iindex = i.get_index()
-			print 'Anchoring to %s (%d)' % (i.get_name(), iindex)
-			closed_set = set()
-			# Try to modify other parameters as little as possible
-			# Modify only d and e parmaeters so as to not disturb lens parameters
-			for l in list(pto.get_variable_lines()):
-				# There is one line that is just an empty v at the end...not sure if it actually does anything
-				lindex = l.index()
-				if lindex is None:
-					continue
-				process_line(l, iindex)
-				#print 'L is now %s' % l
-				closed_set.add(lindex)
-				# If we just anchored the line clean it out
-				if l.empty():
-					pto.variable_lines.remove(l)
-			'''
-			This could be any number of values if it was empty before
-			'''
-			for i in xrange(pto.nimages()):
-				if not i in closed_set and i != iindex:
-					print 'Index %d not in closed set' % i
-					'''
-					Expect this to be the old anchor, if we had one at all
-					As a heuristic put it in its index
-					If it was organized its in place
-					if it wasn't who cares
-					note that for empty project we will keep appending to the end
-					'''
-					v = VariableLine('v d%d e%d' % (i, i), pto)
-					pos = min(i, len(pto.variable_lines))
-					pto.variable_lines.insert(pos, v)
+			#anchor(pto, i.get_index())
+			anchor(pto, i)
 			return
 			
 	raise Exception('Center heuristic failed')
 
+def center_anchor_by_fn(pto):
+	'''Rely on filename to make an anchor estimate'''
+	pto.parse()
+	m = ImageCoordinateMap.from_tagged_file_names(pto.get_file_names())
+	# Chose a decent center image
+	fn = m.get_image(int(m.width() / 2), int(m.height() / 2))
+	print 'Selected %s as anchor' % fn
+	anchor(pto, pto.get_image_by_fn(fn))
+
+def center_anchor(pto):
+	'''Chose an anchor in the center of the pto'''
+	from pr0ntools.stitch.pto.variable_line import VariableLine
+
+	'''
+	There is a "chicken and the egg" type problem
+	We want to figure out where the panorama is centered to optimize its positions nicely
+	but typically don't know positions until its optimized
+	
+	If it is already optimized we can 
+	'''
+	
+	print 'Centering anchor'
+
+	if 0:
+		return center_anchor_by_de(pto)
+	else:
+		return center_anchor_by_fn(pto)
 
 def optimize_xy_only(self):
 	# XXX: move this to earlier if possible
 	'''
+	NOTE:
+	Hugin uses the line:
+	#hugin_optimizeReferenceImage 54
+	But PToptimizer only cares about the v variables, or at least as far as i can tell
+	
 	Added by pto_merge or something
 	v Ra0 Rb0 Rc0 Rd0 Re0 Vb0 Vc0 Vd0
 	v Eb1 Eev1 Er1
@@ -206,11 +261,13 @@ def optimize_xy_only(self):
 	print_debug('Fixing up v (optimization variable) lines...')
 	new_project_text = ''
 	new_lines = ''
-	for i in range(1, len(self.get_image_file_names())):
+	# This gives us "something" but more than likely
+	# code later will run a center rountine to place this better
+	for i in range(1, len(self.get_file_names())):
 		# optimize d (x) and e (y) for all other than anchor
 		new_lines += 'v d%d e%d \n' % (i, i)
 	new_lines += 'v \n'
-	for line in self.text.split('\n'):
+	for line in self.get_text().split('\n'):
 		if line == '':
 			new_project_text += '\n'				
 		elif line[0] == 'v':
@@ -219,12 +276,13 @@ def optimize_xy_only(self):
 			new_lines = ''
 		else:
 			new_project_text += line + '\n'
-	self.text = new_project_text
-	print
-	print
-	print_debug(self.text)
-	print
-	print
+	self.set_text(new_project_text)
+	if 0:
+		print
+		print
+		print_debug(self.text)
+		print
+		print
 
 
 def fixup_p_lines(self):
@@ -236,7 +294,7 @@ def fixup_p_lines(self):
 	'''
 	print 'Fixing up single lines'
 	new_project_text = ''
-	for line in self.text.split('\n'):
+	for line in self.get_text().split('\n'):
 		if line == '':
 			new_project_text += '\n'				
 		elif line[0] == 'p':
@@ -252,18 +310,19 @@ def fixup_p_lines(self):
 			new_project_text += new_line + '\n'
 		else:
 			new_project_text += line + '\n'
-	self.text = new_project_text
-	print
-	print
-	print self.text
-	print
-	print
+	self.set_text(new_project_text)
+	if 0:
+		print
+		print
+		print self.text
+		print
+		print
 
 def fixup_i_lines(self):
 	print 'Fixing up i (image attributes) lines...'
 	new_project_text = ''
 	new_lines = ''
-	for line in self.text.split('\n'):
+	for line in self.get_text().split('\n'):
 		if line == '':
 			new_project_text += '\n'				
 		elif line[0] == 'i':
@@ -286,12 +345,13 @@ def fixup_i_lines(self):
 			new_project_text += new_line + '\n'
 		else:
 			new_project_text += line + '\n'
-	self.text = new_project_text
-	print
-	print
-	print self.text
-	print
-	print
+	self.set_text(new_project_text)
+	if 0:
+		print
+		print
+		print self.text
+		print
+		print
 
 
 

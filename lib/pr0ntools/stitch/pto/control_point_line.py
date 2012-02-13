@@ -11,13 +11,12 @@ from pr0ntools.execute import Execute
 import line
 
 class ControlPointLine(line.Line):
-	# c n0 N1 x1444.778035 y233.742619 X1225.863118 Y967.737131 t0
-	# Both of type ControlPointLineImage
-	# Coordinates are increasing from upper left of image
-	lower_image = None
-	upper_image = None
-
 	def __init__(self, text, project):
+		# c n0 N1 x1444.778035 y233.742619 X1225.863118 Y967.737131 t0
+		# Both of type ControlPointLineImage
+		# Coordinates are increasing from upper left of image
+		self.lower_image = None
+		self.upper_image = None
 		line.Line.__init__(self, text, project)
 
 	def prefix(self):
@@ -63,4 +62,36 @@ class ControlPointLine(line.Line):
 
 		if self.get_variable('n') == self.get_variable('N'):
 			raise Exception('Cannot have point match self')
+
+'''
+These are put out by PToptimizer
+'''
+class AbsoluteControlPointLine(line.Line):
+	# C i53 c1931  x10598 y6848.76 X10600.2 Y7869.33  D4731.28 Dx10.585 Dy4731.27
+
+	def __init__(self, text, project):
+		line.Line.__init__(self, text, project)
+
+	def prefix(self):
+		return 'C'
+		
+	def variable_print_order(self):
+		return list(['i', 'c', 'x', 'y', 'X', 'Y', 'D', 'Dx', 'Dy'])
+	
+	def key_variables(self):
+		return set()
+	def int_variables(self):
+		return set(['i', 'c'])
+	def float_variables(self):
+		return set(['x', 'y', 'X', 'Y', 'D', 'Dx', 'Dy'])
+	def string_variables(self):
+		return set()
+
+	@staticmethod
+	def from_line(line, pto_project):
+		ret = AbsoluteControlPointLine()
+		ret.text = line
+		ret.reparse()
+		return ret
+	
 

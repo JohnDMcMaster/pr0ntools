@@ -74,7 +74,7 @@ def help():
 	print '--flip-pre-transpose[=<bool>]: switch col/row before all other flips'
 	print '--flip-post-transpose[=<bool>]: switch col/row after all other flips'
 	print '--no-overwrite[=<bool>]: do not allow overwrite of existing files'
-	print '--regular[=<bool>]: images are separated by regular intervals like CNC would produce'
+	print '--regular[=<bool>]: images are separated by regular intervals like CNC would produce, default true'
 
 def arg_fatal(s):
 	print s
@@ -101,7 +101,8 @@ if __name__ == "__main__":
 	depth = 1
 	algorithm = None
 	# CNC like precision?
-	regular = False
+	# Default to true for me
+	regular = True
 	x_overlap = None
 	y_overlap = None
 	dry = False

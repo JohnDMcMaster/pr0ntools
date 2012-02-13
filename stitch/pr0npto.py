@@ -69,6 +69,7 @@ if __name__ == "__main__":
 		opt = PTOptimizer(pto)
 		opt.run()
 
+	print 'Saving to %s' % pto_out
 	pto.save_as(pto_out)
 
 

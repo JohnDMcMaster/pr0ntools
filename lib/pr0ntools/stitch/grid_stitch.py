@@ -9,13 +9,7 @@ This allows considerable optimization since we know where all the picture are
 '''
 
 from image_coordinate_map import ImageCoordinateMap
-from pr0ntools.stitch.control_point import ControlPointGenerator
-from pr0ntools.stitch.pto.project import PTOProject
-from pr0ntools.stitch.remapper import Remapper
 import os
-from pr0ntools.pimage import PImage
-from pr0ntools.temp_file import ManagedTempFile
-from pr0ntools.temp_file import ManagedTempDir
 from common_stitch import CommonStitch
 import sys
 
@@ -23,6 +17,7 @@ class GridStitch(CommonStitch):
 	def __init__(self):
 		CommonStitch.__init__(self)
 		self.coordinate_map = None
+		self.set_regular(True)
 
 	@staticmethod
 	def from_file_names(image_file_names, flip_col = False, flip_row = False, flip_pre_transpose = False, flip_post_transpose = False, depth = 1,
@@ -67,7 +62,7 @@ class GridStitch(CommonStitch):
 				print 'WARNING: bad project @ %s, %s' % (repr(pair), repr(pair_images))
 				continue
 			
-			if False:
+			if True:
 				print
 				print 'Final pair project'
 				print final_pair_project.get_a_file_name()
@@ -78,6 +73,8 @@ class GridStitch(CommonStitch):
 				print
 				print
 				#sys.exit(1)
+			if len(final_pair_project.get_text().strip()) == 0:
+				raise Exception('Generated empty pair project')
 			
 			temp_projects.append(final_pair_project)
 			

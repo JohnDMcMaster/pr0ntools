@@ -30,7 +30,11 @@ it is a good idea to at least assert that all images are in the same focal plane
 from pr0ntools.execute import Execute
 from pr0ntools.pimage import PImage
 from pr0ntools.stitch.pto.util import *
+from pr0ntools.benchmark import Benchmark
 import sys
+
+def debug(s = ''):
+	pass
 
 '''
 Convert output to PToptimizer form
@@ -79,7 +83,7 @@ Grab o lines and get the d, e entries
 Open questions
 	How does FOV effect the stitch?
 '''
-def prepare_pto(pto):
+def prepare_pto(pto, reoptimize = True):
 	'''Simply and modify a pto project enough so that PToptimizer will take it'''
 	print 'Stripping project'
 	if 0:
@@ -107,7 +111,7 @@ def prepare_pto(pto):
 			il.set_variable('h', img.height())
 
 		for v in 'd e'.split():
-			if il.get_variable(v) == None:
+			if il.get_variable(v) == None or reoptimize:
 				il.set_variable(v, 0)
 				#print 'setting var'
 	
@@ -169,15 +173,20 @@ def merge_pto(ptoopt, pto):
 		ol = ptoopt.optimizer_lines[i]
 		for v in 'd e'.split():
 			val = ol.get_variable(v)
-			print 'Found variable val to be %s' % str(val)
+			debug('Found variable val to be %s' % str(val))
 			il.set_variable(v, val)
-			print 'New IL: ' + str(il)
-		print
+			debug('New IL: ' + str(il))
+		debug()
 		
 class PTOptimizer:
 	def __init__(self, project):
 		self.project = project
 		self.debug = False
+		# In practice I tend to get around 25 so anything this big signifies a real problem
+		self.rms_error_threshold = 250.0
+		# If set to true will clear out all old optimizer settings
+		# If PToptimizer gets de values in it will use them as a base
+		self.reoptimize = True
 	
 	def verify_images(self):
 		first = True
@@ -259,12 +268,14 @@ class PTOptimizer:
 		
 		There are several other lines that are just the repeats of previous lines
 		'''
+		bench = Benchmark()
+		
 		# The following will assume all of the images have the same size
 		self.verify_images()
 		
 		# Copy project so we can trash it
 		project = self.project.to_ptoptimizer()
-		prepare_pto(project)
+		prepare_pto(project, self.reoptimize)
 		
 		pre_run_text = project.get_text()
 		if 0:
@@ -292,6 +303,21 @@ class PTOptimizer:
 			raise Exception('failed position optimization')
 		# API assumes that projects don't change under us
 		project.reopen()
+		
+		'''
+		Line looks like this
+		# final rms error 24.0394 units
+		'''
+		rms_error = None
+		for l in project.get_comment_lines():
+			if l.find('final rms error') >= 00:
+				rms_error = float(l.split()[4])
+				break
+		print 'Optimize: RMS error of %f' % rms_error
+		# Filter out gross optimization problems
+		if self.rms_error_threshold and rms_error > self.rms_error_threshold:
+			raise Exception("Max RMS error threshold %f but got %f" % (self.rms_error_threshold, rms_error))
+		
 		if self.debug:
 			print 'Parsed: %s' % str(project.parsed)
 
@@ -309,6 +335,8 @@ class PTOptimizer:
 		if self.debug:
 			print self.project
 		
+		bench.stop()
+		print 'Optimized project in %s' % bench
 		
 		# These are beyond this scope
 		# Move them somewhere else if we want them
