@@ -62,7 +62,7 @@ class GridStitch(CommonStitch):
 				print 'WARNING: bad project @ %s, %s' % (repr(pair), repr(pair_images))
 				continue
 			
-			if True:
+			if False:
 				print
 				print 'Final pair project'
 				print final_pair_project.get_a_file_name()
