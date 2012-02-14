@@ -210,6 +210,10 @@ class SingleTiler:
 		self.max_level = max_level
 		self.min_level = min_level
 		self.out_dir_base = out_dir_base
+		self.set_out_extension('.jpg')
+
+	def set_out_extension(self, s):
+		self.out_extension = s
 
 	def run(self):
 		fn = self.fn
@@ -225,8 +229,6 @@ class SingleTiler:
 	
 		t_width = 256
 		t_height = 256
-		out_extension = '.jpg'
-		#out_extension = '.png'
 		'''
 		Expect that will not need images larger than 1 terapixel in the near future
 		sqrt(1 T / (256 * 256)) = 3906, in hex = 0xF42
