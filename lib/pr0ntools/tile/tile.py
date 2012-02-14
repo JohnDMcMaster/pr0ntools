@@ -63,13 +63,18 @@ class ImageTiler:
 		self.th = th
 		self.out_dir = None
 
+		self.set_out_extension('.jpg')
+		
+	def set_out_extension(self, s):
+		self.out_extension = s
+		
 	# FIXME / TODO: this isn't the google reccomended naming scheme, look into that more	
 	# part of it was that I wanted them to sort nicely in file list view
 	def get_name(self, row, col):
 		out_dir = ''
 		if self.out_dir:
 			out_dir = '%s/' % self.out_dir
-		return '%sy%03d_x%03d%s' % (out_dir, row, col, out_extension)
+		return '%sy%03d_x%03d%s' % (out_dir, row, col, self.out_extension)
 		
 	def make_tile(self, x, y, row, col):
 		xmin = x
