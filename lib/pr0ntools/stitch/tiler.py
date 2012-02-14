@@ -158,32 +158,7 @@ class Tiler:
 		else:
 			self.super_th = super_th
 		
-		
-		
-		'''
-		We won't stitch any tiles in the buffer zone
-		We don't stitch on the right to the current supertile and won't stitch to the left on the next supertile
-		So, we must take off 2 clip widths to get a safe area
-		We probably only have to take off one tw, I haven't thought about it carefully enough
-		
-		If you don't do this you will not stitch anything in the center that isn't perfectly aligned
-		Will get worse the more tiles you create
-		'''
-		if 0:
-			self.super_t_xstep = self.super_tw
-			self.super_t_ystep = self.super_th
-		else:
-			self.super_t_xstep = self.super_tw - 2 * self.clip_width - 2 * self.tw
-			self.super_t_ystep = self.super_th - 2 * self.clip_height - 2 * self.th
-		
-		
-		
-		print 'Input images width %d, height %d' % (img_width, img_height)
-		print 'Output to %s' % self.out_dir
-		print 'Super tile width %d, height %d from scalar %d' % (self.super_tw, self.super_th, st_scalar_heuristic)
-		print 'Super tile x step %d, y step %d' % (self.super_t_xstep, self.super_t_ystep)
-		print 'Supertile clip width %d, height %d' % (self.clip_width, self.clip_height)
-		
+		self.recalc_step()		
 		# We build this in run
 		self.map = None
 		
@@ -193,6 +168,24 @@ class Tiler:
 		self.y0 = spl.top()
 		self.y1 = spl.bottom()
 		#print spl
+	
+	def make_full(self):
+		'''Stitch a single supertile'''
+		self.super_tw = self.width()
+		self.super_th = self.height()
+	
+	def recalc_step(self):
+		'''
+		We won't stitch any tiles in the buffer zone
+		We don't stitch on the right to the current supertile and won't stitch to the left on the next supertile
+		So, we must take off 2 clip widths to get a safe area
+		We probably only have to take off one tw, I haven't thought about it carefully enough
+		
+		If you don't do this you will not stitch anything in the center that isn't perfectly aligned
+		Will get worse the more tiles you create
+		'''
+		self.super_t_xstep = self.super_tw - 2 * self.clip_width - 2 * self.tw
+		self.super_t_ystep = self.super_th - 2 * self.clip_height - 2 * self.th
 	
 	def set_size_heuristic(self, image_width, image_height):
 		'''
@@ -464,6 +457,12 @@ class Tiler:
 		print 'All supertiles generated'
 		
 	def run(self):
+		print 'Input images width %d, height %d' % (img_width, img_height)
+		print 'Output to %s' % self.out_dir
+		print 'Super tile width %d, height %d from scalar %d' % (self.super_tw, self.super_th, st_scalar_heuristic)
+		print 'Super tile x step %d, y step %d' % (self.super_t_xstep, self.super_t_ystep)
+		print 'Supertile clip width %d, height %d' % (self.clip_width, self.clip_height)
+		
 		if not self.dry:
 			self.dry = True
 			print
