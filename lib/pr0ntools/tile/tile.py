@@ -262,6 +262,7 @@ class SingleTiler:
 			os.mkdir(out_dir)
 		
 			tiler = ImageTiler(i)
+			tiler.out_dir = out_dir
 			tiler.run()
 		
 			if zoom_level != min_level:

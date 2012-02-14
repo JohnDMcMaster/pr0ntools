@@ -44,11 +44,13 @@ class ImageMapSource(MapSource):
 	def __init__(self, image_in):
 		self.image_in = image_in
 		self.image = PImage.from_file(self.image_in)
+		self.set_out_extension('.jpg')
 
 	def get_name(self):
 		return self.image_in.split('.')[0]
 
-	#def fold(self):	
+	def set_out_extension(self, s):
+		self.out_extension = s
 
 	def width(self):
 		return self.image.width()
@@ -58,7 +60,7 @@ class ImageMapSource(MapSource):
 	
 	def generate_tiles(self, max_level, min_level, out_dir_base):
 		# Generate tiles
-		print 'From single image in %s' % self.image_in
+		print 'From single image in %s to dir %s' % (self.image_in, out_dir_base)
 		gen = SingleTiler(self.image_in, max_level, min_level, out_dir_base=out_dir_base)
 		gen.set_out_extension(self.out_extension)
 		gen.run()
