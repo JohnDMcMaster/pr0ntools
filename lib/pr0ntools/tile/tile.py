@@ -50,13 +50,13 @@ class ImageTiler:
 			x0 = 0
 		self.x0 = x0
 		if x1 is None:
-			x1 = i.width()
+			x1 = image.width()
 		self.x1 = x1
 		if y0 is None:
 			y0 = 0
 		self.y0 = y0
 		if y1 is None:
-			y1 = i.height()
+			y1 = image.height()
 		self.y1 = y1
 		
 		self.tw = tw
@@ -79,7 +79,7 @@ class ImageTiler:
 		nfn = self.get_name(row, col)
 
 		print '%s: (x %d:%d, y %d:%d)' % (nfn, xmin, xmax, ymin, ymax)
-		ip = i.subimage(xmin, xmax, ymin, ymax)
+		ip = self.image.subimage(xmin, xmax, ymin, ymax)
 		'''
 		Images must be padded
 		If they aren't they will be stretched in google maps
