@@ -398,7 +398,7 @@ class PTOProject:
 			
 		for line in self.comment_lines:
 			#text += line.regen()
-			text += line
+			text += line + '\n'
 
 		return text
 
