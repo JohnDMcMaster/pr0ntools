@@ -43,7 +43,7 @@ def calc_max_level(height, width, zoom_factor=None):
 Take a single large image and break it into tiles
 '''
 class ImageTiler:
-	def __init__(self, image, x0 = None, x1 = None, y0 = None, y1 = None, tw = 256, th = 256):
+	def __init__(self, image, x0 = None, x1 = None, y0 = None, y1 = None, tw = 250, th = 250):
 		self.image = image
 		
 		if x0 is None:
@@ -92,7 +92,9 @@ class ImageTiler:
 		if ip.width() != self.tw or ip.height() != self.th:
 			print 'WARNING: %s: expanding partial tile (%d X %d) to full tile size' % (nfn, ip.width(), ip.height())
 			ip.set_canvas_size(self.tw, self.th)
+		print 'Saving...' 
 		ip.image.save(nfn)
+		print 'Image done' 
 		
 	def run(self):
 		'''
@@ -234,8 +236,8 @@ class SingleTiler:
 		if max_level is None:
 			max_level = calc_max_level_from_image(i)
 	
-		t_width = 256
-		t_height = 256
+		t_width = 250
+		t_height = 250
 		'''
 		Expect that will not need images larger than 1 terapixel in the near future
 		sqrt(1 T / (256 * 256)) = 3906, in hex = 0xF42
@@ -271,5 +273,4 @@ class SingleTiler:
 				if 0:
 					i.save('test.jpg')
 					sys.exit(1)
-
 
