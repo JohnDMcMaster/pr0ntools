@@ -60,7 +60,7 @@ class ImageMapSource(MapSource):
 		# Generate tiles
 		print 'From single image in %s' % self.image_in
 		gen = SingleTiler(self.image_in, max_level, min_level, out_dir_base=out_dir_base)
-		gen.set_out_extension(out_extension)
+		gen.set_out_extension(self.out_extension)
 		gen.run()
 	
 class TileMapSource(MapSource):
