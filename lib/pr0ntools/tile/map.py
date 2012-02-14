@@ -46,7 +46,7 @@ class ImageMapSource(MapSource):
 		self.image = PImage.from_file(self.image_in)
 
 	def get_name(self):
-		return image_in.split('.')[0]
+		return self.image_in.split('.')[0]
 
 	#def fold(self):	
 
