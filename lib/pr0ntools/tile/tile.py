@@ -97,8 +97,10 @@ class ImageTiler:
 		python can bind objects to functions so a user parameter isn't necessary?
 		'''
 	
+		'''
 		if namer is None:
 			namer = google_namer
+		'''
 
 		col = 0
 		for x in xrange(self.x0, self.x1, self.tw):
