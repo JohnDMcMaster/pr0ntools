@@ -267,7 +267,7 @@ class SingleTiler:
 		
 			if zoom_level != min_level:
 				# Each zoom level is half smaller than previous
-				i = i.get_scaled(0.5)
+				i = i.get_scaled(0.5, filt=Image.ANTIALIAS)
 				if 0:
 					i.save('test.jpg')
 					sys.exit(1)
