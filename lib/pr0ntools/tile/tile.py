@@ -92,9 +92,9 @@ class ImageTiler:
 		if ip.width() != self.tw or ip.height() != self.th:
 			print 'WARNING: %s: expanding partial tile (%d X %d) to full tile size' % (nfn, ip.width(), ip.height())
 			ip.set_canvas_size(self.tw, self.th)
-		print 'Saving...' 
+		#print 'Saving...' 
 		ip.image.save(nfn)
-		print 'Image done' 
+		#print 'Image done' 
 		
 	def run(self):
 		'''
