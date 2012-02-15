@@ -130,6 +130,8 @@ class TileTiler:
 		#self.set_out_extension('.png')
 		self.set_out_extension('.jpg')
 		self.zoom_factor = 2
+		self.t_width = 250
+		self.t_height = 250
 
 	def set_out_extension(self, s):
 		self.out_extension = s
@@ -150,8 +152,6 @@ class TileTiler:
 
 	def run(self):
 		self.prep_out_dir_base()
-		t_width = 250
-		t_height = 250
 		
 		for self.zoom_level in xrange(self.max_level, self.min_level - 1, -1):
 			print
@@ -174,6 +174,15 @@ class TileTiler:
 					else:
 						print 'Basic conversion %s => %s' % (img_fn, dst)
 						pi = PImage.from_file(img_fn)
+						# I could actually set with / height here but right now this is
+						# coming up fomr me accidentially using 256 x 256 tiles when the 
+						# standard is 250 x 250
+						if self.t_width is None:
+							self.t_width = pi.width()
+						if self.t_height is None:
+							self.t_height = pi.height()
+						if pi.width() != self.t_width or pi.height() != self.t_height:
+							raise Exception('Source image incorrect size')
 						pi.save(dst)
 					
 			# Additional levels we take the image coordinate map and shrink
@@ -199,11 +208,11 @@ class TileTiler:
 						# Paste the old (4) images together
 						imgp = PImage.from_filename_array([[self.get_old(old_row + 0, old_col + 0), self.get_old(old_row + 0, old_col + 1)],
 								[self.get_old(old_row + 1, old_col + 0), self.get_old(old_row + 1, old_col + 1)]])
-						if imgp.width() != t_width * self.zoom_factor or imgp.height() != t_height * self.zoom_factor:
-							print 'New image width %d, height: %d from tile width %d, height %d' % (imgp.width(), imgp.height(), t_width, t_height)
+						if imgp.width() != self.t_width * self.zoom_factor or imgp.height() != self.t_height * self.zoom_factor:
+							print 'New image width %d, height: %d from tile width %d, height %d' % (imgp.width(), imgp.height(), self.t_width, self.t_height)
 							raise Exception('Combined image incorrect size')
 						scaled = imgp.get_scaled(0.5, filt=Image.ANTIALIAS)
-						if scaled.width() != t_width or scaled.height() != t_height:
+						if scaled.width() != self.t_width or scaled.height() != self.t_height:
 							raise Exception('Scaled image incorrect size')
 						new_fn = self.get_fn(new_row, new_col)
 						scaled.save(new_fn)
