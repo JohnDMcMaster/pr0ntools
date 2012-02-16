@@ -119,19 +119,20 @@ class PartialStitcher:
 
 class Tiler:
 	def __init__(self, pto, out_dir, tile_width=250, tile_height=250, st_scalar_heuristic=4, dry=False, super_tw=None, super_th=None):
-		img_width = None
-		img_height = None
+		self.img_width = None
+		self.img_height = None
 		self.dry = dry
+		self.st_scalar_heuristic = st_scalar_heuristic
 		
 		# TODO: this is a heuristic just for this, uniform input images aren't actually required
 		for i in pto.get_image_lines():
 			w = i.width()
 			h = i.height()
-			if img_width is None:
-				img_width = w
-			if img_height is None:
-				img_height = h
-			if img_width != w or img_height != h:
+			if self.img_width is None:
+				self.img_width = w
+			if self.img_height is None:
+				self.img_height = h
+			if self.img_width != w or self.img_height != h:
 				raise Exception('Require uniform input images for size heuristic')
 		
 		self.pto = pto
@@ -145,16 +146,16 @@ class Tiler:
 		# Delete files in the way?
 		self.force = False
 		
-		self.set_size_heuristic(img_width, img_height)
+		self.set_size_heuristic(self.img_width, self.img_height)
 		# These are less related
 		# They actually should be set as high as you think you can get away with
 		# Although setting a smaller number may have higher performance depending on input size
 		if super_tw is None:
-			self.super_tw = img_width * st_scalar_heuristic
+			self.super_tw = self.img_width * self.st_scalar_heuristic
 		else:
 			self.super_tw = super_tw
 		if super_th is None:
-			self.super_th = img_height * st_scalar_heuristic
+			self.super_th = self.img_height * self.st_scalar_heuristic
 		else:
 			self.super_th = super_th
 		
@@ -457,9 +458,9 @@ class Tiler:
 		print 'All supertiles generated'
 		
 	def run(self):
-		print 'Input images width %d, height %d' % (img_width, img_height)
+		print 'Input images width %d, height %d' % (self.img_width, self.img_height)
 		print 'Output to %s' % self.out_dir
-		print 'Super tile width %d, height %d from scalar %d' % (self.super_tw, self.super_th, st_scalar_heuristic)
+		print 'Super tile width %d, height %d from scalar %d' % (self.super_tw, self.super_th, self.st_scalar_heuristic)
 		print 'Super tile x step %d, y step %d' % (self.super_t_xstep, self.super_t_ystep)
 		print 'Supertile clip width %d, height %d' % (self.clip_width, self.clip_height)
 		
