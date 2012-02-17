@@ -165,7 +165,9 @@ class Remapper:
 			new_files = get_nona_files(self.output_prefix, len(self.pto_project.get_image_lines()))
 			self.output_files = new_files.difference(old_files)
 			print 'Think nona just generated files (%d new - %d old = %d delta):' % (len(new_files), len(old_files), len(self.output_files))
-			for f in sorted(list(self.output_files)):
+			# it may be a set but lists have advantages trying to trace whats happening
+			self.output_files = sorted(list(self.output_files))
+			for f in self.output_files:
 				print '  %s' % f
 		else:
 			raise Exception('bad image type')
