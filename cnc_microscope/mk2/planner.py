@@ -122,7 +122,7 @@ class FocusLevel:
 		pass
 
 class PlannerAxis:
-	def __init__(self, name, ideal_overlap_percent, view, start, end):
+	def __init__(self, name, ideal_overlap_percent, view, view_pixels, start, end):
 		self.name = name
 		'''
 		The naming is somewhat bad on this as it has an anti-intuitive meaning
@@ -133,6 +133,7 @@ class PlannerAxis:
 		'''
 		self.ideal_overlap_percent = ideal_overlap_percent
 		self.view = view
+		self.view_pixels = view_pixels
 		self.start = start
 		self.end = end
 		
@@ -158,6 +159,9 @@ class PlannerAxis:
 		'''Total distance that needs to be imaged'''
 		return self.end - self.start
 				
+	def delta_pixels(self):
+		return self.images_ideal() * self.view_pixels
+		
 	def images_ideal(self):
 		return self.images_ideal_calc
 	
@@ -190,6 +194,9 @@ class Planner:
 			rconfig.scan_config = config.get_scan_config()
 		scan_config = rconfig.scan_config
 
+		scan_config['computed'] = dict()
+		scan_config['computed']['x'] = dict()
+		scan_config['computed']['y'] = dict()
 		
 		ideal_overlap = 2.0 / 3.0
 		if 'overlap' in scan_config:
@@ -239,11 +246,16 @@ class Planner:
 			full_z_delta = self.z_end - self.z_start
 		#print full_z_delta
 	
-		self.x = PlannerAxis('X', ideal_overlap, focus.x_view, self.x_start, self.x_end)
-		self.y = PlannerAxis('Y', ideal_overlap, focus.y_view, self.y_start, self.y_end)
+		x_pixels = 3264
+		y_pixels = 2448
+	
+		self.x = PlannerAxis('X', ideal_overlap, focus.x_view, x_pixels, self.x_start, self.x_end)
+		self.y = PlannerAxis('Y', ideal_overlap, focus.y_view, y_pixels, self.y_start, self.y_end)
 		
 		print 'X %f to %f, Y %f to %f' % (self.x_start, self.x_end, self.y_start, self.y_end)
 		print 'Ideal overlap: %f, actual X %g, Y %g' % (ideal_overlap, self.x.step_percent(), self.y.step_percent())
+		scan_config['computed']['x']['overlap']  = self.x.step_percent()
+		scan_config['computed']['y']['overlap']  = self.x.step_percent()
 		print 'full x delta: %f, y delta: %f' % (self.x.delta(), self.y.delta())
 		print 'view x: %f, y: %f' % (focus.x_view, focus.y_view)
 			
@@ -289,6 +301,7 @@ class Planner:
 				print '    ' + str(p)
 			raise Exception('Fail')
 		self.pictures_taken = 0
+		self.actual_pictures_taken = 0
 		self.notify_progress(None, True)
 
 	def __del__(self):
@@ -351,6 +364,18 @@ class Planner:
 			print 'Could not find other points'
 			#raise Exception('die')
 			self.others = None
+			
+		self.parse_focus_stack()
+	
+	def parse_focus_stack(self):
+		config = self.rconfig.scan_config
+		if 'stack' in config:
+			stack = config['stack']
+			self.num_stack = int(stack['num'])
+			self.stack_step_size = int(stack['step_size'])
+		else:
+			self.num_stack = None
+			self.stack_step_size = None
 		
 	def calc_normal(self):
 		'''
@@ -547,10 +572,16 @@ class Planner:
 	def out_dir(self):
 		return 'out' + '//' +  self.rconfig.job_name
 		
-	def get_this_file_name(self):
+	def get_this_file_name(self, stack_mangle = None):
 		# row and column, 0 indexed
 		#return 'c%04X_r%04X.jpg' % (self.cur_col, self.cur_row)
-		r =  'c%04d_r%04d.tif' % (self.cur_col, self.cur_row)
+		if stack_mangle:
+			stack_mangle = '_' + stack_mangle
+		else:
+			stack_mangle = ''
+		#extension = '.tif'
+		extension = '.jpg'
+		r =  'c%04d_r%04d%s%s' % (self.cur_col, self.cur_row, stack_mangle, extension)
 		if self.out_dir():
 			r = '%s/%s' % (self.out_dir(), r)
 		return r
@@ -564,13 +595,41 @@ class Planner:
 				print 'Creating output directory %s' % od
 				os.mkdir(od)
 			
-	def take_picture(self):
+	def take_picture(self, image_file_name):
 		self.focus_camera()
-		image_file_name = self.get_this_file_name()
 		self.do_take_picture(image_file_name)
-		self.pictures_taken += 1
+		self.actual_pictures_taken += 1
 		self.reset_camera()
-		self.notify_progress(image_file_name)
+	
+	def take_pictures(self):
+		if self.num_stack:
+			n = self.num_stack
+			if n % 2 != 1:
+				raise Exception('Center stacking requires odd n')
+			# how much to step on each side
+			n2 = (self.num_stack - 1) / 2
+			self.absolute_move(None, None, -n2 * self.stack_step_size)
+			
+			self.pictures_taken += 1
+			
+			'''
+			Say 3 image stack
+			Move down 1 step to start and will have to do 2 more
+			'''
+			for i in range(n):
+				image_file_name = self.get_this_file_name('%02d' % i)
+				self.take_picture(image_file_name)
+				# Avoid moving at end
+				if i != n:
+					self.relative_move(None, None, self.stack_step_size)
+					# we now sleep before the actual picture is taken
+					#time.sleep(3)
+				self.notify_progress(image_file_name)
+		else:
+			image_file_name = self.get_this_file_name()
+			self.take_picture(image_file_name)		
+			self.pictures_taken += 1
+			self.notify_progress(image_file_name)
 	
 	def do_take_picture(self, file_name = None):
 		print 'Dummy: taking picture to %s' % file_name
@@ -583,7 +642,13 @@ class Planner:
 		pass
 	
 	def relative_move(self, x, y, z = None):
-		print 'Relative move to (%f, %f, %s)' % (x, y, str(z))
+		if x is None:
+			x = 0.0
+		if y is None:
+			y = 0.0
+		if z is None:
+			z = 0.0
+		print 'Relative move to (%f, %f, %f)' % (x, y, z)
 		pass
 		
 	'''
@@ -768,7 +833,7 @@ class Planner:
 		focus = self.focus
 		net_mag = focus.objective_mag * focus.eyepiece_mag * focus.camera_mag
 		self.comment('objective: %f, eyepiece: %f, camera: %f, net: %f' % (focus.objective_mag, focus.eyepiece_mag, focus.camera_mag, net_mag))
-		self.comment('x size: %f, y size: %f' % (self.x_end - self.x_start, self.y_end - self.y_start))
+		self.comment('x size: %f um / %d pix, y size: %f um / %d pix' % (self.x.delta(), self.x.delta_pixels(), self.y.delta(), self.y.delta_pixels()))
 		self.comment('x fov: %f, y fov: %f' % (focus.x_view, focus.y_view))
 		self.comment('x_step: %f, y_step: %f' % (self.x.step(), self.y.step()))
 		
@@ -853,7 +918,7 @@ class Planner:
 				self.absolute_move(cur_x, cur_y, cur_z)
 				if z_backlash_delta:
 					self.relative_move(0.0, 0.0, -z_backlash_delta)
-				self.take_picture()
+				self.take_pictures()
 				prev_x = cur_x
 				prev_y = cur_y
 				prev_z = cur_z
