@@ -163,6 +163,10 @@ class ImageCoordinateMap:
 		return file_names
 		
 	@staticmethod
+	def from_dir_tagged_file_names(dir, rows=None, cols=None):
+		return ImageCoordinateMap.from_tagged_file_names([os.path.join(dir, f) for f in os.listdir(dir)], rows, cols)
+		
+	@staticmethod
 	def from_tagged_file_names(file_names, rows=None, cols=None):
 		print 'Constructing image coordinate map from tagged file names...'
 		'''
@@ -355,6 +359,13 @@ class ImageCoordinateMap:
 		
 		
 		return ret
+	
+	def gen_set(self):
+		'''Get all pairs that are actually in the map'''
+		for col in range(self.cols):
+			for row in range(self.rows):
+				if self.get_image(col, row):
+					yield (col, row)
 	
 	def gen_pairs(self, row_spread = 1, col_spread = 1):
 		'''Returns a generator of ImageCoordinatePair's, sorted'''

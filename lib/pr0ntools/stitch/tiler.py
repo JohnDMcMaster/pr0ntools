@@ -145,6 +145,8 @@ class Tiler:
 				
 		# Delete files in the way?
 		self.force = False
+		# Keep old files and skip already generated?
+		self.merge = False
 		
 		self.set_size_heuristic(self.img_width, self.img_height)
 		# These are less related
@@ -208,14 +210,72 @@ class Tiler:
 		items = [PolygonQuadTreeItem(il.left(), il.right(), il.top(), il.bottom()) for il in self.pto.get_image_lines()]
 		self.map = PolygonQuadTree(items)	
 	
+	def gen_supertile_tiles(self, x0, x1, y0, y1):
+		'''Yield UL coordinates in (y, x) pairs'''
+	
+		'''
+		There is no garauntee that our supertile is a multiple of our tile size
+		This will particularly cause issues near the edges if we are not careful
+		'''
+		xt0 = ceil_mult(x0, self.tw, align=self.x0)
+		xt1 = floor_mult(x1, self.tw, align=self.x0)
+		if xt0 >= xt1:
+			print x0, x1
+			print xt0, xt1
+			raise Exception('Bad input x dimensions')
+		yt0 = ceil_mult(y0, self.th, align=self.y0)
+		yt1 = floor_mult(y1, self.th, align=self.y0)
+		if yt0 >= yt1:
+			print y0, y1
+			print yt0, yt1
+			raise Exception('Bad input y dimensions')
+			
+		if self.tw <= 0 or self.th <= 0:
+			raise Exception('Bad step values')
+
+
+		skip_xl_check = False
+		skip_xh_check = False
+		# If this is an edge supertile skip the buffer check
+		if x0 == self.left():
+			#print 'X check skip (%d): left border' % x0
+			skip_xl_check = True
+		if x1 == self.right():
+			#print 'X check skip (%d): right border' % x1
+			skip_xh_check = True
+			
+		skip_yl_check = False
+		skip_yh_check = False
+		if y0 == self.top():
+			print 'Y check skip (%d): top border' % y0
+			skip_yl_check = True
+		if y1 == self.bottom():
+			print 'Y check skip (%d): bottom border' % y1
+			skip_yh_check = True
+			
+		for y in xrange(yt0, yt1, self.th):
+			# Are we trying to construct a tile in the buffer zone?
+			if (not skip_yl_check) and y < y0 + self.clip_height:
+				print 'Rejecting tile @ y%d, x*: yl clip' % (y)
+				continue
+			if (not skip_yh_check) and y + self.th >= y1 - self.clip_height:
+				print 'Rejecting tile @ y%d, x*: yh clip' % (y)
+				continue
+			for x in xrange(xt0, xt1, self.tw):			 	
+				# Are we trying to construct a tile in the buffer zone?
+				if (not skip_xl_check) and x < x0 + self.clip_width:
+					print 'Rejecting tiles @ y%d, x%d: xl clip' % (y, x)
+					continue
+				if (not skip_xh_check) and x + self.tw >= x1 - self.clip_width:
+					print 'Rejecting tiles @ y%d, x%d: xh clip' % (y, x)
+					continue
+				yield (y, x)
+			
 	def try_supertile(self, x0, x1, y0, y1):
 		'''x0/1 and y0/1 are global absolute coordinates'''
 		# First generate all of the valid tiles across this area to see if we can get any useful work done?
 		# every supertile should have at least one solution or the bounds aren't good
 		
-		print
-		print
-		print "Creating supertile %d / %d with x%d:%d, y%d:%d" % (self.n_supertiles, self.n_expected_supertiles, x0, x1, y0, y1)
 		bench = Benchmark()
 		
 		temp_file = ManagedTempFile.get(None, '.tif')
@@ -241,22 +301,7 @@ class Tiler:
 			print 'Supertile width: %d, height: %d' % (img.width(), img.height())
 		new = 0
 		
-		'''
-		There is no garauntee that our supertile is a multiple of our tile size
-		This will particularly cause issues near the edges if we are not careful
-		'''
-		xt0 = ceil_mult(x0, self.tw, align=self.x0)
-		xt1 = floor_mult(x1, self.tw, align=self.x0)
-		if xt0 >= xt1:
-			print 'Bad input x dimensions'
-		yt0 = ceil_mult(y0, self.th, align=self.y0)
-		yt1 = floor_mult(y1, self.th, align=self.y0)
-		if yt0 >= yt1:
-			print 'Bad input y dimensions'
 			
-			
-		txstep = self.tw
-		tystep = self.th
 		
 		'''
 		A tile is valid if its in a safe location
@@ -266,63 +311,30 @@ class Tiler:
 		'''
 		gen_tiles = 0
 		print
-		print 'Phase 4: chopping up supertile, step(x: %d, y: %d)' % (txstep, tystep)
-		print 'x in xrange(%d, %d, %d)' % (xt0, xt1, txstep)
-		print 'y in xrange(%d, %d, %d)' % (yt0, yt1, tystep)
-		if txstep <= 0 or tystep <= 0:
-			raise Exception('Bad step values')
-			
-		skip_xl_check = False
-		skip_xh_check = False
-		# If this is an edge supertile skip the buffer check
-		if x0 == self.left():
-			print 'X check skip (%d): left border' % x0
-			skip_xl_check = True
-		if x1 == self.right():
-			print 'X check skip (%d): right border' % x1
-			skip_xh_check = True
-			
-		skip_yl_check = False
-		skip_yh_check = False
-		if y0 == self.top():
-			print 'Y check skip (%d): top border' % y0
-			skip_yl_check = True
-		if y1 == self.bottom():
-			print 'Y check skip (%d): bottom border' % y1
-			skip_yh_check = True
-			
-		for y in xrange(yt0, yt1, tystep):
-			# Are we trying to construct a tile in the buffer zone?
-			if (not skip_yl_check) and y < y0 + self.clip_height:
-				print 'Rejecting tile @ y%d, x*: yl clip' % (y)
-				continue
-			if (not skip_yh_check) and y + self.th >= y1 - self.clip_height:
-				print 'Rejecting tile @ y%d, x*: yh clip' % (y)
-				continue
+		# TODO: get the old info back if I miss it after yield refactor
+		if 0:
+			print 'Phase 4: chopping up supertile, step(x: %d, y: %d)' % (self.tw, self.th)
+			print 'x in xrange(%d, %d, %d)' % (xt0, xt1, self.tw)
+			print 'y in xrange(%d, %d, %d)' % (yt0, yt1, self.th)
+		else:
+			print 'Phase 4: chopping up supertile'
+		
+		for (y, x) in self.gen_supertile_tiles(x0, x1, y0, y1):	
 			# If we made it this far the tile can be constructed with acceptable enblend artifacts
 			row = self.y2row(y)
-			for x in xrange(xt0, xt1, txstep):			 	
-				# Are we trying to construct a tile in the buffer zone?
-				if (not skip_xl_check) and x < x0 + self.clip_width:
-					print 'Rejecting tiles @ y%d, x%d: xl clip' % (y, x)
-					continue
-				if (not skip_xh_check) and x + self.tw >= x1 - self.clip_width:
-					print 'Rejecting tiles @ y%d, x%d: xh clip' % (y, x)
-					continue
-				
-				col = self.x2col(x)
-				
-				# Did we already do this tile?
-				if self.is_done(row, col):
-					# No use repeating it although it would be good to diff some of these
-					print 'Rejecting tile x%d, y%d / r%d, c%d: already done' % (x, y, row, col)
-					continue
-				
-				# note that x and y are in whole pano coords
-				# we need to adjust to our frame
-				# row and col on the other hand are used for global naming
-				self.make_tile(img, x - x0, y - y0, row, col)
-				gen_tiles += 1
+			col = self.x2col(x)
+			
+			# Did we already do this tile?
+			if self.is_done(row, col):
+				# No use repeating it although it would be good to diff some of these
+				print 'Rejecting tile x%d, y%d / r%d, c%d: already done' % (x, y, row, col)
+				continue
+			
+			# note that x and y are in whole pano coords
+			# we need to adjust to our frame
+			# row and col on the other hand are used for global naming
+			self.make_tile(img, x - x0, y - y0, row, col)
+			gen_tiles += 1
 		bench.stop()
 		print 'Generated %d new tiles for a total of %d in %s' % (gen_tiles, len(self.closed_list), str(bench))
 		if gen_tiles == 0:
@@ -359,18 +371,29 @@ class Tiler:
 		self.mark_done(row, col)
 				
 	def x2col(self, x):
-		return int((x - self.x0) / self.tw)
+		col = int((x - self.x0) / self.tw)
+		if col < 0:
+			print x, self.x0, self.tw
+			raise Exception("Can't have negative col")
+		return col
 	
 	def y2row(self, y):
-		return int((y - self.y0) / self.th)
+		ret = int((y - self.y0) / self.th)
+		if ret < 0:
+			print y, self.y0, self.th
+			raise Exception("can't have negative row")
+		return ret
 	
 	def is_done(self, row, col):
 		return (row, col) in self.closed_list
 	
-	def mark_done(self, row, col):
+	def mark_done(self, row, col, current = True):
 		self.closed_list.add((row, col))
+		if current:
+			self.this_tiles_done += 1
 	
 	def tiles_done(self):
+		'''Return total number of tiles completed'''
 		return len(self.closed_list)
 	
 	def gen_open_list(self):
@@ -425,6 +448,8 @@ class Tiler:
 		# 0:256 generates a 256 width pano
 		# therefore, we don't want the upper bound included
 			
+			
+		print 'Generating supertiles from y(%d:%d) x(%d:%d)' % (self.top(), self.bottom(), self.left(), self.right())
 		#row = 0
 		y_done = False
 		for y in xrange(self.top(), self.bottom(), self.super_t_ystep):
@@ -432,7 +457,8 @@ class Tiler:
 			y1 = y + self.super_th
 			if y1 >= self.bottom():
 				y_done = True
-				y0 = self.bottom() - self.super_th
+				y0 = max(self.top(), self.bottom() - self.super_th)
+				print 'Y %d would have overstretched, shifting y0 to maximum height position %d' % (y, y0)
 				y1 = self.bottom()
 				
 			#col = 0
@@ -444,8 +470,9 @@ class Tiler:
 				# This makes blending better to give a wider buffer zone
 				if x1 >= self.right():
 					x_done = True
-					x0 = self.right() - self.super_tw
+					x0 = max(self.left(), self.right() - self.super_tw)
 					x1 = self.right()
+					print 'X %d would have overstretched, shifting to maximum width position %d' % (x, x0)
 				
 				yield [x0, x1, y0, y1]
 				
@@ -457,12 +484,49 @@ class Tiler:
 				break
 		print 'All supertiles generated'
 		
+	def n_supertile_tiles(self, x0, x1, y0, y1):
+		ret = 0
+		for t in self.gen_supertile_tiles(x0, x1, y0, y1):
+			ret += 1
+		return ret
+		
+	def should_try_supertile(self, x0, x1, y0, y1):
+		# If not merging always stitch
+		if not self.merge:
+			return True
+		
+		print 'Checking supertile for existing tiles with %d candidates' % (self.n_supertile_tiles(x0, x1, y0, y1))
+		
+		for (y, x) in self.gen_supertile_tiles(x0, x1, y0, y1):
+			# If we made it this far the tile can be constructed with acceptable enblend artifacts
+			row = self.y2row(y)
+			col = self.x2col(x)
+			
+			#print 'Checking (r%d, c%d)' % (row, col)
+			# Did we already do this tile?
+			if not self.is_done(row, col):
+				return True
+		print 'Everything is done'
+		return False
+	
+	def seed_merge(self):
+		'''Add all already generated tiles to the closed list'''
+		icm = ImageCoordinateMap.from_dir_tagged_file_names(self.out_dir)
+		already_done = 0
+		for (col, row) in icm.gen_set():
+			self.mark_done(row, col, False)
+			already_done += 1
+		print 'Map seeded with %d already done tiles' % already_done
+	
 	def run(self):
 		print 'Input images width %d, height %d' % (self.img_width, self.img_height)
 		print 'Output to %s' % self.out_dir
 		print 'Super tile width %d, height %d from scalar %d' % (self.super_tw, self.super_th, self.st_scalar_heuristic)
 		print 'Super tile x step %d, y step %d' % (self.super_t_xstep, self.super_t_ystep)
 		print 'Supertile clip width %d, height %d' % (self.clip_width, self.clip_height)
+		
+		if self.merge and self.force:
+			raise Exception('Can not merge and force')
 		
 		if not self.dry:
 			self.dry = True
@@ -483,19 +547,21 @@ class Tiler:
 		if we have a width of 256 and 257 pixel we need total size of 512
 		'''
 		print 'Tile width: %d, height: %d' % (self.tw, self.th)
-		print 'Net size: %d width X %d height = %d MP' % (self.width(), self.height(), self.width() * self.height() / 1000000)
-		print 'Net - left: %d, right: %d, top: %d, bottom: %d' % (self.left(), self.right(), self.top(), self.bottom())
+		print 'Net size: %d width (%d:%d) X %d height (%d:%d) = %d MP' % (self.width(), self.left(), self.right(), self.height(), self.top(), self.bottom(), self.width() * self.height() / 1000000)
 		print 'Output image extension: %s' % self.out_extension
+		
+		self.this_tiles_done = 0
 		
 		bench = Benchmark()
 		
-		if os.path.exists(self.out_dir):
+		# Scrub old dir if we don't want it
+		if os.path.exists(self.out_dir) and not self.merge:
 			if self.force:
 				if not self.dry:
 					shutil.rmtree(self.out_dir)
 			else:
 				raise Exception("Must set force to override output")
-		if not self.dry:
+		if not self.dry and not os.path.exists(self.out_dir):
 			os.mkdir(self.out_dir)
 		# in form (row, col)
 		self.closed_list = set()
@@ -508,16 +574,29 @@ class Tiler:
 		net_tiles = x_tiles * y_tiles
 		print 'Expecting to generate x%d, y%d (%d) basic tiles' % (x_tiles, y_tiles, net_tiles)
 		
+		if self.merge:
+			self.seed_merge()
+		
 		#temp_file = 'partial.tif'
 		self.n_supertiles = 0
 		for supertile in self.gen_supertiles():
 			self.n_supertiles += 1
 			[x0, x1, y0, y1] = supertile
-			self.try_supertile(x0, x1, y0, y1)
+			
+			print 'Checking supertile x(%d:%d) y(%d:%d)' % (x0, x1, y0, y1)
+			
+			if self.should_try_supertile(x0, x1, y0, y1):
+				print
+				print
+				print "Creating supertile %d / %d with x%d:%d, y%d:%d" % (self.n_supertiles, self.n_expected_supertiles, x0, x1, y0, y1)
+				
+				self.try_supertile(x0, x1, y0, y1)
+			else:
+				print 'WARNING: skipping supertile %d as it would not generate any new tiles' % self.n_supertiles
 
 		bench.stop()
-		print 'Processed %d supertiles to generate %d tiles in %s' % (self.n_expected_supertiles, self.tiles_done(), str(bench))
-		tiles_s = self.tiles_done() / bench.delta_s()
+		print 'Processed %d supertiles to generate %d new (%d total) tiles in %s' % (self.n_expected_supertiles, self.this_tiles_done, self.tiles_done(), str(bench))
+		tiles_s = self.this_tiles_done / bench.delta_s()
 		print '%f tiles / sec, %f pix / sec' % (tiles_s, tiles_s * self.tw * self.th)
 		
 		if self.tiles_done() != net_tiles:
