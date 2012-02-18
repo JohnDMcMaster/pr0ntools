@@ -166,6 +166,9 @@ class PImage:
 	def copy(self):
 		return self.subimage(self, None, None, None, None)
 
+	def rotate(self, degrees):
+		return PImage.from_image(self.image.rotate(degrees))
+		
 	def width(self):
 		return self.image.size[0]
 	
