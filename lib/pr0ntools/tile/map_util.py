@@ -40,7 +40,9 @@ def rotate_tiles(src_dir, dst_dir, degrees, force = False):
 	self.tw = None
 	self.th = None
 	# For the first level we copy things over
+	n = 0
 	for (src, row, col) in icm.images():
+		n += 1
 		pi = PImage.from_file(src)
 		# I could actually set with / height here but right now this is
 		# coming up fomr me accidentially using 256 x 256 tiles when the 
@@ -52,7 +54,9 @@ def rotate_tiles(src_dir, dst_dir, degrees, force = False):
 		if pi.width() != self.tw or pi.height() != self.th:
 			raise Exception('Source image incorrect size')
 		
+	this_n = 0
 	for (src, src_row, src_col) in icm.images():
+		this_n += 1
 		extension = '.jpg'
 		extension = '.' + src.split('.')[-1]
 		
@@ -66,7 +70,7 @@ def rotate_tiles(src_dir, dst_dir, degrees, force = False):
 		dst = os.path.join(dst_dir, 'y%03d_x%03d%s' % (dst_row, dst_col, extension))
 		pi = PImage.from_file(src)
 		pip = pi.rotate(degrees)
-		print '%s => %s' % (src, dst)
+		print '%d / %d: %s => %s' % (this_n, n, src, dst)
 		pip.save(dst)
 	
 
