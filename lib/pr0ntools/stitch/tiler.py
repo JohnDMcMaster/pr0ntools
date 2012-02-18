@@ -126,6 +126,7 @@ class Tiler:
 		self.dry = dry
 		self.st_scalar_heuristic = st_scalar_heuristic
 		self.ignore_errors = False
+		self.verbose = False
 		
 		# TODO: this is a heuristic just for this, uniform input images aren't actually required
 		for i in pto.get_image_lines():
@@ -259,18 +260,22 @@ class Tiler:
 		for y in xrange(yt0, yt1, self.th):
 			# Are we trying to construct a tile in the buffer zone?
 			if (not skip_yl_check) and y < y0 + self.clip_height:
-				print 'Rejecting tile @ y%d, x*: yl clip' % (y)
+				if self.verbose:
+					print 'Rejecting tile @ y%d, x*: yl clip' % (y)
 				continue
 			if (not skip_yh_check) and y + self.th >= y1 - self.clip_height:
-				print 'Rejecting tile @ y%d, x*: yh clip' % (y)
+				if self.verbose:
+					print 'Rejecting tile @ y%d, x*: yh clip' % (y)
 				continue
 			for x in xrange(xt0, xt1, self.tw):			 	
 				# Are we trying to construct a tile in the buffer zone?
 				if (not skip_xl_check) and x < x0 + self.clip_width:
-					print 'Rejecting tiles @ y%d, x%d: xl clip' % (y, x)
+					if self.verbose:
+						print 'Rejecting tiles @ y%d, x%d: xl clip' % (y, x)
 					continue
 				if (not skip_xh_check) and x + self.tw >= x1 - self.clip_width:
-					print 'Rejecting tiles @ y%d, x%d: xh clip' % (y, x)
+					if self.verbose:
+						print 'Rejecting tiles @ y%d, x%d: xh clip' % (y, x)
 					continue
 				yield (y, x)
 			
@@ -508,7 +513,6 @@ class Tiler:
 			# Did we already do this tile?
 			if not self.is_done(row, col):
 				return True
-		print 'Everything is done'
 		return False
 	
 	def seed_merge(self):
