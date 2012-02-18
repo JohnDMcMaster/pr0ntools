@@ -167,7 +167,9 @@ class ImageCoordinateMap:
 		return ImageCoordinateMap.from_tagged_file_names([os.path.join(dir, f) for f in os.listdir(dir)], rows, cols)
 		
 	@staticmethod
-	def from_tagged_file_names(file_names, rows=None, cols=None):
+	def from_tagged_file_names(file_names, rows=None, cols=None, partial=False):
+		'''Partial: if set will allow gaps and consider it a smaller set'''
+		
 		print 'Constructing image coordinate map from tagged file names...'
 		'''
 		rows: hard code number input rows
@@ -191,10 +193,16 @@ class ImageCoordinateMap:
 			# Assume X first so that files read x_y.jpg which seems most intuitive (to me FWIW)
 			if cols is None:
 				print 'Constructing columns from set %s' % str(col_parts)
-				cols = len(col_parts)
+				if partial:
+					cols = len(col_parts)
+				else:
+					cols = max(col_parts) + 1
 			if rows is None:
 				print 'Constructing rows from set %s' % str(row_parts)
-				rows = len(row_parts)
+				if partial:
+					rows = len(row_parts)
+				else:
+					rows = max(row_parts) + 1
 		print 'initial cols / X dim / width: %d, rows / Y dim / height: %d' % (cols, rows)
 		
 		ret = ImageCoordinateMap(cols, rows)

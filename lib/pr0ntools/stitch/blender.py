@@ -85,9 +85,12 @@ Mask generation options:
 Report bugs at <http://sourceforge.net/projects/enblend/>.
 '''
 
-from pr0ntools.execute import Execute
+from pr0ntools.execute import Execute, CommandFailed
 from pr0ntools.config import config
 
+class BlenderFailed(CommandFailed):
+	pass
+	
 class Blender:
 	def __init__(self, input_files, output_file):
 		self.input_files = input_files
@@ -116,7 +119,7 @@ class Blender:
 		args.append(self.pto_project.get_a_file_name())
 		(rc, output) = Execute.with_output("enblend", args)
 		if not rc == 0:
-			raise Exception('failed to blend')
+			raise BlenderFailed('failed to blend')
 		self.project.reopen()
 
 		

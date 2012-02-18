@@ -7,6 +7,9 @@ Licensed under a 2 clause BSD license, see COPYING for details
 import os
 from temp_file import ManagedTempFile
 
+class CommandFailed(Exception):
+	pass
+
 class Execute:
 	@staticmethod
 	def simple(cmd, working_dir = None):

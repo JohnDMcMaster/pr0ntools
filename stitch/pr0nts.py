@@ -42,11 +42,12 @@ if __name__ == "__main__":
 	parser.add_argument('--force', action="store_true", dest="force", default=False, help='Force by replacing old files')
 	parser.add_argument('--merge', action="store_true", dest="merge", default=False, help="Don't delete anything and only generate things missing")
 	parser.add_argument('--out-ext', action="store", dest="out_extension", type=str, default='.jpg', help='Select output image extension (and type), .jpg, .png, .tif, etc')
+	parser.add_argument('--full', action="store_true", dest="full", default=False, help='use only 1 supertile')
 	parser.add_argument('--st-xstep', action="store", dest="super_t_xstep", type=int, default=None, help='Supertile x step (advanced)')
 	parser.add_argument('--st-ystep', action="store", dest="super_t_ystep", type=int, default=None, help='Supertile y step (advanced)')
 	parser.add_argument('--clip-width', action="store", dest="clip_width", type=int, default=None, help='x clip (advanced)')
 	parser.add_argument('--clip-height', action="store", dest="clip_height", type=int, default=None, help='y clip (advanced)')
-	parser.add_argument('--full', action="store_true", dest="full", default=False, help='use only 1 supertile')
+	parser.add_argument('--ignore-errors', action="store_true", dest="ignore_errors", default=False, help='skip broken tile stitches (advanced)')
 	
 	args = parser.parse_args()
 	fn = args.pto[0]
@@ -58,6 +59,7 @@ if __name__ == "__main__":
 	t.force = args.force
 	t.merge = args.merge
 	t.out_extension = args.out_extension
+	t.ignore_errors = args.ignore_errors
 	
 	if args.super_t_xstep:
 		t.super_t_xstep = args.super_t_xstep

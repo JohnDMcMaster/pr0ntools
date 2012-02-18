@@ -55,6 +55,8 @@ from pr0ntools.util.geometry import floor_mult, ceil_mult
 import os
 import math
 import shutil
+from pr0ntools.execute import CommandFailed
+import traceback
 
 
 class PartialStitcher:
@@ -123,6 +125,7 @@ class Tiler:
 		self.img_height = None
 		self.dry = dry
 		self.st_scalar_heuristic = st_scalar_heuristic
+		self.ignore_errors = False
 		
 		# TODO: this is a heuristic just for this, uniform input images aren't actually required
 		for i in pto.get_image_lines():
@@ -289,7 +292,6 @@ class Tiler:
 			stitcher = None
 		else:
 			stitcher.run()
-		
 		
 		print
 		print 'Phase 3: loading supertile image'
@@ -590,7 +592,17 @@ class Tiler:
 				print
 				print "Creating supertile %d / %d with x%d:%d, y%d:%d" % (self.n_supertiles, self.n_expected_supertiles, x0, x1, y0, y1)
 				
-				self.try_supertile(x0, x1, y0, y1)
+
+				try:
+					self.try_supertile(x0, x1, y0, y1)
+				except CommandFailed as e:
+					if self.ignore_errors:
+						print 'WARNING: got exception trying supertile %d' % (self.n_supertiles)
+						traceback.print_exc()
+						# We shouldn't be trying commands during dry but just in case should raise?
+						return
+					else:
+						raise
 			else:
 				print 'WARNING: skipping supertile %d as it would not generate any new tiles' % self.n_supertiles
 
