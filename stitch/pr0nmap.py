@@ -16,8 +16,12 @@ if __name__ == "__main__":
 	parser.add_argument('--level-max', action="store", dest="level_max", type=int, default=None, help='Maximum zoom level')
 	parser.add_argument('--out', action="store", dest="out_dir", type=str, default="map", help='Output directory')
 	parser.add_argument('--js-only', action="store_true", dest="js_only", default=False, help='No tiles, only JavaScript')
+	#parser.add_argument('--merge', action="store_true", dest="merge", default=False, help='Merge into existing data')
+	#parser.add_argument('--force', action="store_true", dest="force", default=False, help="Delete existing data if present")
 	parser.add_argument('--skip-missing', action="store_true", dest="skip_missing", default=False, help='Skip missing tiles')
 	parser.add_argument('--out-extension', action="store", dest="out_extension", type=str, default='.jpg', help='Select output image extension (and type), .jpg, .png, .tif, etc')
+	parser.add_argument('--name', action="store", dest="title_name", type=str, default=None, help='SiMap: <name> title')
+	parser.add_argument('--title', action="store", dest="title", type=str, default=None, help='Set title.  Default: SiMap: <project name>')
 	args = parser.parse_args()
 	
 	if len(args.images_in) == 0:
@@ -36,6 +40,10 @@ if __name__ == "__main__":
 		raise Exception('NO! no biscuit!')
 
 	m = Map(source)
+	if args.title_name:
+		m.page_title = "SiMap: %s" % args.title_name
+	if args.title:
+		m.page_title = args.title
 	m.min_level = args.level_min
 	m.max_level = args.level_max
 	m.out_dir = args.out_dir
