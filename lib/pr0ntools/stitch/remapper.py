@@ -167,8 +167,9 @@ class Remapper:
 			print 'Think nona just generated files (%d new - %d old = %d delta):' % (len(new_files), len(old_files), len(self.output_files))
 			# it may be a set but lists have advantages trying to trace whats happening
 			self.output_files = sorted(list(self.output_files))
-			for f in self.output_files:
-				print '  %s' % f
+			if 0:
+				for f in self.output_files:
+					print '  %s' % f
 		else:
 			raise Exception('bad image type')
 	def get_output_files(self):

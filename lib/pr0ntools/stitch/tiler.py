@@ -343,7 +343,7 @@ class Tiler:
 			self.make_tile(img, x - x0, y - y0, row, col)
 			gen_tiles += 1
 		bench.stop()
-		print 'Generated %d new tiles for a total of %d in %s' % (gen_tiles, len(self.closed_list), str(bench))
+		print 'Generated %d new tiles for a total of %d / %d in %s' % (gen_tiles, len(self.closed_list), self.net_expected_tiles, str(bench))
 		if gen_tiles == 0:
 			raise Exception("Didn't generate any tiles")
 		# temp_file should be automatically deleted upon exit
@@ -577,8 +577,8 @@ class Tiler:
 		
 		x_tiles = math.ceil(self.width() / self.tw)
 		y_tiles = math.ceil(self.height() / self.th)
-		net_tiles = x_tiles * y_tiles
-		print 'Expecting to generate x%d, y%d (%d) basic tiles' % (x_tiles, y_tiles, net_tiles)
+		self.net_expected_tiles = x_tiles * y_tiles
+		print 'Expecting to generate x%d, y%d (%d) basic tiles' % (x_tiles, y_tiles, self.net_expected_tiles)
 		
 		if self.merge:
 			self.seed_merge()
@@ -615,8 +615,8 @@ class Tiler:
 		tiles_s = self.this_tiles_done / bench.delta_s()
 		print '%f tiles / sec, %f pix / sec' % (tiles_s, tiles_s * self.tw * self.th)
 		
-		if self.tiles_done() != net_tiles:
-			print 'ERROR: expected to do %d basic tiles but did %d' % (net_tiles, self.tiles_done())
+		if self.tiles_done() != self.net_expected_tiles:
+			print 'ERROR: expected to do %d basic tiles but did %d' % (self.net_expected_tiles, self.tiles_done())
 			self.dump_open_list()
 			raise Exception('State mismatch')
 
