@@ -204,8 +204,8 @@ class Tiler:
 		
 		However if we do assume its on the center the center of the image should be unique and thus not a stitch boundry
 		'''
-		self.clip_width = image_width / 2
-		self.clip_height = image_height / 2
+		self.clip_width = image_width
+		self.clip_height = image_height
 	
 	def build_spatial_map(self):
 		#image_file_names = self.pto.get_file_names()
