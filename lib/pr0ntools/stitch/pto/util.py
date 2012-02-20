@@ -6,6 +6,7 @@ Licensed under a 2 clause BSD license, see COPYING for details
 
 import math
 from pr0ntools.stitch.image_coordinate_map import ImageCoordinateMap
+import os
 
 def print_debug(s = None):
 	if False:
@@ -353,5 +354,26 @@ def fixup_i_lines(self):
 		print
 		print
 
+def make_basename(pto):
+	'''Convert image file names to their basenames'''
+	for il in pto.get_image_lines():
+		orig = il.get_name()
+		new = os.path.basename(orig)
+		if orig != new:
+			print '%s => %s' % (orig, new)
+		il.set_name(new)
+
+def resave_hugin(pto):
+	from pr0ntools.stitch.merger import Merger
+	from pr0ntools.stitch.pto.project import PTOProject
+	
+	# pto_merge -o converted.pto out.pto out.pto
+	blank = PTOProject.from_blank()
+	m = Merger([blank])
+	m.pto = pto
+	new = m.run(to_pto=True)
+	if new != pto:
+		raise Exception('Expected self merge')
+	print 'Merge into self'
 
 

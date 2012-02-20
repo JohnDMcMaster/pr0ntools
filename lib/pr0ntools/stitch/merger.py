@@ -16,14 +16,17 @@ class Merger:
 		self.files = files
 		self.pto = None
 		
-	def run(self):
+	def run(self, to_pto = False):
 		from pr0ntools.stitch.pto.project import PTOProject
 		
 		others = self.files
 		pto = self.pto
 
 		'''Take in a list of pto files and merge them into pto'''
-		pto_temp_file = ManagedTempFile.get(None, ".pto")
+		if to_pto:
+			pto_temp_file = self.pto.get_a_file_name()
+		else:
+			pto_temp_file = ManagedTempFile.get(None, ".pto")
 
 		command = "pto_merge"
 		args = list()
@@ -51,6 +54,10 @@ class Merger:
 				# ex: empty projects seem to cause this
 				print 'Out of memory, expect malformed project file'
 			raise Exception('failed pto_merge')
-		return PTOProject.from_temp_file(pto_temp_file)
+		if to_pto:
+			self.pto.reopen()
+			return self.pto
+		else:
+			return PTOProject.from_temp_file(pto_temp_file)
 
 

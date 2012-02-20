@@ -7,7 +7,7 @@ Copyright 2012 John McMaster
 import argparse		
 from pr0ntools.stitch.optimizer import PTOptimizer
 from pr0ntools.stitch.pto.project import PTOProject
-from pr0ntools.stitch.pto.util import center, center_anchor
+from pr0ntools.stitch.pto.util import *
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description='Manipulate .pto files')
@@ -16,6 +16,8 @@ if __name__ == "__main__":
 	parser.add_argument('--optimize', action="store_true", dest="optimize", default=False, help='Optimize the project')
 	parser.add_argument('--lens-model', action="store", type=str, dest="lens_model", default=None, help='Apply lens model file')
 	parser.add_argument('--reset-photometrics', action="store_true", dest="reset_photometrics", default=False, help='Reset photometrics')
+	parser.add_argument('--basename', action="store_true", dest="basename", default=False, help='Strip image file names down to basename')
+	parser.add_argument('--hugin', action="store_true", dest="hugin", default=False, help='Resave using panotools (Hugin form)')
 	#parser.add_argument('--prepare', action="store_true", dest="prepare", default=False, help='Center, anchor center image, optimize')
 	parser.add_argument('pto', metavar='.pto in', type=str, nargs=1,
                    help='project to work on')
@@ -41,6 +43,14 @@ if __name__ == "__main__":
 		print 'Re-finding anchor'
 		center_anchor(pto)
 	
+	if args.hugin:
+		print 'Resaving with hugin'
+		resave_hugin(pto)
+	
+	if args.basename:
+		print 'Converting to basename'
+		make_basename(pto)
+		
 	if args.lens_model:
 		print 'Applying lens model (FIXME)'
 
