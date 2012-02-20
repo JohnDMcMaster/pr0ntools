@@ -43,14 +43,14 @@ if __name__ == "__main__":
 		print 'Re-finding anchor'
 		center_anchor(pto)
 	
-	if args.hugin:
-		print 'Resaving with hugin'
-		resave_hugin(pto)
-	
 	if args.basename:
 		print 'Converting to basename'
 		make_basename(pto)
 		
+	if args.hugin:
+		print 'Resaving with hugin'
+		resave_hugin(pto)
+	
 	if args.lens_model:
 		print 'Applying lens model (FIXME)'
 
