@@ -104,8 +104,14 @@ def prepare_pto(pto, reoptimize = True):
 		v = il.get_variable('v') 
 		if v == None or v >= 180:
 			il.set_variable('v', 51)
+		
+		# These aren't liked: TrX0 TrY0 TrZ0
+		il.remove_variable('TrX')
+		il.remove_variable('TrY')
+		il.remove_variable('TrZ')
 
-		if il.get_variable('w') == None or il.get_variable('h') == None:
+		# panotools seems to set these to -1 on some ocassions
+		if il.get_variable('w') == None or il.get_variable('h') == None or int(il.get_variable('w')) <= 0 or int(il.get_variable('h')) <= 0:
 			img = PImage.from_file(il.get_name())
 			il.set_variable('w', img.width())
 			il.set_variable('h', img.height())
