@@ -10,7 +10,7 @@ This allows considerable optimization since we know where all the picture are
 
 from image_coordinate_map import ImageCoordinateMap
 import os
-from common_stitch import CommonStitch
+from common_stitch import *
 import sys
 
 class GridStitch(CommonStitch):
@@ -30,6 +30,13 @@ class GridStitch(CommonStitch):
 		print engine.coordinate_map
 		return engine
 	
+	def init_failures(self):
+		open_list = set()
+		for (file_name, row, col) in self.coordinate_map.images():
+			open_list.add(file_name)
+		self.failures = FailedImages(open_list)
+			
+		
 	def generate_control_points(self):
 		'''
 		Generate control points
