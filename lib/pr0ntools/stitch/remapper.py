@@ -64,8 +64,11 @@ panotools wiki says that hugin should be able to output cropped but I don't see 
 	nona  -z LZW -r ldr -m TIFF_m -o test -i 9 /tmp/huginpto_H3PO0O
 '''
 
-from pr0ntools.execute import Execute
+from pr0ntools.execute import Execute, CommandFailed
 import os
+
+class RemapperFailed(CommandFailed):
+	pass
 
 def get_nona_files(output_prefix, max_images):
 	ret = set()
@@ -83,7 +86,7 @@ class Remapper:
 	
 	def __init__(self, pto_project, output_prefix="nonaout"):
 		if output_prefix is None or len(output_prefix) == 0 or output_prefix == '.' or output_prefix == '..':
-			raise Exception('Bad output file base "%s"' % str(output_prefix))
+			raise RemapperFailed('Bad output file base "%s"' % str(output_prefix))
 		
 		self.pto_project = pto_project
 		# this is taken from the pto
@@ -105,7 +108,7 @@ class Remapper:
 		project_name = project_name.split('.')[0]
 		if len(project_name) == 0:
 			project_name = 'out'
-			raise Exception('Require project name')
+			raise RemapperFailed('Require project name')
 		print 'Chose output prefix "%s"' % project_name
 		self.remap(project_name)
 		
@@ -115,7 +118,7 @@ class Remapper:
 		# For my purposes right now I think this will always be 0
 		if len(old_files) != 0:
 			print old_files
-			raise Exception('Found some old files')
+			raise RemapperFailed('Found some old files')
 		
 		args = list()
 		args.append("-m")
@@ -147,7 +150,7 @@ class Remapper:
 			print
 			print 'Failed to remap'
 			#print output
-			raise Exception('failed to remap')
+			raise RemapperFailed('failed to remap')
 		#project.reopen()
 		if self.image_type == Remapper.TIFF_MULTILAYER:
 			self.output_files = [self.output_prefix + '.tif']
@@ -160,7 +163,7 @@ class Remapper:
 					fn = '%s%04d.tif' % (self.output_prefix, i)
 					print 'Think we generated file %s' % fn
 					if not os.path.exists(fn):
-						raise Exception('Missing output file %s' % fn)
+						raise RemapperFailed('Missing output file %s' % fn)
 					self.output_files.append(fn)
 			new_files = get_nona_files(self.output_prefix, len(self.pto_project.get_image_lines()))
 			self.output_files = new_files.difference(old_files)
@@ -171,7 +174,7 @@ class Remapper:
 				for f in self.output_files:
 					print '  %s' % f
 		else:
-			raise Exception('bad image type')
+			raise RemapperFailed('bad image type')
 	def get_output_files(self):
 		return self.output_files
 		
