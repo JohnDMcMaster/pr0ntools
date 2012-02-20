@@ -285,68 +285,71 @@ class Tiler:
 		# every supertile should have at least one solution or the bounds aren't good
 		
 		bench = Benchmark()
-		
-		temp_file = ManagedTempFile.get(None, '.tif')
+		try:
+			temp_file = ManagedTempFile.get(None, '.tif')
 
-		bounds = [x0, x1, y0, y1]
-		#out_name_base = "%s/r%03d_c%03d" % (self.out_dir, row, col)
-		#print 'Working on %s' % out_name_base
-		stitcher = PartialStitcher(self.pto, bounds, temp_file.file_name)
-		if self.dry:
-			print 'Dry: skipping partial stitch'
-			stitcher = None
-		else:
-			stitcher.run()
+			bounds = [x0, x1, y0, y1]
+			#out_name_base = "%s/r%03d_c%03d" % (self.out_dir, row, col)
+			#print 'Working on %s' % out_name_base
+			stitcher = PartialStitcher(self.pto, bounds, temp_file.file_name)
+			if self.dry:
+				print 'Dry: skipping partial stitch'
+				stitcher = None
+			else:
+				stitcher.run()
 		
-		print
-		print 'Phase 3: loading supertile image'
-		if self.dry:
-			print 'Dry: skipping loading PTO'
-			img = None
-		else:
-			img = PImage.from_file(temp_file.file_name)
-			print 'Supertile width: %d, height: %d' % (img.width(), img.height())
-		new = 0
+			print
+			print 'Phase 3: loading supertile image'
+			if self.dry:
+				print 'Dry: skipping loading PTO'
+				img = None
+			else:
+				img = PImage.from_file(temp_file.file_name)
+				print 'Supertile width: %d, height: %d' % (img.width(), img.height())
+			new = 0
 		
 			
 		
-		'''
-		A tile is valid if its in a safe location
-		There are two ways for the location to be safe:
-		-No neighboring tiles as found on canvas edges
-		-Sufficiently inside the blend area that artifacts should be minimal
-		'''
-		gen_tiles = 0
-		print
-		# TODO: get the old info back if I miss it after yield refactor
-		if 0:
-			print 'Phase 4: chopping up supertile, step(x: %d, y: %d)' % (self.tw, self.th)
-			print 'x in xrange(%d, %d, %d)' % (xt0, xt1, self.tw)
-			print 'y in xrange(%d, %d, %d)' % (yt0, yt1, self.th)
-		else:
-			print 'Phase 4: chopping up supertile'
+			'''
+			A tile is valid if its in a safe location
+			There are two ways for the location to be safe:
+			-No neighboring tiles as found on canvas edges
+			-Sufficiently inside the blend area that artifacts should be minimal
+			'''
+			gen_tiles = 0
+			print
+			# TODO: get the old info back if I miss it after yield refactor
+			if 0:
+				print 'Phase 4: chopping up supertile, step(x: %d, y: %d)' % (self.tw, self.th)
+				print 'x in xrange(%d, %d, %d)' % (xt0, xt1, self.tw)
+				print 'y in xrange(%d, %d, %d)' % (yt0, yt1, self.th)
+			else:
+				print 'Phase 4: chopping up supertile'
 		
-		for (y, x) in self.gen_supertile_tiles(x0, x1, y0, y1):	
-			# If we made it this far the tile can be constructed with acceptable enblend artifacts
-			row = self.y2row(y)
-			col = self.x2col(x)
+			for (y, x) in self.gen_supertile_tiles(x0, x1, y0, y1):	
+				# If we made it this far the tile can be constructed with acceptable enblend artifacts
+				row = self.y2row(y)
+				col = self.x2col(x)
 			
-			# Did we already do this tile?
-			if self.is_done(row, col):
-				# No use repeating it although it would be good to diff some of these
-				print 'Rejecting tile x%d, y%d / r%d, c%d: already done' % (x, y, row, col)
-				continue
+				# Did we already do this tile?
+				if self.is_done(row, col):
+					# No use repeating it although it would be good to diff some of these
+					print 'Rejecting tile x%d, y%d / r%d, c%d: already done' % (x, y, row, col)
+					continue
 			
-			# note that x and y are in whole pano coords
-			# we need to adjust to our frame
-			# row and col on the other hand are used for global naming
-			self.make_tile(img, x - x0, y - y0, row, col)
-			gen_tiles += 1
-		bench.stop()
-		print 'Generated %d new tiles for a total of %d / %d in %s' % (gen_tiles, len(self.closed_list), self.net_expected_tiles, str(bench))
-		if gen_tiles == 0:
-			raise Exception("Didn't generate any tiles")
-		# temp_file should be automatically deleted upon exit
+				# note that x and y are in whole pano coords
+				# we need to adjust to our frame
+				# row and col on the other hand are used for global naming
+				self.make_tile(img, x - x0, y - y0, row, col)
+				gen_tiles += 1
+			bench.stop()
+			print 'Generated %d new tiles for a total of %d / %d in %s' % (gen_tiles, len(self.closed_list), self.net_expected_tiles, str(bench))
+			if gen_tiles == 0:
+				raise Exception("Didn't generate any tiles")
+			# temp_file should be automatically deleted upon exit
+		except:
+			print 'Supertile failed at %s' % bench
+			raise
 	
 	def get_name(self, row, col):
 		out_dir = ''
