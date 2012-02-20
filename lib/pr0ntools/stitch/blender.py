@@ -147,5 +147,5 @@ class Blender:
 			print 'Failed to blend'
 			print 'rc: %d' % rc
 			print args
-			raise Exception('failed to remap')
+			raise BlenderFailed('failed to remap')
 
