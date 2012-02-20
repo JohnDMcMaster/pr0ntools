@@ -599,15 +599,13 @@ class Tiler:
 				print
 				print "Creating supertile %d / %d with x%d:%d, y%d:%d" % (self.n_supertiles, self.n_expected_supertiles, x0, x1, y0, y1)
 				
-
 				try:
 					self.try_supertile(x0, x1, y0, y1)
 				except CommandFailed as e:
 					if self.ignore_errors:
+						# We shouldn't be trying commands during dry but just in case should raise?
 						print 'WARNING: got exception trying supertile %d' % (self.n_supertiles)
 						traceback.print_exc()
-						# We shouldn't be trying commands during dry but just in case should raise?
-						return
 					else:
 						raise
 			else:
