@@ -169,6 +169,7 @@ class Line:
 		'''
 		tokens = list()
 		i = 0
+		# Some version have a0, some have a=0 although a0 seems much more common
 		while i < len(self.text):
 			k = ''
 			v = None
@@ -209,7 +210,11 @@ class Line:
 						i += 1
 					break
 				else:
-					k += c
+					# This may not be bulletproof but I think its good enough
+					# These lines show up when you add images in Hugin
+					# ex bad: a=a but I'm not sure thats valid anyway
+					if c != '=':
+						k += c
 						
 				i += 1
 
