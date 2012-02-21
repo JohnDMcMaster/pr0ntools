@@ -204,7 +204,10 @@ class PTOptimizer:
 				first = False
 			else:
 				if self.w != i.width() or self.h != i.height() or self.v != i.fov():
-					raise Exception('Image %d does not match' % (i))
+					print i.text
+					print 'Old width %d, height %d, view %d' % (self.w, self.h, self.v)
+					print 'Image width %d, height %d, view %d' % (i.width(), i.height(), i.fov())
+					raise Exception('Image does not match')
 		
 	def center_project(self):
 		self.calc_bounds()
