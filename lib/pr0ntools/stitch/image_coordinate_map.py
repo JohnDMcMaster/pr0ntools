@@ -222,16 +222,7 @@ class ImageCoordinateMap:
 	@staticmethod
 	def from_file_names(file_names_in, flip_col = False, flip_row = False, flip_pre_transpose = False, flip_post_transpose = False, depth = 1,
 			alt_rows = False, alt_cols = False, rows = None, cols = None):
-		file_names = ImageCoordinateMap.get_file_names(file_names_in, depth)
-		'''
-		Certain program take file names relative to the project file, others to working dir
-		Since I like making temp files in /tmp so as not to clutter up working dir, this doesn't work well
-		Only way to get stable operation is to make all file paths canonical
-		'''
-		file_names_canonical = list()
-		for file_name in file_names:
-			file_names_canonical.append(os.path.realpath(file_name))
-		return ImageCoordinateMap.from_file_names_core(file_names_canonical, flip_col, flip_row, flip_pre_transpose, flip_post_transpose,
+		return ImageCoordinateMap.from_file_names_core(file_names_in, flip_col, flip_row, flip_pre_transpose, flip_post_transpose,
 				alt_rows, alt_cols, rows, cols)
 	
 	@staticmethod

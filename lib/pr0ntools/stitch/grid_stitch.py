@@ -18,16 +18,29 @@ class GridStitch(CommonStitch):
 		CommonStitch.__init__(self)
 		self.coordinate_map = None
 		self.set_regular(True)
-
+		self.canon2orig = dict()
+		
 	@staticmethod
 	def from_file_names(image_file_names, flip_col = False, flip_row = False, flip_pre_transpose = False, flip_post_transpose = False, depth = 1,
 			alt_rows = False, alt_cols = False, rows = None, cols = None):
 		engine = GridStitch()
 		engine.image_file_names = image_file_names
-		engine.coordinate_map = ImageCoordinateMap.from_file_names(image_file_names,
+		print 'Orig file names: %s' % str(image_file_names)
+		
+		'''
+		Certain program take file names relative to the project file, others to working dir
+		Since I like making temp files in /tmp so as not to clutter up working dir, this doesn't work well
+		Only way to get stable operation is to make all file paths canonical
+		'''
+		file_names_canonical = list()
+		for file_name in image_file_names:
+			new_fn = os.path.realpath(file_name)
+			engine.canon2orig[new_fn] = file_name
+			file_names_canonical.append(new_fn)
+		
+		engine.coordinate_map = ImageCoordinateMap.from_file_names(file_names_canonical,
 				flip_col, flip_row, flip_pre_transpose, flip_post_transpose, depth,
 				alt_rows, alt_cols, rows, cols)
-		print engine.coordinate_map
 		return engine
 	
 	def init_failures(self):
@@ -35,7 +48,6 @@ class GridStitch(CommonStitch):
 		for (file_name, row, col) in self.coordinate_map.images():
 			open_list.add(file_name)
 		self.failures = FailedImages(open_list)
-			
 		
 	def generate_control_points(self):
 		'''
@@ -88,20 +100,29 @@ class GridStitch(CommonStitch):
 		print 'pairs done, found %d' % len(temp_projects)
 		
 		self.project.merge_into(temp_projects)
+		print 'Reverting canonical file names to original input...'
+		# Fixup the canonical hack
+		for can_fn in self.canon2orig:
+			# FIXME: if we have issues with images missing from the project due to bad stitch
+			# we should add them (here?) instead of throwing an error
+			il = self.project.get_image_by_fn(can_fn)
+			il.set_name(self.canon2orig[can_fn])
+		
 		self.project.save()
 		print 'Sub projects (full image):'
 		for project in temp_projects:
 			# prefix so I can grep it for debugging
 			print '\tSUB: ' + project.file_name
-		print
-		print
-		print 'Master project file: %s' % self.project.file_name		
-		print
-		print
-		print self.project.text
-		print
-		print
-
+		if 0:
+			print
+			print
+			print 'Master project file: %s' % self.project.file_name		
+			print
+			print
+			print self.project.text
+			print
+			print
+			
 	def do_generate_control_points_by_pair(self, pair, image_fn_pair):
 		ret = CommonStitch.do_generate_control_points_by_pair(self, pair, image_fn_pair)
 		if ret is None and pair.adjacent():

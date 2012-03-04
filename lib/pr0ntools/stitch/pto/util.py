@@ -599,6 +599,7 @@ def linear_reoptimize(pto, pto_ref = None, allow_missing = False):
 	c2_evens = []
 	c5_odds = []
 	c5_evens = []
+	print ref_fns
 	for col in range(m_real.width()):
 		for row in range(m_real.height()):
 			fn = m_real.get_image(col, row)

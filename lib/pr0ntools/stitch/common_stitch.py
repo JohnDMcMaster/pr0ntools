@@ -216,12 +216,13 @@ class CommonStitch:
 
 	def control_points_by_subimage(self, pair, image_fn_pair, subimage_factor = None):
 		'''Stitch two images together by cropping to restrict overlap'''
+		
 		# subimage_factor: (y, x) overlap percent tuple or none for default
 		# pair: pair of row/col or coordinate positions (used to determine relative positions)
 		# (0, 0) at upper left
 		# image_fn_pair: pair of image file names
 		
-		print 'Preparing subimage stitch'
+		print 'Preparing subimage stitch on %s:%s' % (image_fn_pair[0], image_fn_pair[1])
 		'''
 		Just work on the overlap section, maybe even less
 		'''
@@ -293,6 +294,8 @@ class CommonStitch:
 		# The original intention was to make dead sure we had the right file order
 		# but I'm pretty sure its consistent and we don't need to parse the comments
 		final_pair_project = ajpto2pto_text(oto_text, sub_image_0_file, sub_image_1_file, sub_image_0_x_delta, sub_image_0_y_delta, sub_to_real)
+		
+		# Filenames become absolute
 		#sys.exit(1)
 		return final_pair_project
 
