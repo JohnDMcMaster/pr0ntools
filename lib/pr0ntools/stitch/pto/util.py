@@ -8,7 +8,11 @@ import math
 from pr0ntools.stitch.image_coordinate_map import ImageCoordinateMap
 import os
 import sys
-from scipy import polyval, polyfit
+try:
+	import scipy
+	from scipy import polyval, polyfit
+except ImportError:
+	scipy = None
 
 def print_debug(s = None):
 	if False:
@@ -502,6 +506,9 @@ def regress_c4(m, pto, cols, allow_missing = False):
 	
 def linear_reoptimize(pto, allow_missing = False):
 	'''Change XY positions to match the trend in a linear XY positioned project (ex from XY stage)'''
+	if scipy is None:
+		raise Exception('Re-optimizing requires scipi')
+	
 	'''
 	Our model should be like this:
 	-Each axis will have some degree of backlash.  This backlash will create a difference between adjacent rows / cols
