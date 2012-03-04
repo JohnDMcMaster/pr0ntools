@@ -102,3 +102,10 @@ class GridStitch(CommonStitch):
 		print
 		print
 
+	def do_generate_control_points_by_pair(self, pair, image_fn_pair):
+		ret = CommonStitch.do_generate_control_points_by_pair(self, pair, image_fn_pair)
+		if ret is None and pair.adjacent():
+			print 'WARNING: last ditch effort, increasing field of view'
+			
+		return ret
+

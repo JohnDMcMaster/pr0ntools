@@ -31,6 +31,10 @@ class ImageCoordinatePair:
 		self.first = first
 		self.second = second
 
+	def adjacent(self):
+		'''Return true if the two images are cow/col directly adjacent'''
+		return abs(self.first.row - self.second.row) <= 1 and abs(self.first.col - self.second.col) <= 1
+
 	def __cmp__(self, other):
 		delta = self.first.__compare__(other.first)
 		if delta:

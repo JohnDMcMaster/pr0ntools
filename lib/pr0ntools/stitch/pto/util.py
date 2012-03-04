@@ -7,6 +7,8 @@ Licensed under a 2 clause BSD license, see COPYING for details
 import math
 from pr0ntools.stitch.image_coordinate_map import ImageCoordinateMap
 import os
+import sys
+from scipy import polyval, polyfit
 
 def print_debug(s = None):
 	if False:
@@ -376,4 +378,233 @@ def resave_hugin(pto):
 		raise Exception('Expected self merge')
 	print 'Merge into self'
 
+'''
+Second order linear system of the form:
+r = c0 x0 + c1 x1 + c2
+
+TODO: consider learning NumPy...
+This is simple enough that its not justified yet
+'''
+"""
+class LinearSystem2:
+	def __init__(self, c0, c1, c2):
+		self.c0 = c0
+		self.c1 = c1
+		self.c2 = c2
+	
+	def get(self, x0, x1):
+		return self.c0 * x0 + self.c1 * x1 + self.c2
+	
+	@staticmethod
+	def regression(points):
+		'''Given a bunch of points return an object representing the system'''
+		
+		(c0, c1, c2) = polyfit(t,xn,1)
+
+		
+	@staticmethod
+	def sorted_regression(points):
+		'''Given a bunch of points return an object representing the system'''
+"""
+
+def regress_row(m, pto, rows, selector, allow_missing = False):
+	# Discard the constants, we will pick a reference point later
+	slopes = []
+	for row in rows:
+		'''
+		For each column find a y position error
+		y = col * c0 + c1
+		'''
+		cols = []
+		deps = []
+		for col in range(m.width()):
+			fn = m.get_image(col, row)
+			if fn is None:
+				if allow_missing:
+					continue
+				raise Exception('c%d r%d not in map' % (col, row))
+			il = pto.get_image_by_fn(fn)
+			if il is None:
+				raise Exception('Could not find %s in map' % fn)
+			cols.append(col)
+			deps.append(selector(il))
+		if len(cols) == 0:
+			if not allow_missing:
+				raise Exception('No matches')
+			continue
+		
+		print 'Fitting polygonomial'
+		print cols
+		print deps
+		
+		# Find x/y given a col
+		(c0, c1) = polyfit(cols, deps, 1)
+		slopes.append(c0)
+	if len(slopes) == 0:
+		if not allow_missing:
+			raise Exception('No matches')
+		# No dependence
+		return 0.0
+	# XXX: should remove outliers
+	return sum(slopes) / len(slopes)
+
+def regress_col(m, pto, cols, selector, allow_missing = False):
+	# Discard the constants, we will pick a reference point later
+	slopes = []
+	for col in cols:
+		'''
+		For each row find an y position
+		y = row * c0 + c1
+		'''
+		rows = []
+		deps = []
+		for row in range(m.height()):
+			fn = m.get_image(col, row)
+			if fn is None:
+				if allow_missing:
+					continue
+				raise Exception('c%d r%d not in map' % (col, row))
+			il = pto.get_image_by_fn(fn)
+			if il is None:
+				raise Exception('Could not find %s in map' % fn)
+			rows.append(row)
+			deps.append(selector(il))
+		
+		if len(rows) == 0:
+			if not allow_missing:
+				raise Exception('No matches')
+			continue
+		(c0, c1) = polyfit(rows, deps, 1)
+		slopes.append(c0)
+	if len(slopes) == 0:
+		if not allow_missing:
+			raise Exception('No matches')
+		# No dependence
+		return 0.0
+	# XXX: should remove outliers
+	return sum(slopes) / len(slopes)
+
+def regress_c0(m, pto, rows, allow_missing = False):
+	# dependence of x on col
+	return regress_row(m, pto, rows, lambda x: x.x(), allow_missing)
+
+def regress_c1(m, pto, cols, allow_missing = False):
+	# dependence of x on row
+	return regress_col(m, pto, cols, lambda x: x.x(), allow_missing)
+
+def regress_c3(m, pto, rows, allow_missing = False):
+	# dependence of y on col
+	return regress_row(m, pto, rows, lambda x: x.y(), allow_missing)
+
+def regress_c4(m, pto, cols, allow_missing = False):
+	# cdependence of y on row
+	return regress_col(m, pto, cols, lambda x: x.y(), allow_missing)
+	
+def linear_reoptimize(pto, allow_missing = False):
+	'''Change XY positions to match the trend in a linear XY positioned project (ex from XY stage)'''
+	'''
+	Our model should be like this:
+	-Each axis will have some degree of backlash.  This backlash will create a difference between adjacent rows / cols
+	-Axes may not be perfectly adjacent
+		The naive approach would give:
+			x = c * dx + xc
+			y = r * dy + yc
+		But really we need this:
+			x = c * dx + r * dx/dy + xc
+			y = c * dy/dx + r * dy + yc
+		Each equation can be solved separately
+		Need 3 points to solve each and should be in the expected direction of that line
+		
+		
+	Perform a linear regression on each row/col?
+	Might lead to very large y = mx + b equations for the column math
+	'''
+
+	'''
+	Phase 1: calculate linear system
+	'''
+	# Start by building an image coordinate map so we know what x and y are
+	pto.parse()
+	fns = pto.get_file_names()
+	print 'Files (%d):' % len(fns)
+	for fn in fns:
+		print '  %s' % fn
+	m = ImageCoordinateMap.from_tagged_file_names(fns)
+	#m.debug_print()
+	
+	'''
+	Ultimately trying to form this equation
+	x = c0 * c + c1 * r + c2
+	y = c2 * c + c3 * r + c4
+	
+	Except that constants will also have even and odd varities
+	c2 and c4 will be taken from reasonable points of reference, likely (0, 0) or something like that
+	'''
+	
+	# Given a column find x (primary x)
+	c0 = regress_c0(m, pto, xrange(0, m.height(), 1), allow_missing)
+	c1 = regress_c1(m, pto, xrange(0, m.width(), 1), allow_missing)
+	# Given a row find y (primary y)
+	c3 = regress_c3(m, pto, xrange(0, m.height(), 1), allow_missing)
+	c4 = regress_c4(m, pto, xrange(0, m.width(), 1), allow_missing)
+
+	# Now chose a point in the center
+	# it doesn't have to be a good fitting point in the old system, it just has to be centered
+	# Fix at the origin
+	c2_odd = None
+	c2_even = None
+	c5_odd = None
+	c5_even = None
+	
+	'''
+	Actually the even and the odd should have the same slope
+	The only difference should be their offset
+	'''
+	c2 = None
+	c5 = None
+	print 'Solution found'
+	print '  x = %g c + %g r + TBD' % (c0, c1)
+	print '  y = %g c + %g r + TBD' % (c3, c4)
+	
+	for col in range(m.width()):
+		for row in range(m.height()):
+			fn = m.get_image(col, row)
+			il = pto.get_image_by_fn(fn)
+
+			if fn is None:
+				if not allow_missing:
+					raise Exception('Missing item')
+				continue
+			
+			if row % 2 == 0:
+				if c2_odd is None:
+					# x = c0 * c + c1 * r + c2
+					c2_odd = il.x() - c0 * col - c1 * row
+				c2 = c2_odd
+			else:
+				if c2_even is None:
+					# x = c0 * c + c1 * r + c2
+					c2_even = il.x() - c0 * col - c1 * row
+				c2 = c2_even
+			
+			if col % 2 == 0:
+				if c5_odd is None:
+					# y = c2 * c + c3 * r + c4
+					c5_odd = il.y() - c2 * col - c3 * row
+				c5 = c5_odd
+			else:
+				if c5_even is None:
+					# y = c2 * c + c3 * r + c4
+					c5_even = il.y() - c2 * col - c3 * row
+				c5 = c5_even
+				
+			
+			# FIRE!
+			x = c0 * col + c1 * row + c2
+			y = c3 * col + c4 * row + c5
+			# And push it out
+			print '%s: c%d r%d => x%g y%d' % (fn, col, row, x, y)
+			il.set_x(x)
+			il.set_y(y)
+			
 

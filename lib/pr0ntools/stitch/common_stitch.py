@@ -216,6 +216,7 @@ class CommonStitch:
 
 	def control_points_by_subimage(self, pair, image_fn_pair, subimage_factor = None):
 		'''Stitch two images together by cropping to restrict overlap'''
+		# subimage_factor: (y, x) overlap percent tuple or none for default
 		# pair: pair of row/col or coordinate positions (used to determine relative positions)
 		# (0, 0) at upper left
 		# image_fn_pair: pair of image file names
@@ -238,20 +239,24 @@ class CommonStitch:
 		sub_image_1_x_end = images[1].width()
 		sub_image_1_y_end = images[1].height()
 
-		x_overlap = self.x_overlap
-		y_overlap = self.y_overlap
+		if subimage_factor:
+			y_overlap = subimage_factor[0]
+			x_overlap = subimage_factor[1]
+		else:
+			x_overlap = self.x_overlap
+			y_overlap = self.y_overlap
 
 		# image 0 left of image 1?
 		if pair.first.col < pair.second.col:
 			# Keep image 0 right, image 1 left
-			sub_image_0_x_delta = int(images[0].width() * (1.0 - self.x_overlap))
-			sub_image_1_x_end = int(images[1].width() * self.x_overlap)
+			sub_image_0_x_delta = int(images[0].width() * (1.0 - x_overlap))
+			sub_image_1_x_end = int(images[1].width() * x_overlap)
 		
 		# image 0 above image 1?
 		if pair.first.row < pair.second.row:
 			# Keep image 0 top, image 1 bottom
-			sub_image_0_y_delta = int(images[0].height() * (1.0 - self.y_overlap))
-			sub_image_1_y_end = int(images[1].height() * self.y_overlap)
+			sub_image_0_y_delta = int(images[0].height() * (1.0 - y_overlap))
+			sub_image_1_y_end = int(images[1].height() * y_overlap)
 		
 		'''
 		print 'image 0 x delta: %d, y delta: %d' % (sub_image_0_x_delta, sub_image_0_y_delta)
@@ -306,7 +311,7 @@ class CommonStitch:
 	def generate_control_points_by_pair(self, pair, image_fn_pair):
 		ret = self.do_generate_control_points_by_pair(pair, image_fn_pair)
 		# If it failed and they were adjacent it is a "critical pair"
-		if self.failures and abs(pair.first.row - pair.second.row) <= 1 and abs(pair.first.col - pair.second.col) <= 1:
+		if self.failures and pair.adjacent():
 			if ret:
 				self.failures.add_success(image_fn_pair)
 			else:
