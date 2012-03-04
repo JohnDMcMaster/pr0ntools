@@ -19,6 +19,9 @@ if __name__ == "__main__":
 	parser.add_argument('--basename', action="store_true", dest="basename", default=False, help='Strip image file names down to basename')
 	parser.add_argument('--hugin', action="store_true", dest="hugin", default=False, help='Resave using panotools (Hugin form)')
 	#parser.add_argument('--prepare', action="store_true", dest="prepare", default=False, help='Center, anchor center image, optimize')
+	parser.add_argument('--pto-ref', action='store', type=str, dest="pto_ref", default=None,
+                   help='project to use for creating linear system (default: in)')
+	parser.add_argument('--allow-missing', action="store_true", dest="allow_missing", default=False, help='Allow missing images')
 	parser.add_argument('pto', metavar='.pto in', type=str, nargs=1,
                    help='project to work on')
 	parser.add_argument('out', metavar='.pto out', type=str, nargs='?',
@@ -53,6 +56,11 @@ if __name__ == "__main__":
 	
 	if args.lens_model:
 		print 'Applying lens model (FIXME)'
+
+	if args.pto_ref:
+		pto_ref = PTOProject.from_file_name(args.pto_ref)
+		pto_ref.remove_file_name()
+		linear_reoptimize(pto, pto_ref, args.allow_missing)
 
 	if args.reset_photometrics:
 		# Overall exposure

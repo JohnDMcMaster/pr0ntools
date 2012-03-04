@@ -10,6 +10,13 @@ from pr0ntools.temp_file import ManagedTempFile
 from pr0ntools.execute import Execute
 import line
 
+'''
+WARNING:
+there are also "out" lines that look like this:
+o f0 y+0.000000 r+0.000000 p+0.000000 u20 d0.000000 e0.000000 v70.000000 a0.000000 b0.000000 c0.000000
+that are generated from autopanoaj
+'''
+
 class OptimizerLine(line.Line):
 	def __init__(self, text, project):
 		line.Line.__init__(self, text, project)

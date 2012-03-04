@@ -8,6 +8,7 @@ import math
 from pr0ntools.stitch.image_coordinate_map import ImageCoordinateMap
 import os
 import sys
+from pr0ntools.pimage import PImage
 try:
 	import scipy
 	from scipy import polyval, polyfit
@@ -346,6 +347,8 @@ def fixup_i_lines(self):
 				# Keep image file name
 				elif part[0] == 'n':
 					new_line += ' ' + part
+				elif part[0] in 'whv':
+					new_line += ' %s' % part
 				# Script is getting angry, try to slim it up
 				else:
 					print 'Skipping unknown garbage: %s' % part
@@ -652,16 +655,8 @@ def linear_reoptimize(pto, pto_ref = None, allow_missing = False):
 					raise Exception('Missing item')
 				continue
 			
-			if row % 2 == 0:
-				c2 = c2_odd
-			else:
-				c2 = c2_even
-			
-			if col % 2 == 0:
-				c5 = c5_odd
-			else:
-				c5 = c5_even
-				
+			c2 = [c2_even, c2_odd][row % 2 == 0]
+			c5 = [c5_even, c5_odd][col % 2 == 0]
 			
 			# FIRE!
 			x = c0 * col + c1 * row + c2
@@ -671,4 +666,20 @@ def linear_reoptimize(pto, pto_ref = None, allow_missing = False):
 			il.set_x(x)
 			il.set_y(y)
 			#print il
+
+
+def calc_il_dim(il):
+	name = il.get_name()
+	pimage = PImage.from_file(name)
+	il.set_width(pimage.width())
+	il.set_height(pimage.height())
+
+def fixup_image_dim(pto):
+	for il in pto.get_image_lines():
+		calc_il_dim(il)
+		print 'With size info: %s' % il
+
+
+
+
 

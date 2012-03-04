@@ -292,8 +292,7 @@ class CommonStitch:
 		# are we actually doing anything useful here?
 		# The original intention was to make dead sure we had the right file order
 		# but I'm pretty sure its consistent and we don't need to parse the comments
-		pto_text = ajpto2pto_text(oto_text, sub_image_0_file, sub_image_1_file, sub_image_0_x_delta, sub_image_0_y_delta, sub_to_real)
-		final_pair_project = PTOProject.from_text(pto_text)
+		final_pair_project = ajpto2pto_text(oto_text, sub_image_0_file, sub_image_1_file, sub_image_0_x_delta, sub_image_0_y_delta, sub_to_real)
 		#sys.exit(1)
 		return final_pair_project
 

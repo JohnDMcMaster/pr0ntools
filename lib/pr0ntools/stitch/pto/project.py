@@ -25,8 +25,10 @@ import os
 from pr0ntools.temp_file import ManagedTempFile
 from pr0ntools.execute import Execute
 from pr0ntools.stitch.merger import Merger
+from pr0ntools.pimage import PImage
+from pr0ntools.stitch.pto.util import *
 from control_point_line import ControlPointLine, AbsoluteControlPointLine
-from image_line import ImageLine
+from image_line import *
 from variable_line import VariableLine
 from mode_line import ModeLine
 from panorama_line import PanoramaLine
@@ -207,6 +209,13 @@ class PTOProject:
 				return i
 		return None
 	
+	def add_image(self, image_fn, calc_dim = True):
+		self.parse()
+		il = ImageLine('i n"%s"' % image_fn, self)
+		if calc_dim:
+			calc_il_dim(il)
+		self.image_lines.append(il)
+
 	def get_image_lines(self):
 		self.parse()
 		return self.image_lines
@@ -214,6 +223,29 @@ class PTOProject:
 	def nimages(self):
 		return len(self.get_image_lines())
 	
+	def get_control_point_lines(self):
+		self.parse()
+		return self.control_point_lines
+		
+	def add_control_point_line(self, cl):
+		self.parse()
+		if self.control_point_lines is None:
+			self.control_point_lines = []
+		self.control_point_lines.append(cl)
+		
+	def add_control_point_line_by_text(self, cl):
+		self.add_control_point_line(ControlPointLine(cl, self))
+		
+	def add_image_line(self, il):
+		self.parse()
+		if self.image_lines is None:
+			self.image_lines = []
+		self.image_lines.append(il)
+		
+	def add_image_line_by_text(self, il_text):
+		il = ImageLine(il_text, self)
+		self.add_image_line(il)
+		
 	def get_optimizer_lines(self):
 		self.parse()
 		return self.optimizer_lines
@@ -254,6 +286,8 @@ class PTOProject:
 	@staticmethod
 	def from_text(text):
 		ret = PTOProject()
+		if text is None:
+			raise Excetpion('No text is invalid')
 		ret.text = text
 		#ret.reparse()
 		return ret
@@ -261,6 +295,20 @@ class PTOProject:
 	@staticmethod
 	def from_blank():
 		return PTOProject.from_text('')
+
+	@staticmethod
+	def from_simple():
+		return PTOProject.from_text('''
+p
+m
+''')
+		
+	@staticmethod
+	def from_default():
+		return PTOProject.from_text('''
+p f0 v179 n"PSD_mask" E0.0 R0
+m g1.0 i0 f0 m2
+''')
 
 	def parse(self):
 		'''Parse if not already parsed'''
@@ -418,7 +466,7 @@ class PTOProject:
 			return self.text
 		
 	def ensure_text_loaded(self):
-		if not self.text:
+		if self.text is None:
 			self.load_text()
 		
 	def load_text(self):

@@ -313,6 +313,12 @@ class ImageLine(line.Line):
 	def height(self):
 		return self.get_variable('h')
 		
+	def set_width(self, width):
+		return self.set_variable('w', width)
+
+	def set_height(self, height):
+		return self.set_variable('h', height)
+		
 	def fov(self):
 		'''Returns angle (field) of view in degrees'''
 		return self.get_variable('v')			
