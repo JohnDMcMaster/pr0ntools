@@ -504,8 +504,8 @@ def regress_c4(m, pto, cols, allow_missing = False):
 	# cdependence of y on row
 	return regress_col(m, pto, cols, lambda x: x.y(), allow_missing)
 	
-def linear_reoptimize(pto, allow_missing = False):
-	'''Change XY positions to match the trend in a linear XY positioned project (ex from XY stage)'''
+def linear_reoptimize(pto, pto_ref = None, allow_missing = False):
+	'''Change XY positions to match the trend in a linear XY positioned project (ex from XY stage).  pto must have all images in pto_ref '''
 	if scipy is None:
 		raise Exception('Re-optimizing requires scipi')
 	
@@ -526,34 +526,43 @@ def linear_reoptimize(pto, allow_missing = False):
 	Perform a linear regression on each row/col?
 	Might lead to very large y = mx + b equations for the column math
 	'''
+	
+	if pto_ref is None:
+		pto_ref = pto
 
 	'''
 	Phase 1: calculate linear system
 	'''
 	# Start by building an image coordinate map so we know what x and y are
-	pto.parse()
-	fns = pto.get_file_names()
-	print 'Files (%d):' % len(fns)
-	for fn in fns:
-		print '  %s' % fn
-	m = ImageCoordinateMap.from_tagged_file_names(fns)
+	pto_ref.parse()
+	ref_fns = pto_ref.get_file_names()
+	real_fns = pto.get_file_names()
+	print 'Files (all: %d, ref: %d):' % (len(real_fns), len(ref_fns))
+	for fn in real_fns:
+		if fn in ref_fns:
+			ref_str = '*'
+		else:
+			ref_str = ' '
+		print '  %s%s' % (ref_str, fn)
+	m_ref = ImageCoordinateMap.from_tagged_file_names(ref_fns)
+	m_real = ImageCoordinateMap.from_tagged_file_names(real_fns)
 	#m.debug_print()
 	
 	'''
 	Ultimately trying to form this equation
 	x = c0 * c + c1 * r + c2
-	y = c2 * c + c3 * r + c4
+	y = c3 * c + c4 * r + c5
 	
 	Except that constants will also have even and odd varities
-	c2 and c4 will be taken from reasonable points of reference, likely (0, 0) or something like that
+	c2 and c5 will be taken from reasonable points of reference, likely (0, 0) or something like that
 	'''
 	
 	# Given a column find x (primary x)
-	c0 = regress_c0(m, pto, xrange(0, m.height(), 1), allow_missing)
-	c1 = regress_c1(m, pto, xrange(0, m.width(), 1), allow_missing)
+	c0 = regress_c0(m_ref, pto_ref, xrange(0, m_ref.height(), 1), allow_missing)
+	c1 = regress_c1(m_ref, pto_ref, xrange(0, m_ref.width(), 1), allow_missing)
 	# Given a row find y (primary y)
-	c3 = regress_c3(m, pto, xrange(0, m.height(), 1), allow_missing)
-	c4 = regress_c4(m, pto, xrange(0, m.width(), 1), allow_missing)
+	c3 = regress_c3(m_ref, pto_ref, xrange(0, m_ref.height(), 1), allow_missing)
+	c4 = regress_c4(m_ref, pto_ref, xrange(0, m_ref.width(), 1), allow_missing)
 
 	# Now chose a point in the center
 	# it doesn't have to be a good fitting point in the old system, it just has to be centered
@@ -573,9 +582,69 @@ def linear_reoptimize(pto, allow_missing = False):
 	print '  x = %g c + %g r + TBD' % (c0, c1)
 	print '  y = %g c + %g r + TBD' % (c3, c4)
 	
-	for col in range(m.width()):
-		for row in range(m.height()):
-			fn = m.get_image(col, row)
+	'''
+	The reference project might not start at 0,0
+	Therefore scan through to find some good starting positions so that we can calc each point
+	in the final project
+	'''
+	print 'Anchoring solution...'
+	'''
+	Calculate the constant at each reference image
+	Compute reference positions from these values
+	'''
+	c2_odds = []
+	c2_evens = []
+	c5_odds = []
+	c5_evens = []
+	for col in range(m_real.width()):
+		for row in range(m_real.height()):
+			fn = m_real.get_image(col, row)
+			if not fn in ref_fns:
+				continue
+			if fn is None:
+				if not allow_missing:
+					raise Exception('Missing item')
+				continue
+			il = pto_ref.get_image_by_fn(fn)
+			if il is None:
+				raise Exception('%s should have been in ref' % fn)
+			try:
+				# x = c0 * c + c1 * r + c2
+				cur_x = cur_x = il.x() - c0 * col - c1 * row
+				if row % 2 == 0:
+					c2_evens.append(cur_x)
+				else:					
+					c2_odds.append(cur_x)
+			
+				# y = c3 * c + c4 * r + c5
+				cur_y = il.y() - c3 * col - c4 * row
+				if col % 2 == 0:
+					c5_evens.append(cur_y)
+				else:
+					c5_odds.append(cur_y)
+			except:
+				print
+				print il
+				print c0, c1, c3, c4
+				print col, row
+				print 
+				raise
+	c2_even = sum(c2_evens) / len(c2_evens)
+	c2_odd = sum(c2_odds) / len(c2_odds)
+	c5_even = sum(c5_evens) / len(c5_evens)
+	c5_odd = sum(c5_odds) / len(c5_odds)
+	
+	# XXX: if we really cared we could center these up
+	# its easier to just run the centering algorithm after though if one cares
+	print 'Solution anchored:'
+	print '  c2_even: %g' % c2_even
+	print '  c2_odd: %g' % c2_odd
+	print '  c5_even: %g' % c5_even
+	print '  c5_odd: %g' % c5_odd
+
+	for col in range(m_real.width()):
+		for row in range(m_real.height()):
+			fn = m_real.get_image(col, row)
 			il = pto.get_image_by_fn(fn)
 
 			if fn is None:
@@ -584,25 +653,13 @@ def linear_reoptimize(pto, allow_missing = False):
 				continue
 			
 			if row % 2 == 0:
-				if c2_odd is None:
-					# x = c0 * c + c1 * r + c2
-					c2_odd = il.x() - c0 * col - c1 * row
 				c2 = c2_odd
 			else:
-				if c2_even is None:
-					# x = c0 * c + c1 * r + c2
-					c2_even = il.x() - c0 * col - c1 * row
 				c2 = c2_even
 			
 			if col % 2 == 0:
-				if c5_odd is None:
-					# y = c2 * c + c3 * r + c4
-					c5_odd = il.y() - c2 * col - c3 * row
 				c5 = c5_odd
 			else:
-				if c5_even is None:
-					# y = c2 * c + c3 * r + c4
-					c5_even = il.y() - c2 * col - c3 * row
 				c5 = c5_even
 				
 			
@@ -610,8 +667,8 @@ def linear_reoptimize(pto, allow_missing = False):
 			x = c0 * col + c1 * row + c2
 			y = c3 * col + c4 * row + c5
 			# And push it out
-			print '%s: c%d r%d => x%g y%d' % (fn, col, row, x, y)
+			#print '%s: c%d r%d => x%g y%d' % (fn, col, row, x, y)
 			il.set_x(x)
 			il.set_y(y)
-			
+			#print il
 
