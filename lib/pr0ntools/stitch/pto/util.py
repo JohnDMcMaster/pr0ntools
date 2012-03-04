@@ -495,22 +495,22 @@ def regress_col(m, pto, cols, selector, allow_missing = False):
 	return sum(slopes) / len(slopes)
 
 def regress_c0(m, pto, rows, allow_missing = False):
-	# dependence of x on col
+	# dependence of x on col in specified rows
 	return regress_row(m, pto, rows, lambda x: x.x(), allow_missing)
 
 def regress_c1(m, pto, cols, allow_missing = False):
-	# dependence of x on row
+	# dependence of x on row in specified cols
 	return regress_col(m, pto, cols, lambda x: x.x(), allow_missing)
 
 def regress_c3(m, pto, rows, allow_missing = False):
-	# dependence of y on col
+	# dependence of y on col in specified rows
 	return regress_row(m, pto, rows, lambda x: x.y(), allow_missing)
 
 def regress_c4(m, pto, cols, allow_missing = False):
-	# cdependence of y on row
+	# cdependence of y on row in specified cols
 	return regress_col(m, pto, cols, lambda x: x.y(), allow_missing)
 	
-def linear_reoptimize(pto, pto_ref = None, allow_missing = False):
+def linear_reoptimize(pto, pto_ref = None, allow_missing = False, order = 2):
 	'''Change XY positions to match the trend in a linear XY positioned project (ex from XY stage).  pto must have all images in pto_ref '''
 	if scipy is None:
 		raise Exception('Re-optimizing requires scipi')
@@ -536,8 +536,6 @@ def linear_reoptimize(pto, pto_ref = None, allow_missing = False):
 	if pto_ref is None:
 		pto_ref = pto
 
-	order = 2
-	
 	'''
 	Phase 1: calculate linear system
 	'''
@@ -654,6 +652,13 @@ def linear_reoptimize(pto, pto_ref = None, allow_missing = False):
 		print 'Order %d solution:' % cur_order
 		print '  x = %g c + %g r + %g' % (c0s[cur_order], c1s[cur_order], c2s[cur_order])
 		print '  y = %g c + %g r + %g' % (c3s[cur_order], c4s[cur_order], c5s[cur_order])
+	c2_rms = (sum([(c2 - sum(c2s) / len(c2s))**2 for c2 in c2s]) / len(c2s))**0.5
+	c5_rms = (sum([(c5 - sum(c5s) / len(c5s))**2 for c5 in c5s]) / len(c5s))**0.5
+	print 'RMS offset error x%g y%g' % (c2_rms, c5_rms)
+	if c2_rms > c5_rms:
+		print 'x offset varies most, expect left-right scanning'
+	else:
+		print 'y offset varies most, expect top-bottom scanning'
 
 	'''
 	We have the solution matrix now so lets roll
@@ -671,12 +676,10 @@ def linear_reoptimize(pto, pto_ref = None, allow_missing = False):
 			col_eo = col % order
 			row_eo = row % order
 			
-			c2 = c2s[row_eo]
-			c5 = c5s[col_eo]
-			
 			# FIRE!
-			x = c0s[row_eo] * col + c1s[row_eo] * row + c2
-			y = c3s[col_eo] * col + c4s[col_eo] * row + c5
+			# take the dot product
+			x = c0s[row_eo] * col + c1s[row_eo] * row + c2s[row_eo]
+			y = c3s[col_eo] * col + c4s[col_eo] * row + c5s[col_eo]
 			# And push it out
 			#print '%s: c%d r%d => x%g y%d' % (fn, col, row, x, y)
 			il.set_x(x)
