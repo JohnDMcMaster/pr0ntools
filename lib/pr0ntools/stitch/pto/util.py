@@ -536,6 +536,8 @@ def linear_reoptimize(pto, pto_ref = None, allow_missing = False):
 	if pto_ref is None:
 		pto_ref = pto
 
+	order = 2
+	
 	'''
 	Phase 1: calculate linear system
 	'''
@@ -563,20 +565,21 @@ def linear_reoptimize(pto, pto_ref = None, allow_missing = False):
 	c2 and c5 will be taken from reasonable points of reference, likely (0, 0) or something like that
 	'''
 	
-	# Given a column find x (primary x)
-	c0 = regress_c0(m_ref, pto_ref, xrange(0, m_ref.height(), 1), allow_missing)
-	c1 = regress_c1(m_ref, pto_ref, xrange(0, m_ref.width(), 1), allow_missing)
-	# Given a row find y (primary y)
-	c3 = regress_c3(m_ref, pto_ref, xrange(0, m_ref.height(), 1), allow_missing)
-	c4 = regress_c4(m_ref, pto_ref, xrange(0, m_ref.width(), 1), allow_missing)
+	c0s = []
+	c1s = []
+	c3s = []
+	c4s = []
+	for cur_order in range(order):
+		# Given a column find x (primary x)
+		c0s.append(regress_c0(m_ref, pto_ref, xrange(cur_order, m_ref.height(), order), allow_missing))
+		c1s.append(regress_c1(m_ref, pto_ref, xrange(cur_order, m_ref.width(), order), allow_missing))
+		# Given a row find y (primary y)
+		c3s.append(regress_c3(m_ref, pto_ref, xrange(cur_order, m_ref.height(), order), allow_missing))
+		c4s.append(regress_c4(m_ref, pto_ref, xrange(cur_order, m_ref.width(), order), allow_missing))
 
 	# Now chose a point in the center
 	# it doesn't have to be a good fitting point in the old system, it just has to be centered
 	# Fix at the origin
-	c2_odd = None
-	c2_even = None
-	c5_odd = None
-	c5_even = None
 	
 	'''
 	Actually the even and the odd should have the same slope
@@ -584,9 +587,11 @@ def linear_reoptimize(pto, pto_ref = None, allow_missing = False):
 	'''
 	c2 = None
 	c5 = None
-	print 'Solution found'
-	print '  x = %g c + %g r + TBD' % (c0, c1)
-	print '  y = %g c + %g r + TBD' % (c3, c4)
+	
+	if 0:
+		print 'Solution found'
+		print '  x = %g c + %g r + TBD' % (c0, c1)
+		print '  y = %g c + %g r + TBD' % (c3, c4)
 	
 	'''
 	The reference project might not start at 0,0
@@ -598,60 +603,61 @@ def linear_reoptimize(pto, pto_ref = None, allow_missing = False):
 	Calculate the constant at each reference image
 	Compute reference positions from these values
 	'''
-	c2_odds = []
-	c2_evens = []
-	c5_odds = []
-	c5_evens = []
-	print ref_fns
-	for col in range(m_real.width()):
-		for row in range(m_real.height()):
-			fn = m_real.get_image(col, row)
-			if not fn in ref_fns:
-				continue
-			if fn is None:
-				if not allow_missing:
-					raise Exception('Missing item')
-				continue
-			il = pto_ref.get_image_by_fn(fn)
-			if il is None:
-				raise Exception('%s should have been in ref' % fn)
-			try:
-				# x = c0 * c + c1 * r + c2
-				cur_x = cur_x = il.x() - c0 * col - c1 * row
-				if row % 2 == 0:
-					c2_evens.append(cur_x)
-				else:					
-					c2_odds.append(cur_x)
-			
-				# y = c3 * c + c4 * r + c5
-				cur_y = il.y() - c3 * col - c4 * row
-				if col % 2 == 0:
-					c5_evens.append(cur_y)
-				else:
-					c5_odds.append(cur_y)
-				
-				print '%s: x%g y%g' % (fn, cur_x, cur_y)
-				
-			except:
-				print
-				print il
-				print c0, c1, c3, c4
-				print col, row
-				print 
-				raise
-	c2_even = sum(c2_evens) / len(c2_evens)
-	c2_odd = sum(c2_odds) / len(c2_odds)
-	c5_even = sum(c5_evens) / len(c5_evens)
-	c5_odd = sum(c5_odds) / len(c5_odds)
 	
-	# XXX: if we really cared we could center these up
-	# its easier to just run the centering algorithm after though if one cares
-	print 'Solution anchored:'
-	print '  c2_even: %g' % c2_even
-	print '  c2_odd: %g' % c2_odd
-	print '  c5_even: %g' % c5_even
-	print '  c5_odd: %g' % c5_odd
+	c2s = []
+	c5s = []
+	print ref_fns
+	for cur_order in range(order):
+		this_c2s = []
+		this_c5s = []
+		for col in range(m_real.width()):
+			for row in range(m_real.height()):
+				fn = m_real.get_image(col, row)
+				if not fn in ref_fns:
+					continue
+				if fn is None:
+					if not allow_missing:
+						raise Exception('Missing item')
+					continue
+				il = pto_ref.get_image_by_fn(fn)
+				if il is None:
+					raise Exception('%s should have been in ref' % fn)
+				try:
+					# x = c0 * c + c1 * r + c2
+					row_order = row % order
+					if row_order == cur_order:
+						cur_x = cur_x = il.x() - c0s[row_order] * col - c1s[row_order] * row
+						this_c2s.append(cur_x)
+			
+					# y = c3 * c + c4 * r + c5
+					col_order = col % order
+					if col_order == cur_order:
+						cur_y = il.y() - c3s[col_order] * col - c4s[col_order] * row
+						this_c5s.append(cur_y)
+				
+					#print '%s: x%g y%g' % (fn, cur_x, cur_y)
+				
+				except:
+					print
+					print il
+					print c0s, c1s, c3s, c4s
+					print col, row
+					print 
+					raise
+		c2s.append(sum(this_c2s) / len(this_c2s))
+		c5s.append(sum(this_c5s) / len(this_c5s))
+		
+	# Print the solution matrx for debugging
+	for cur_order in range(order):
+		# XXX: if we really cared we could center these up
+		# its easier to just run the centering algorithm after though if one cares
+		print 'Order %d solution:' % cur_order
+		print '  x = %g c + %g r + %g' % (c0s[cur_order], c1s[cur_order], c2s[cur_order])
+		print '  y = %g c + %g r + %g' % (c3s[cur_order], c4s[cur_order], c5s[cur_order])
 
+	'''
+	We have the solution matrix now so lets roll
+	'''
 	for col in range(m_real.width()):
 		for row in range(m_real.height()):
 			fn = m_real.get_image(col, row)
@@ -662,12 +668,15 @@ def linear_reoptimize(pto, pto_ref = None, allow_missing = False):
 					raise Exception('Missing item')
 				continue
 			
-			c2 = [c2_even, c2_odd][row % 2]
-			c5 = [c5_even, c5_odd][col % 2]
+			col_eo = col % order
+			row_eo = row % order
+			
+			c2 = c2s[row_eo]
+			c5 = c5s[col_eo]
 			
 			# FIRE!
-			x = c0 * col + c1 * row + c2
-			y = c3 * col + c4 * row + c5
+			x = c0s[row_eo] * col + c1s[row_eo] * row + c2
+			y = c3s[col_eo] * col + c4s[col_eo] * row + c5
 			# And push it out
 			#print '%s: c%d r%d => x%g y%d' % (fn, col, row, x, y)
 			il.set_x(x)
@@ -685,8 +694,5 @@ def fixup_image_dim(pto):
 	for il in pto.get_image_lines():
 		calc_il_dim(il)
 		print 'With size info: %s' % il
-
-
-
 
 
