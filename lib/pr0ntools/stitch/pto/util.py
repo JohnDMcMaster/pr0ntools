@@ -434,7 +434,10 @@ def regress_row(m, pto, rows, selector, allow_missing = False):
 			if il is None:
 				raise Exception('Could not find %s in map' % fn)
 			cols.append(col)
-			deps.append(selector(il))
+			selected = selector(il)
+			if selected is None:
+				raise Exception('Reference image line is missing x/y position: %s' % il)
+			deps.append(selected)
 		if len(cols) == 0:
 			if not allow_missing:
 				raise Exception('No matches')
@@ -626,6 +629,9 @@ def linear_reoptimize(pto, pto_ref = None, allow_missing = False):
 					c5_evens.append(cur_y)
 				else:
 					c5_odds.append(cur_y)
+				
+				print '%s: x%g y%g' % (fn, cur_x, cur_y)
+				
 			except:
 				print
 				print il
@@ -656,8 +662,8 @@ def linear_reoptimize(pto, pto_ref = None, allow_missing = False):
 					raise Exception('Missing item')
 				continue
 			
-			c2 = [c2_even, c2_odd][row % 2 == 0]
-			c5 = [c5_even, c5_odd][col % 2 == 0]
+			c2 = [c2_even, c2_odd][row % 2]
+			c5 = [c5_even, c5_odd][col % 2]
 			
 			# FIRE!
 			x = c0 * col + c1 * row + c2
