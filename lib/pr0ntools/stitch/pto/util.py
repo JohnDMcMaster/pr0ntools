@@ -443,9 +443,10 @@ def regress_row(m, pto, rows, selector, allow_missing = False):
 				raise Exception('No matches')
 			continue
 		
-		print 'Fitting polygonomial'
-		print cols
-		print deps
+		if 0:
+			print 'Fitting polygonomial'
+			print cols
+			print deps
 		
 		# Find x/y given a col
 		(c0, c1) = polyfit(cols, deps, 1)
@@ -509,6 +510,69 @@ def regress_c3(m, pto, rows, allow_missing = False):
 def regress_c4(m, pto, cols, allow_missing = False):
 	# cdependence of y on row in specified cols
 	return regress_col(m, pto, cols, lambda x: x.y(), allow_missing)
+	
+def calc_constants(order, m_real, pto_ref,
+		c0s, c1s, c3s, c4s,
+		m_ref = None, allow_missing=False):
+	if m_ref is None:
+		m_ref = m_real
+	
+	ref_fns = pto_ref.get_file_names()
+	
+	c2s = []
+	c5s = []
+	for cur_order in range(order):
+		this_c2s = []
+		this_c5s = []
+		for col in range(m_real.width()):
+			for row in range(m_real.height()):
+				fn = m_real.get_image(col, row)
+				if not fn in ref_fns:
+					continue
+				if fn is None:
+					if not allow_missing:
+						raise Exception('Missing item')
+					continue
+				il = pto_ref.get_image_by_fn(fn)
+				if il is None:
+					raise Exception('%s should have been in ref' % fn)
+				try:
+					# x = c0 * c + c1 * r + c2
+					row_order = row % order
+					if row_order == cur_order:
+						cur_x = cur_x = il.x() - c0s[row_order] * col - c1s[row_order] * row
+						this_c2s.append(cur_x)
+			
+					# y = c3 * c + c4 * r + c5
+					col_order = col % order
+					if col_order == cur_order:
+						cur_y = il.y() - c3s[col_order] * col - c4s[col_order] * row
+						this_c5s.append(cur_y)
+				
+					#print '%s: x%g y%g' % (fn, cur_x, cur_y)
+				
+				except:
+					print
+					print il
+					print c0s, c1s, c3s, c4s
+					print col, row
+					print 
+					raise
+		if 0:
+			c2s.append(sum(this_c2s) / len(this_c2s))
+			c5s.append(sum(this_c5s) / len(this_c5s))
+		else:
+			c2s.append(this_c2s[0])
+			c5s.append(this_c5s[0])
+	return (c2s, c5s)
+	
+def rms_errorl(l):
+	return (sum([(i - sum(l) / len(l))**2 for i in l]) / len(l))**0.5
+	
+def rms_error_diff(l1, l2):
+	if len(l1) != len(l2):
+		raise ValueError("Lists must be identical")
+	return (sum([(l2[i] - l1[i])**2 for i in range(len(l1))]) / len(l1))**0.5
 	
 def linear_reoptimize(pto, pto_ref = None, allow_missing = False, order = 2):
 	'''Change XY positions to match the trend in a linear XY positioned project (ex from XY stage).  pto must have all images in pto_ref '''
@@ -591,6 +655,46 @@ def linear_reoptimize(pto, pto_ref = None, allow_missing = False, order = 2):
 		print '  x = %g c + %g r + TBD' % (c0, c1)
 		print '  y = %g c + %g r + TBD' % (c3, c4)
 	
+
+	# Verify the solution matrix by checking it against the reference project
+	print
+	print 'Verifying reference solution matrix....'
+	(c2s_ref, c5s_ref) = calc_constants(order, m_ref, pto_ref, c0s, c1s, c3s, c4s, m_ref, allow_missing)
+	#c1s = [c1 + 12 for c1 in c1s]
+	# Print the solution matrx for debugging
+	for cur_order in range(order):
+		# XXX: if we really cared we could center these up
+		# its easier to just run the centering algorithm after though if one cares
+		print 'Reference order %d solution:' % cur_order
+		print '  x = %g c + %g r + %g' % (c0s[cur_order], c1s[cur_order], c2s_ref[cur_order])
+		print '  y = %g c + %g r + %g' % (c3s[cur_order], c4s[cur_order], c5s_ref[cur_order])
+	calc_ref_xs = []
+	calc_ref_ys = []
+	ref_xs = []
+	ref_ys = []
+	for col in range(m_ref.width()):
+		for row in range(m_ref.height()):
+			fn = m_ref.get_image(col, row)
+			if fn is None:
+				continue
+			il = pto_ref.get_image_by_fn(fn)
+			col_eo = col % order
+			row_eo = row % order
+			x_calc = c0s[row_eo] * col + c1s[row_eo] * row + c2s_ref[row_eo]
+			y_calc = c3s[col_eo] * col + c4s[col_eo] * row + c5s_ref[col_eo]
+			calc_ref_xs.append(x_calc)
+			calc_ref_ys.append(y_calc)
+			x_orig = il.x()
+			y_orig = il.y()
+			ref_xs.append(x_orig)
+			ref_ys.append(y_orig)
+			print '  c%d r%d: x%g y%g' % (col, row, x_calc - x_orig, y_calc - y_orig)
+	x_ref_rms_error = rms_error_diff(calc_ref_xs, ref_xs)
+	y_ref_rms_error = rms_error_diff(calc_ref_ys, ref_ys)
+	print 'Reference RMS error x%g y%g' % (x_ref_rms_error, y_ref_rms_error)
+	print
+	#exit(1)
+	
 	'''
 	The reference project might not start at 0,0
 	Therefore scan through to find some good starting positions so that we can calc each point
@@ -601,49 +705,8 @@ def linear_reoptimize(pto, pto_ref = None, allow_missing = False, order = 2):
 	Calculate the constant at each reference image
 	Compute reference positions from these values
 	'''
-	
-	c2s = []
-	c5s = []
-	print ref_fns
-	for cur_order in range(order):
-		this_c2s = []
-		this_c5s = []
-		for col in range(m_real.width()):
-			for row in range(m_real.height()):
-				fn = m_real.get_image(col, row)
-				if not fn in ref_fns:
-					continue
-				if fn is None:
-					if not allow_missing:
-						raise Exception('Missing item')
-					continue
-				il = pto_ref.get_image_by_fn(fn)
-				if il is None:
-					raise Exception('%s should have been in ref' % fn)
-				try:
-					# x = c0 * c + c1 * r + c2
-					row_order = row % order
-					if row_order == cur_order:
-						cur_x = cur_x = il.x() - c0s[row_order] * col - c1s[row_order] * row
-						this_c2s.append(cur_x)
-			
-					# y = c3 * c + c4 * r + c5
-					col_order = col % order
-					if col_order == cur_order:
-						cur_y = il.y() - c3s[col_order] * col - c4s[col_order] * row
-						this_c5s.append(cur_y)
-				
-					#print '%s: x%g y%g' % (fn, cur_x, cur_y)
-				
-				except:
-					print
-					print il
-					print c0s, c1s, c3s, c4s
-					print col, row
-					print 
-					raise
-		c2s.append(sum(this_c2s) / len(this_c2s))
-		c5s.append(sum(this_c5s) / len(this_c5s))
+	(c2s, c5s) = calc_constants(order, m_real, pto_ref, c0s, c1s, c3s, c4s, m_ref, allow_missing)
+	#c2s = [c2 + 30 for c2 in c2s]
 		
 	# Print the solution matrx for debugging
 	for cur_order in range(order):
@@ -652,14 +715,15 @@ def linear_reoptimize(pto, pto_ref = None, allow_missing = False, order = 2):
 		print 'Order %d solution:' % cur_order
 		print '  x = %g c + %g r + %g' % (c0s[cur_order], c1s[cur_order], c2s[cur_order])
 		print '  y = %g c + %g r + %g' % (c3s[cur_order], c4s[cur_order], c5s[cur_order])
-	c2_rms = (sum([(c2 - sum(c2s) / len(c2s))**2 for c2 in c2s]) / len(c2s))**0.5
-	c5_rms = (sum([(c5 - sum(c5s) / len(c5s))**2 for c5 in c5s]) / len(c5s))**0.5
+	
+	c2_rms = rms_errorl(c2s)
+	c5_rms = rms_errorl(c5s)
 	print 'RMS offset error x%g y%g' % (c2_rms, c5_rms)
 	if c2_rms > c5_rms:
 		print 'x offset varies most, expect left-right scanning'
 	else:
 		print 'y offset varies most, expect top-bottom scanning'
-
+	#exit(1)
 	'''
 	We have the solution matrix now so lets roll
 	'''
