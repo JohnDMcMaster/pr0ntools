@@ -8,6 +8,7 @@ import argparse
 from pr0ntools.stitch.optimizer import PTOptimizer
 from pr0ntools.stitch.pto.project import PTOProject
 from pr0ntools.stitch.pto.util import *
+from pr0ntools.stitch.linear_optimizer import *
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description='Manipulate .pto files')

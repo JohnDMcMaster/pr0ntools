@@ -146,7 +146,11 @@ class ImageCoordinateMap:
 	def set_image_rc(self, row, col, file_name):
 		if row >= self.height() or col >= self.width():
 			raise Exception('row %d, col %d are out of bounds height %d, width %d' % (row, col, self.height(), self.width()))
-		self.layout[self.cols * row + col] = file_name
+		try:
+			self.layout[self.cols * row + col] = file_name
+		except:
+			print row, col
+			raise
 	
 	def set_image(self, col, row, file_name):
 		self.set_image_rc(row, col, file_name)
@@ -214,7 +218,8 @@ class ImageCoordinateMap:
 		for file_name in file_names:
 			# Not canonical, but resolved well enough
 			(row, col) = get_row_col(file_name)
-				
+			if row is None or col is None:
+				raise Exception('Bad file name %s' % file_name)
 			ret.set_image_rc(row, col, file_name)
 		
 		return ret	
