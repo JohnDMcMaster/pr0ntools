@@ -105,9 +105,15 @@ class GridStitch(CommonStitch):
 		for can_fn in self.canon2orig:
 			# FIXME: if we have issues with images missing from the project due to bad stitch
 			# we should add them (here?) instead of throwing an error
+			orig = self.canon2orig[can_fn]
 			il = self.project.get_image_by_fn(can_fn)
-			il.set_name(self.canon2orig[can_fn])
-		
+			if il:
+				il.set_name(orig)
+			else:
+				print 'WARNING: adding image without feature match %s' % orig
+				self.project.add_image(orig)
+
+				
 		self.project.save()
 		print 'Sub projects (full image):'
 		for project in temp_projects:

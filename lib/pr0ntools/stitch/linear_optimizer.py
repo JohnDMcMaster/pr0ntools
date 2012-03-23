@@ -16,6 +16,18 @@ except ImportError:
 	scipy = None
 
 '''
+def LinearOptimizer:
+	def __init__(self, pto, pto_ref = None):
+		self.pto = pto
+		self.pto_ref = pto_ref
+	
+	def run(self):
+'''
+	
+
+
+
+'''
 Second order linear system of the form:
 r = c0 x0 + c1 x1 + c2
 
@@ -143,7 +155,7 @@ def regress_c4(m, pto, cols, allow_missing = False):
 	
 def calc_constants(order, m_real, pto_ref,
 		c0s, c1s, c3s, c4s,
-		m_ref = None, allow_missing=False):
+		m_ref = None, allow_missing=False, col_border=0, row_border=0):
 	if m_ref is None:
 		m_ref = m_real
 	
@@ -151,11 +163,12 @@ def calc_constants(order, m_real, pto_ref,
 	
 	c2s = []
 	c5s = []
+	# Only calculate relative to central area
 	for cur_order in range(order):
 		this_c2s = []
 		this_c5s = []
-		for col in range(m_real.width()):
-			for row in range(m_real.height()):
+		for col in range(0 + col_border, m_real.width() - col_border):
+			for row in range(0 + row_border, m_real.height() - row_border):
 				fn = m_real.get_image(col, row)
 				if not fn in ref_fns:
 					continue
@@ -204,10 +217,15 @@ def rms_error_diff(l1, l2):
 		raise ValueError("Lists must be identical")
 	return (sum([(l2[i] - l1[i])**2 for i in range(len(l1))]) / len(l1))**0.5
 	
-def linear_reoptimize(pto, pto_ref = None, allow_missing = False, order = 2):
+def linear_reoptimize(pto, pto_ref = None, allow_missing = False, order = 2, border = False):
 	'''Change XY positions to match the trend in a linear XY positioned project (ex from XY stage).  pto must have all images in pto_ref '''
 	if scipy is None:
 		raise Exception('Re-optimizing requires scipi')
+	
+	if order is 0:
+		raise Exception('Can not have order 0')
+	if type(order) != type(0):
+		raise Exception('Order is bad type')
 	
 	'''
 	Our model should be like this:
@@ -289,6 +307,7 @@ def linear_reoptimize(pto, pto_ref = None, allow_missing = False, order = 2):
 	# Verify the solution matrix by checking it against the reference project
 	print
 	print 'Verifying reference solution matrix....'
+	# Entire reference is assumed to be good always, no border
 	(c2s_ref, c5s_ref) = calc_constants(order, m_ref, pto_ref, c0s, c1s, c3s, c4s, m_ref, allow_missing)
 	#c1s = [c1 + 12 for c1 in c1s]
 	# Print the solution matrx for debugging
@@ -335,7 +354,22 @@ def linear_reoptimize(pto, pto_ref = None, allow_missing = False, order = 2):
 	Calculate the constant at each reference image
 	Compute reference positions from these values
 	'''
-	(c2s, c5s) = calc_constants(order, m_real, pto_ref, c0s, c1s, c3s, c4s, m_ref, allow_missing)
+	
+	'''
+	FIXME: we have to calculate these initially and then re-calc for border if required
+	if top_bottom_backlash and border:
+		row_border = 1
+	else:
+		row_border = 0
+	if left_right_backlash and border:
+		col_border = 1
+	else:
+		col_border = 0
+	'''
+	row_border = 0
+	col_border = 0
+	
+	(c2s, c5s) = calc_constants(order, m_real, pto_ref, c0s, c1s, c3s, c4s, m_ref, allow_missing, col_border, row_border)
 	#c2s = [c2 + 30 for c2 in c2s]
 		
 	# Print the solution matrx for debugging
@@ -349,16 +383,21 @@ def linear_reoptimize(pto, pto_ref = None, allow_missing = False, order = 2):
 	c2_rms = rms_errorl(c2s)
 	c5_rms = rms_errorl(c5s)
 	print 'RMS offset error x%g y%g' % (c2_rms, c5_rms)
+	left_right_backlash = False
+	top_bottom_backlash = False
 	if c2_rms > c5_rms:
 		print 'x offset varies most, expect left-right scanning'
+		left_right_backlash = True
 	else:
 		print 'y offset varies most, expect top-bottom scanning'
+		top_bottom_backlash = True
 	#exit(1)
 	'''
 	We have the solution matrix now so lets roll
 	'''
-	for col in range(m_real.width()):
-		for row in range(m_real.height()):
+	optimized = set()
+	for col in range(col_border, m_real.width() - col_border):
+		for row in range(row_border, m_real.height() - row_border):
 			fn = m_real.get_image(col, row)
 			il = pto.get_image_by_fn(fn)
 
@@ -379,6 +418,32 @@ def linear_reoptimize(pto, pto_ref = None, allow_missing = False, order = 2):
 			il.set_x(x)
 			il.set_y(y)
 			#print il
+			optimized.add(fn)
+	'''
+	Finally manually optimize those that were in the border area
+	'''
+	if border:
+		# Gather all file names
+		# There are essentially four cases to do this faster but be lazy since it will still be O(images)
+		to_manually_optimize = set()
+		for col in range(0, m_real.width()):
+			for row in range(m_real.height()):
+				fn = m_real.get_image(col, row)
+				il = pto.get_image_by_fn(fn)
 
+				if fn is None:
+					if not allow_missing:
+						raise Exception('Missing item')
+					continue
+				if fn in optimized:
+					continue
+				to_manually_optimize.add(fn)
+		# Prepare the pto to operate on the ones we want
+		optimize_xy_only_for_images(pto, to_manually_optimize)
+		# and run
+		optimizer = PTOptimizer(pto)
+		# Don't clear out the xy data we just calculated
+		optimizer.reoptimize = False
+		optimizer.run()
 
 

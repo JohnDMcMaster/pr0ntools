@@ -287,6 +287,12 @@ def optimize_xy_only(self):
 		print
 		print
 
+"""
+def optimize_xy_only_for_images(pto, image_fns):
+	'''Same as above except only for specific images'''
+	for fn in image_fns:
+"""
+		
 
 def fixup_p_lines(self):
 	'''
