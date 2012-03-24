@@ -230,6 +230,8 @@ class Planner:
 		focus.x_view = float(objective_config['x_view'])
 		focus.y_view = float(objective_config['y_view'])
 	
+		self.even_xy_backlash = True
+		
 		'''
 		Planar test run
 		plane calibration corner ended at 0.0000, 0.2674, -0.0129
@@ -246,8 +248,8 @@ class Planner:
 			full_z_delta = self.z_end - self.z_start
 		#print full_z_delta
 	
-		x_pixels = 3264
-		y_pixels = 2448
+		x_pixels = 3264 / 2
+		y_pixels = 2448 / 2
 	
 		self.x = PlannerAxis('X', ideal_overlap, focus.x_view, x_pixels, self.x_start, self.x_end)
 		self.y = PlannerAxis('Y', ideal_overlap, focus.y_view, y_pixels, self.y_start, self.y_end)
@@ -640,17 +642,7 @@ class Planner:
 		
 	def focus_camera(self):
 		pass
-	
-	def relative_move(self, x, y, z = None):
-		if x is None:
-			x = 0.0
-		if y is None:
-			y = 0.0
-		if z is None:
-			z = 0.0
-		print 'Relative move to (%f, %f, %f)' % (x, y, z)
-		pass
-		
+			
 	'''
 	def gen_x_points(self):
 		# We want to step nicely but this simple step doesn't take into account our x field of view
@@ -825,6 +817,13 @@ class Planner:
 			row += 1
 			forward = not forward
 	
+	# Its actually less than this but it seems it takes some stepping
+	# to get it out of the system
+	def x_backlash(self):
+		return 50
+	def y_backlash(self):
+		return 50
+		
 	def run(self):
 		print
 		print
@@ -858,6 +857,11 @@ class Planner:
 
 		self.prepare_image_output()
 		
+		if self.even_xy_backlash:
+			# Make sure first backlash compensation works as expected
+			# And prep y for even step
+			self.absolute_move(self.x_start, self.y_start - self.y_backlash())
+		
 		# Because of the backlash on Z, its better to scan in same direction
 		# Additionally, it doesn't matter too much for focus which direction we go, but XY is thrown off
 		# So, need to make sure we are scanning same direction each time
@@ -865,6 +869,7 @@ class Planner:
 		forward = True
 		self.cur_col = -1
 		# columns
+		last_y = None
 		for (cur_x, cur_y, cur_z, self.cur_row, self.cur_col) in self.getPointsEx():
 		#for cur_x in self.gen_x_points():
 			self.cur_x = cur_x
@@ -872,6 +877,15 @@ class Planner:
 			#self.cur_row = -1
 			# rows
 			#for cur_y in self.gen_y_points():
+			
+			if self.even_xy_backlash and last_y != cur_y:
+				# Make backlash even
+				if forward:
+					# Going forward means we need to back up
+					self.relative_move(-self.x_backlash(), None)
+				else:
+					# And otherwise overshoot the other way
+					self.relative_move(self.x_backlash(), None)
 			
 			if True:
 				self.cur_y = cur_y
@@ -935,6 +949,7 @@ class Planner:
 			forward = not forward
 			print
 			#raise Exception('break')
+			last_y = cur_y
 
 		self.cur_x = cur_x
 		self.cur_y = cur_y
@@ -951,11 +966,17 @@ class Planner:
 			
 		self.write_metadata()
 		
-	def absolute_move(self, x, y, z = None):
-		raise Exception('blah')
-		
 	def home(self):
 		self.relative_move(-self.cur_x, -self.cur_y)
+
+	def relative_move(self, x, y, z = None):
+		if x is None:
+			x = 0.0
+		if y is None:
+			y = 0.0
+		if z is None:
+			z = 0.0
+		print 'DRY: relative move to (%f, %f, %f)' % (x, y, z)
 
 	def absolute_move(self, x, y, z = None):
 		print 'DRY: absolute move to (%s, %s, %s)' % (str(x), str(y), str(z))

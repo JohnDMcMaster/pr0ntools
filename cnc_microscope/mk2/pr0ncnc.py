@@ -78,26 +78,26 @@ class Axis(QtGui.QWidget):
 		self.emit_pos()
 	
 	def go_abs(self):
-		print 'abs'
+		#print 'abs'
 		self.axis.set_pos(float(self.abs_pos_le.text()))
 		self.emit_pos()
 	
 	def go_rel(self):
-		print 'rel'
+		#print 'rel'
 		self.jog(float(self.rel_pos_le.text()))
 	
 	def emit_pos(self):
-		print 'emitting pos'
+		#print 'emitting pos'
 		self.emit(SIGNAL("axisSet(double)"), self.axis.get_um())
 	
 	def home(self):
-		print 'home'
+		#print 'home'
 		self.axis.home()
 		# We moved to 0 position
 		self.emit_pos()
 	
 	def set_home(self):
-		print 'setting new home position'
+		#print 'setting new home position'
 		self.axis.set_home()
 		#Axis.axisSet.emit()
 		#self.axisSet.emit(Axis.axisSet)
@@ -105,13 +105,13 @@ class Axis(QtGui.QWidget):
 		self.emit_pos()
 		
 	def meas_reset(self):
-		print 'meas reset'
+		#print 'meas reset'
 		self.meas_abs = self.axis.get_um()
 		self.meas_value.setText("0.0")
 		
 	def update_meas(self, pos):
 		nv = pos - self.meas_abs
-		print 'new meas value %f' % nv
+		#print 'new meas value %f' % nv
 		self.meas_value.setNum(nv)
 		
 	#def update_abs(self, pos_um):
