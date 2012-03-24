@@ -1,6 +1,9 @@
 #from VideoCapture import Device
 
-import VideoCapture as VC  
+try:
+	import VideoCapture as VC  
+except:
+	VC = None
 from PIL import Image  
 from PIL import ImageOps  
 import time  
@@ -54,6 +57,8 @@ class PILImager:
 		if camera_in_use():
 			print 'WARNING: camera in use, not loading imager'
 			raise Exception('Camera in use')				
+		if not VC:
+			raise Exception('Failed to import VC')
 	
 		self.cam = VC.Device() # initialize the webcam  
 		img = self.cam.getImage() # in my testing the first getImage stays black.  
@@ -68,3 +73,4 @@ class PILImager:
 	def __del__(self):
 		# Why did example have this?  Shouldn't this happen automatically?
 		del self.cam # no longer need the cam. uninitialize  
+

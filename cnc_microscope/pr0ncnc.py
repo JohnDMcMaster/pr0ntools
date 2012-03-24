@@ -78,26 +78,26 @@ class Axis(QtGui.QWidget):
 		self.emit_pos()
 	
 	def go_abs(self):
-		print 'abs'
+		#print 'abs'
 		self.axis.set_pos(float(self.abs_pos_le.text()))
 		self.emit_pos()
 	
 	def go_rel(self):
-		print 'rel'
+		#print 'rel'
 		self.jog(float(self.rel_pos_le.text()))
 	
 	def emit_pos(self):
-		print 'emitting pos'
+		#print 'emitting pos'
 		self.emit(SIGNAL("axisSet(double)"), self.axis.get_um())
 	
 	def home(self):
-		print 'home'
+		#print 'home'
 		self.axis.home()
 		# We moved to 0 position
 		self.emit_pos()
 	
 	def set_home(self):
-		print 'setting new home position'
+		#print 'setting new home position'
 		self.axis.set_home()
 		#Axis.axisSet.emit()
 		#self.axisSet.emit(Axis.axisSet)
@@ -105,13 +105,13 @@ class Axis(QtGui.QWidget):
 		self.emit_pos()
 		
 	def meas_reset(self):
-		print 'meas reset'
+		#print 'meas reset'
 		self.meas_abs = self.axis.get_um()
 		self.meas_value.setText("0.0")
 		
 	def update_meas(self, pos):
 		nv = pos - self.meas_abs
-		print 'new meas value %f' % nv
+		#print 'new meas value %f' % nv
 		self.meas_value.setNum(nv)
 		
 	#def update_abs(self, pos_um):
@@ -180,7 +180,12 @@ class Example(QtGui.QMainWindow):
 		self.mc = None
 		self.dry = False
 		self.extra_dry = False
+		self.extra_dry = True
 		self.startup_run = False
+		
+		if 0:
+			self.dry = True
+			self.extra_dry = True
 		
 		#self.startup_run = True
 		if self.startup_run:
@@ -192,7 +197,7 @@ class Example(QtGui.QMainWindow):
 			try:
 				self.mc = MC()
 				self.mc.on()
-			except:
+			except IOError:
 				print 'Failed to open device'
 				raise
 		
@@ -469,6 +474,7 @@ class Example(QtGui.QMainWindow):
 		run_layout.addWidget(self.pb, 1, 1)
 		run_layout.addWidget(QLabel('Dry?'), 2, 0)
 		self.dry_cb = QCheckBox()
+		self.dry_cb.setChecked(self.dry)
 		run_layout.addWidget(self.dry_cb, 2, 1)
 		scan_layout.addLayout(run_layout)
 
