@@ -866,7 +866,7 @@ class Planner:
 		# Additionally, it doesn't matter too much for focus which direction we go, but XY is thrown off
 		# So, need to make sure we are scanning same direction each time
 		# err for now just easier I guess
-		forward = True
+		forward = None
 		self.cur_col = -1
 		# columns
 		last_y = None
@@ -878,6 +878,12 @@ class Planner:
 			# rows
 			#for cur_y in self.gen_y_points():
 			
+			#forward = cur_x > last_x
+			if last_y is None:
+				forward = True
+			elif cur_y != last_y:
+				forward = not forward
+
 			if self.even_xy_backlash and last_y != cur_y:
 				# Make backlash even
 				if forward:
@@ -915,7 +921,7 @@ class Planner:
 				cur_z = self.calc_z(cur_x, cur_y)
 				# print cur_z
 				# print 'full_z_delta: %f, z_start %f, z_end %f' % (full_z_delta, z_start, z_end)
-				self.comment('(%f, %f, %s)' % (cur_x, cur_y, str(cur_z)))
+				self.comment('forward %d, (%f, %f, %s)' % (forward, cur_x, cur_y, str(cur_z)))
 
 				#if cur_z < z_start or cur_z > z_end:
 				#	print 'cur_z: %f, z_start %f, z_end %f' % (cur_z, z_start, z_end)
@@ -946,8 +952,6 @@ class Planner:
 				for cur_y in range(y_start, y_end, y_step):
 					inner_loop()
 			'''
-			forward = not forward
-			print
 			#raise Exception('break')
 			last_y = cur_y
 
