@@ -180,7 +180,6 @@ class Example(QtGui.QMainWindow):
 		self.mc = None
 		self.dry = False
 		self.extra_dry = False
-		self.extra_dry = True
 		self.startup_run = False
 		
 		if 0:
