@@ -9,11 +9,10 @@ from shapely.geometry import Polygon, MultiPolygon
 from shapely.geos import TopologicalError
 from pr0ntools.benchmark import Benchmark
 from pr0ntools.util.geometry import PolygonQuadTree as PolygonQuadTreeBase
+from pr0ntools.layer.polygon import *
+from pr0ntools.layer.point import *
 
 from pr0ntools.jssim.util import get_debug_width, get_debug_height
-
-g_no_cache = True
-#g_no_cache = False
 
 class PolygonQuadTree(PolygonQuadTreeBase):
 	def __init__(self, *args):
@@ -195,11 +194,6 @@ class Nets:
 		'''Move data from old_net number into new_net number'''
 		self.nets[new_net].merge(self.nets[old_net])
 		del self.nets[old_net]
-				
-class Point:
-	def __init__(self, x, y):			
-		self.x = x
-		self.y = y
 
 
 from threading import Thread
@@ -288,7 +282,7 @@ class Layer:
 	# we figure this out, net given
 	UNKNOWN_DIFFUSION = 101
 	
-	def __init__(self):
+	def __init__(self, name=None):
 		self.index = None
 		#self.pimage = PImage(image_file_name)
 		# Set is faster but non-deterministic
@@ -300,7 +294,7 @@ class Layer:
 			self.polygons = list()
 			self.remove_polygon = self.remove_polygon_l
 			self.add_uvpolygon = self.add_uvpolygon_l
-		self.name = None
+		self.name = name
 		# Default color if polygon doesn't have one
 		self.color = None
 		self.potential = Net.UNKNOWN
@@ -1076,7 +1070,7 @@ class Layer:
 		
 	def add_polygon_by_points(self, points, color=None):
 		polygon = UVPolygon(points, color=color)
-		self.polygons.add(polygon)
+		self.polygons.append(polygon)
 		return polygon
 
 	def add_uvpolygon_s(self, polygon, color=None):

@@ -16,6 +16,8 @@ class SVGTestVector:
 		self.layers = layers
 		self.image_fn = image_fn
 		print 'Constructing test vector with source image %s and %d layers' % (self.image_fn, len(self.layers))
+		for layer in self.layers:
+			self.layers[layer].show()
 	
 	@staticmethod
 	def from_file(fn):
@@ -23,7 +25,7 @@ class SVGTestVector:
 		parser.run()
 		if len(parser.images) != 1:
 			raise Exception('Test vector must have exactly one image')
-		return SVGTestVector(parser.images[0], parser.layers)
+		return SVGTestVector(list(parser.images)[0], parser.layers)
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description='Manipulate .pto files')

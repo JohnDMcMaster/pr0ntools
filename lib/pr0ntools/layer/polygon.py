@@ -5,13 +5,18 @@ from shapely.geos import TopologicalError
 try:
 	from Tkinter import *
 	using_tkinter = True
-except ImportError e:
+except ImportError as e:
 	using_tkinter = False
 
 from pr0ntools.benchmark import Benchmark
 from pr0ntools.util.geometry import PolygonQuadTree as PolygonQuadTreeBase
 
 from pr0ntools.jssim.util import get_debug_width, get_debug_height
+from pr0ntools.layer.point import *
+
+g_no_cache = True
+#g_no_cache = False
+
 
 
 '''
@@ -159,6 +164,7 @@ class UVPolygon:
 		self.net = None
 		self.xpolygon = None
 		self.points = None
+		self.polygon = None
 		
 		if points:
 			self.set_polygon(Polygon([(point.x, point.y) for point in points]))
