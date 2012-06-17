@@ -55,6 +55,7 @@ from pr0ntools.util.geometry import floor_mult, ceil_mult
 import os
 import math
 import shutil
+import sys
 from pr0ntools.execute import CommandFailed
 import traceback
 
@@ -120,13 +121,23 @@ class PartialStitcher:
 # For managing the closed list		
 
 class Tiler:
-	def __init__(self, pto, out_dir, tile_width=250, tile_height=250, st_scalar_heuristic=4, dry=False, super_tw=None, super_th=None):
+	
+	def __init__(self, pto, out_dir, tile_width=250, tile_height=250, st_scalar_heuristic=4, dry=False, stw=None, sth=None, stp=None, clip_width=None, clip_height=None):
+		'''
+		stw: super tile width
+		sth: super tile height
+		stp: super tile pixels (auto stw, sth)
+		'''
 		self.img_width = None
 		self.img_height = None
 		self.dry = dry
 		self.st_scalar_heuristic = st_scalar_heuristic
 		self.ignore_errors = False
 		self.verbose = False
+		self.stw = stw
+		self.sth = sth
+		self.clip_width = clip_width
+		self.clip_height = clip_height
 		
 		# TODO: this is a heuristic just for this, uniform input images aren't actually required
 		for i in pto.get_image_lines():
@@ -152,34 +163,177 @@ class Tiler:
 		# Keep old files and skip already generated?
 		self.merge = False
 		
-		self.set_size_heuristic(self.img_width, self.img_height)
-		# These are less related
-		# They actually should be set as high as you think you can get away with
-		# Although setting a smaller number may have higher performance depending on input size
-		if super_tw is None:
-			self.super_tw = self.img_width * self.st_scalar_heuristic
-		else:
-			self.super_tw = super_tw
-		if super_th is None:
-			self.super_th = self.img_height * self.st_scalar_heuristic
-		else:
-			self.super_th = super_th
-		
-		self.recalc_step()		
-		# We build this in run
-		self.map = None
-		
 		spl = self.pto.get_panorama_line()
 		self.x0 = spl.left()
 		self.x1 = spl.right()
 		self.y0 = spl.top()
 		self.y1 = spl.bottom()
 		#print spl
+		
+		self.set_size_heuristic(self.img_width, self.img_height)
+		
+		if stp:
+			if self.stw or self.sth:
+				raise ValueError("Can't manually specify width/height and do auto")
+			'''
+			Given an area and a length and width, find the optimal tile sizes
+			such that there are the least amount of tiles but they cover all area
+			with each tile being as small as possible
+			
+			Generally get better results if things remain square
+			Long rectangular sections that can fit a single tile easily should
+				Idea: don't let tile sizes get past aspect ratio of 2:1
+			
+			Take the smaller dimension
+			'''
+			# Maximum h / w or w / h
+			aspect_max = 2.0
+			w = self.width()
+			h = self.height()
+			a = w * h
+			'''
+			w = h / a
+			p = w * h = (h / a) * h
+			p * a = h**2, h = (p * a)**0.5
+			'''
+			min_stwh = int((stp / aspect_max)**0.5)
+			max_stwh = int((stp * aspect_max)**0.5)
+			print 'Maximum supertile width/height: %d w/ square @ %d' % (max_stwh, int(stp**0.5))
+			# Theoretical number of tiles if we had no overlap
+			theoretical_tiles = a * 1.0 / stp
+			print 'Net area %d (%dw X %dh) requires at least ceil(%g) tiles' % \
+					(a, w, h, theoretical_tiles)
+			aspect = 1.0 * w / h
+			# Why not just run a bunch of sims and take the best...
+			if 0:
+				'''
+				Take a rough shape of the canvas and then form rectangles to match
+				'''
+				if aspect >= 2.0:
+					print 'width much larger than height'
+				elif aspect <= 0.5:
+					print 'Height much larger than width'
+				else:
+					print 'Squarish canvas, forming squares'
+			if 1:
+				# Keep each tile size constant
+				print 'Sweeping tile size optimizer'
+				best_w = None
+				best_h = None
+				best_n = None
+				# Get the lowest perimeter among n
+				# Errors occur around edges
+				best_p = None
+				# Arbitrary step at 1000
+				# Even for large sets we want to optimize
+				# for small sets we don't care
+				for check_w in xrange(min_stwh, max_stwh, 100):
+					check_h = stp / check_w
+					print 'Checking supertile size %dw X %dh (area %d)' % (check_w, check_h, check_w * check_h)
+					tiler = Tiler(pto = self.pto, out_dir = self.out_dir,
+							tile_width = self.tw, tile_height = self.th,
+							st_scalar_heuristic=self.st_scalar_heuristic, dry=True,
+							stw=check_w, sth=check_h, stp=None, clip_width=None, clip_height=None)
+					
+					# The area will float around a little due to truncation
+					# Its better to round down than up to avoid running out of memory
+					n_expected = tiler.expected_sts()
+					p = (check_w + check_h) * 2
+					print 'Would generated %d supertiles each with perimeter %d' % (n_expected, p)
+					# TODO: there might be some optimizations within this for trimming...
+					# Add a check for minimum total mapped area
+					if best_n is None or best_n > n_expected and best_p > p:
+						print 'Better'
+						best_n = n_expected
+						best_w = check_w
+						best_h = check_h
+						best_p = p
+					print
+			print 'Best n %d w/ %dw X %dh' % (best_n, best_w, best_h)
+			if 0:
+				print
+				print 'Debug break'
+				sys.exit(1)
+			self.stw = best_w
+			self.sth = best_h
+			self.trim_stwh()
+		
+		# These are less related
+		# They actually should be set as high as you think you can get away with
+		# Although setting a smaller number may have higher performance depending on input size
+		if self.stw is None:
+			self.stw = self.img_width * self.st_scalar_heuristic
+		if self.sth is None:
+			self.sth = self.img_height * self.st_scalar_heuristic
+		
+		self.recalc_step()		
+		# We build this in run
+		self.map = None
+		
+	def expected_sts(self):
+		'''Number of expected supertiles'''
+		return len(list(self.gen_supertiles()))
+		
+	def trim_stwh(self):
+		'''
+		Supertiles may be larger than the margins
+		If so it just slows down stitching with a lot of stuff getting thrown away
+		
+		Each time a supertile is added we lose one overlap unit
+		ideally canvas w = n * stw - (n - 1) * overlap
+		Before running this function stw may be oversized
+		'''
+		self.recalc_step()
+		orig_st_area = self.stw * self.sth
+		orig_net_area = self.expected_sts() * orig_st_area
+		orig_stw = self.stw
+		orig_sth = self.sth
+		
+		if 0:
+			# First one is normal but each additional takes a clip
+			w_sts = int(1 + math.ceil(1.0 * (self.width() - self.stw) / (self.stw - self.super_t_xstep)))
+			h_sts = int(1 + math.ceil(1.0 * (self.height() - self.sth) / (self.sth - self.super_t_ystep)))
+			print '%dw X %dh supertiles originally' % (w_sts, h_sts)
+			#total_clip_width = self.clip_width * 
+		else:
+			h_sts = 0
+			h_extra = 0
+			for y in xrange(self.top(), self.bottom(), self.super_t_ystep):
+				h_sts += 1
+				y0 = y
+				y1 = y + self.sth
+				if y1 >= self.bottom():
+					h_extra = y1 - self.bottom()
+					break
+				
+			w_sts = 0
+			w_extra = 0
+			for x in xrange(self.left(), self.right(), self.super_t_xstep):
+				w_sts += 1
+				x0 = x
+				x1 = x + self.stw
+				if x1 >= self.right():
+					w_extra = x1 - self.right()
+					break
+			print '%d width tiles waste %d pixels' % (w_sts, w_extra)
+			self.stw = self.stw - w_extra / w_sts
+			print '%d height tiles waste %d pixels' % (h_sts, h_extra)
+			self.sth = self.sth - h_extra / h_sts
+			# Since we messed with the tile width the step needs recalc
+			self.recalc_step()
+		
+		new_st_area = self.stw * self.sth
+		new_net_area = self.expected_sts() * new_st_area
+		print 'Final supertile trim results:'
+		print '  Width %d => %d (%g%% of original)' % (orig_stw, self.stw, 100.0 * self.stw / orig_stw)
+		print '  Height %d => %d (%g%% of original)' % (orig_sth, self.sth, 100.0 * self.sth / orig_sth)
+		print '  ST area %d => %d (%g%% of original)' % (orig_st_area, new_st_area, 100.0 * new_st_area / orig_st_area )
+		print '  Net area %d => %d (%g%% of original)' % (orig_net_area, new_net_area, 100.0 * new_net_area / orig_net_area)
 	
 	def make_full(self):
 		'''Stitch a single supertile'''
-		self.super_tw = self.width()
-		self.super_th = self.height()
+		self.stw = self.width()
+		self.sth = self.height()
 	
 	def recalc_step(self):
 		'''
@@ -191,8 +345,12 @@ class Tiler:
 		If you don't do this you will not stitch anything in the center that isn't perfectly aligned
 		Will get worse the more tiles you create
 		'''
-		self.super_t_xstep = self.super_tw - 2 * self.clip_width - 2 * self.tw
-		self.super_t_ystep = self.super_th - 2 * self.clip_height - 2 * self.th
+		try:
+			self.super_t_xstep = self.stw - 2 * self.clip_width - 2 * self.tw
+			self.super_t_ystep = self.sth - 2 * self.clip_height - 2 * self.th
+		except:
+			print self.stw, self.clip_width, self.tw
+			raise
 	
 	def set_size_heuristic(self, image_width, image_height):
 		'''
@@ -220,6 +378,7 @@ class Tiler:
 		'''
 		There is no garauntee that our supertile is a multiple of our tile size
 		This will particularly cause issues near the edges if we are not careful
+		FIXME: alignment truncation
 		'''
 		xt0 = ceil_mult(x0, self.tw, align=self.x0)
 		xt1 = floor_mult(x1, self.tw, align=self.x0)
@@ -450,24 +609,23 @@ class Tiler:
 		Slightly decrease the step to avoid boundary conditions
 		Although we clip on both side we only have to get rid of one side each time
 		'''
-		#txstep = self.super_tw - self.clip_width - 1
-		#tystep = self.super_th - self.clip_height - 1
+		#txstep = self.stw - self.clip_width - 1
+		#tystep = self.sth - self.clip_height - 1
 		pass
 	
 	def gen_supertiles(self):
 		# 0:256 generates a 256 width pano
 		# therefore, we don't want the upper bound included
-			
-			
+		
 		print 'Generating supertiles from y(%d:%d) x(%d:%d)' % (self.top(), self.bottom(), self.left(), self.right())
 		#row = 0
 		y_done = False
 		for y in xrange(self.top(), self.bottom(), self.super_t_ystep):
 			y0 = y
-			y1 = y + self.super_th
+			y1 = y + self.sth
 			if y1 >= self.bottom():
 				y_done = True
-				y0 = max(self.top(), self.bottom() - self.super_th)
+				y0 = max(self.top(), self.bottom() - self.sth)
 				print 'Y %d would have overstretched, shifting y0 to maximum height position %d' % (y, y0)
 				y1 = self.bottom()
 				
@@ -475,12 +633,12 @@ class Tiler:
 			x_done = False
 			for x in xrange(self.left(), self.right(), self.super_t_xstep):
 				x0 = x
-				x1 = x + self.super_tw
+				x1 = x + self.stw
 				# If we have reached the right side align to it rather than truncating
 				# This makes blending better to give a wider buffer zone
 				if x1 >= self.right():
 					x_done = True
-					x0 = max(self.left(), self.right() - self.super_tw)
+					x0 = max(self.left(), self.right() - self.stw)
 					x1 = self.right()
 					print 'X %d would have overstretched, shifting to maximum width position %d' % (x, x0)
 				
@@ -530,7 +688,7 @@ class Tiler:
 	def run(self):
 		print 'Input images width %d, height %d' % (self.img_width, self.img_height)
 		print 'Output to %s' % self.out_dir
-		print 'Super tile width %d, height %d from scalar %d' % (self.super_tw, self.super_th, self.st_scalar_heuristic)
+		print 'Super tile width %d, height %d from scalar %d' % (self.stw, self.sth, self.st_scalar_heuristic)
 		print 'Super tile x step %d, y step %d' % (self.super_t_xstep, self.super_t_ystep)
 		print 'Supertile clip width %d, height %d' % (self.clip_width, self.clip_height)
 		
@@ -575,8 +733,8 @@ class Tiler:
 		# in form (row, col)
 		self.closed_list = set()
 		
-		self.n_expected_supertiles = len(list(self.gen_supertiles()))
-		print 'Generating %d supertiles' % self.n_expected_supertiles
+		self.n_expected_sts = len(list(self.gen_supertiles()))
+		print 'Generating %d supertiles' % self.n_expected_sts
 		
 		x_tiles = math.ceil(self.width() / self.tw)
 		y_tiles = math.ceil(self.height() / self.th)
@@ -597,7 +755,7 @@ class Tiler:
 			if self.should_try_supertile(x0, x1, y0, y1):
 				print
 				print
-				print "Creating supertile %d / %d with x%d:%d, y%d:%d" % (self.n_supertiles, self.n_expected_supertiles, x0, x1, y0, y1)
+				print "Creating supertile %d / %d with x%d:%d, y%d:%d" % (self.n_supertiles, self.n_expected_sts, x0, x1, y0, y1)
 				
 				try:
 					self.try_supertile(x0, x1, y0, y1)
@@ -612,7 +770,7 @@ class Tiler:
 				print 'WARNING: skipping supertile %d as it would not generate any new tiles' % self.n_supertiles
 
 		bench.stop()
-		print 'Processed %d supertiles to generate %d new (%d total) tiles in %s' % (self.n_expected_supertiles, self.this_tiles_done, self.tiles_done(), str(bench))
+		print 'Processed %d supertiles to generate %d new (%d total) tiles in %s' % (self.n_expected_sts, self.this_tiles_done, self.tiles_done(), str(bench))
 		tiles_s = self.this_tiles_done / bench.delta_s()
 		print '%f tiles / sec, %f pix / sec' % (tiles_s, tiles_s * self.tw * self.th)
 		

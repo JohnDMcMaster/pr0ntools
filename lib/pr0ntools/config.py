@@ -21,6 +21,15 @@ class Config:
 	def get_default_fn():
 		return os.getenv('HOME') + '/' + '.pr0nrc'
 	
+	def getx(self, ks, default = None):
+		root = self.json
+		for k in ks.split('.'):
+			if k in root:
+				root = root[k]
+			else:
+				return default
+		return root
+	
 	def get(self, k, default = None):
 		if k in self.json:
 			return self.json[k]
@@ -33,6 +42,8 @@ class Config:
 	def enblend_opts(self):
 		return self.get('enblend', {'opts':''})['opts']
 	
+	def super_tile_memory(self):
+		return self.getx('pr0nts.mem', None)
 
 config = Config()
 
