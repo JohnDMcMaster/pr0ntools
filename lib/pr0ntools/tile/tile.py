@@ -164,9 +164,10 @@ class TileTiler:
 			
 			# For the first level we copy things over
 			if self.zoom_level == self.max_level:
+				target_extension = self.out_extension[1:]
 				for (img_fn, row, col) in self.map.images():
 					dst = self.get_fn(row, col)
-					if 0:
+					if 0 and img_fn.split('.')[1] == target_extension:
 						print 'Direct copying %s => %s' % (img_fn, dst)
 						shutil.copy(img_fn, dst)
 					# This allows to do type conversions if needed

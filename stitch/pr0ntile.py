@@ -65,7 +65,8 @@ VERSION = '0.1'
 
 
 def usage():
-	print 'pr0ntile: generate tiles'
+	print 'pr0ntile: generate tiles from a single input image'
+	print 'NOTE: replaced by pr0nts for .pto'
 	print 'Usage:'
 	print 'pr0ntile <image file names>'
 	print 'single file name will expect one gigantic input.  .pto will stitch from tile'
@@ -73,6 +74,7 @@ def usage():
 
 
 if __name__ == "__main__":
+	'''
 	if len(sys.argv) > 2:
 		files_in = []
 		#for i in range(1, len(sys.argv)):
@@ -81,24 +83,21 @@ if __name__ == "__main__":
 		print 'Processing files %s' % str(files_in)
 		TileTiler(files_in, max_level, min_level).run()
 	elif len(sys.argv) == 2:
+	'''
+	for argi in xrange(len(sys.argv)):
+		if sys.argv[argi].find('.pto') > 0:
+			raise Exception('Use pr0nts')
+
+	if len(sys.argv) == 2:
 		fn = sys.argv[1]
-		if fn.find('.pto') > 0:
-			print 'Assuming input is pto project to be stitched'
-			project = PTOProject.parse_from_file_name(fn)
-			print 'Creating tiler'
-			t = Tiler(project, 'out')
-			print 'Running tiler'
-			t.run()
-			print 'Tiler done!'
-		else:
-			print 'Assuming input is image file'
-			'''
-			Test file is the carved out metal sample of the 6522
-			It is 5672 x 4373 pixels
-			I might do a smaller one first
-			'''
-			#fn = 'xc9536xl_vqg44awn1105__neo50xulwd__semipol_lev_noz_dirty.jpg'
-			SingleTiler(fn, max_level, min_level).run()
+		print 'Assuming input is image file'
+		'''
+		Test file is the carved out metal sample of the 6522
+		It is 5672 x 4373 pixels
+		I might do a smaller one first
+		'''
+		#fn = 'xc9536xl_vqg44awn1105__neo50xulwd__semipol_lev_noz_dirty.jpg'
+		SingleTiler(fn, max_level, min_level).run()
 	else:
 		usage()
 		sys.exit(1)

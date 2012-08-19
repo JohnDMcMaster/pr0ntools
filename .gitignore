@@ -2,4 +2,4 @@
 *.log
 MANIFEST
 dist
-
+*~
