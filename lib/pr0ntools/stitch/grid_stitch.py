@@ -19,6 +19,7 @@ class GridStitch(CommonStitch):
 		self.coordinate_map = None
 		self.set_regular(True)
 		self.canon2orig = dict()
+		self.skip_missing = False
 		
 	@staticmethod
 	def from_file_names(image_file_names, flip_col = False, flip_row = False, flip_pre_transpose = False, flip_post_transpose = False, depth = 1,
@@ -43,6 +44,21 @@ class GridStitch(CommonStitch):
 				alt_rows, alt_cols, rows, cols)
 		return engine
 	
+	@staticmethod
+	def from_tagged_file_names(image_file_names):
+		engine = GridStitch()
+		engine.image_file_names = image_file_names
+		print 'Orig file names: %s' % str(image_file_names)
+		
+		file_names_canonical = list()
+		for file_name in image_file_names:
+			new_fn = os.path.realpath(file_name)
+			engine.canon2orig[new_fn] = file_name
+			file_names_canonical.append(new_fn)
+		
+		engine.coordinate_map = ImageCoordinateMap.from_tagged_file_names(file_names_canonical)
+		return engine
+
 	def init_failures(self):
 		open_list = set()
 		for (file_name, row, col) in self.coordinate_map.images():
@@ -73,6 +89,11 @@ class GridStitch(CommonStitch):
 			# Image file names as list
 			pair_images = self.coordinate_map.get_images_from_pair(pair)
 			print 'pair images: ' + repr(pair_images)
+			if pair_images[0] is None or pair_images[1] is None:
+				if not self.skip_missing:
+					raise Exception('Missing images')
+				print 'WARNING: skipping missing image'
+				continue
 
 
 			final_pair_project = self.generate_control_points_by_pair(pair, pair_images)

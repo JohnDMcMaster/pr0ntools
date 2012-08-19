@@ -132,6 +132,8 @@ class TileTiler:
 		self.zoom_factor = 2
 		self.t_width = 250
 		self.t_height = 250
+		# JPEG quality level, 1-100 or something
+		self.quality = 70
 
 	def set_out_extension(self, s):
 		self.out_extension = s
@@ -164,16 +166,15 @@ class TileTiler:
 			
 			# For the first level we copy things over
 			if self.zoom_level == self.max_level:
-				target_extension = self.out_extension[1:]
 				for (img_fn, row, col) in self.map.images():
 					dst = self.get_fn(row, col)
-					if 0 and img_fn.split('.')[1] == target_extension:
+					if 0:
 						print 'Direct copying %s => %s' % (img_fn, dst)
 						shutil.copy(img_fn, dst)
 					# This allows to do type conversions if needed
 					# Presumably the conversion process for jps should be lossless although I haven't verified
 					else:
-						print 'Basic conversion %s => %s' % (img_fn, dst)
+						print 'Basic conversion %s => %s w/ quality %u' % (img_fn, dst, self.quality)
 						pi = PImage.from_file(img_fn)
 						# I could actually set with / height here but right now this is
 						# coming up fomr me accidentially using 256 x 256 tiles when the 
@@ -184,7 +185,7 @@ class TileTiler:
 							self.t_height = pi.height()
 						if pi.width() != self.t_width or pi.height() != self.t_height:
 							raise Exception('Source image incorrect size')
-						pi.save(dst)
+						pi.save(dst, quality=self.quality)
 					
 			# Additional levels we take the image coordinate map and shrink
 			else:
@@ -205,7 +206,7 @@ class TileTiler:
 						this += 1
 						old_col = new_col * self.zoom_factor
 						#print
-						print 'z%d %d/%d: transforming row %d => %d, col %d => %d' % (self.zoom_level, this, todo, old_row, new_row, old_col, new_col)
+						print 'z%d %d/%d: transforming row %d => %d, col %d => %d w/ quality %u' % (self.zoom_level, this, todo, old_row, new_row, old_col, new_col, self.quality)
 						# Paste the old (4) images together
 						imgp = PImage.from_filename_array([[self.get_old(old_row + 0, old_col + 0), self.get_old(old_row + 0, old_col + 1)],
 								[self.get_old(old_row + 1, old_col + 0), self.get_old(old_row + 1, old_col + 1)]])
@@ -216,7 +217,7 @@ class TileTiler:
 						if scaled.width() != self.t_width or scaled.height() != self.t_height:
 							raise Exception('Scaled image incorrect size')
 						new_fn = self.get_fn(new_row, new_col)
-						scaled.save(new_fn)
+						scaled.save(new_fn, quality=self.quality)
 						#sys.exit(1)
 						new_map.set_image(new_col, new_row, new_fn)
 				# Next shrink will be on the previous tile set, not the original

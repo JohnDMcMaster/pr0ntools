@@ -11,6 +11,9 @@ import argparse
 
 import pr0ntools.layer.parser
 
+from opencv.cv import *
+import Image
+
 class SVGTestVector:
 	def __init__(self, image_fn, layers):
 		self.layers = layers
@@ -18,6 +21,23 @@ class SVGTestVector:
 		print 'Constructing test vector with source image %s and %d layers' % (self.image_fn, len(self.layers))
 		for layer in self.layers:
 			self.layers[layer].show()
+		
+		cv_gray = self.cv_gray()
+        cvCanny(gray,edge2,20,100)
+
+
+	def cv_gray(self):
+		im = Image.open(image_fn)
+		gray = cvCreateImage (cvSize (im.size[0], im.size[1]), 8, 1)
+
+        for h in range(im.size[1]):
+              for w in range(im.size[0]):
+                    p=im.getpixel((w,h))
+                    if(type(p)==type(1)):
+                          gray[h][w] = im.getpixel((w,h))
+                    else:
+                          gray[h][w] = im.getpixel((w,h))[0]
+      return gray
 	
 	@staticmethod
 	def from_file(fn):
@@ -53,6 +73,5 @@ if __name__ == "__main__":
 	
 	for svg in training_svgs:
 		vec = SVGTestVector.from_file(svg)
-	
-	
+
 

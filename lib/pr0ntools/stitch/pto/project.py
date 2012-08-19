@@ -511,6 +511,7 @@ m g1.0 i0 f0 m2
 	def merge_into(self, others):
 		'''Merge project into this one'''
 		print 'merge_into: others: %d' % len(others)
+		# Merging modifies the project structure so make sure that a dummy merge occurs if nothing else
 		temp = self.merge(others)
 		self.text = str(temp)
 		print 'merge_into: text len: %d' % len(self.text)
@@ -538,7 +539,10 @@ m g1.0 i0 f0 m2
 			print 'WARNING: skipping merge due to no other files'
 			raise Exception('Nothing to merge')
 			return None
-			
+		# Make sure that current project gets included
+		# if empty we should still do this so that a merge can happen
+		# as "merging" causes panotools project transforms tools may expect
+		self.save()
 		m = Merger(others)
 		m.pto = self
 		return m.run()

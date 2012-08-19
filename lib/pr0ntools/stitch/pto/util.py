@@ -63,16 +63,18 @@ def center(pto):
 	-i lines determinte the image position
 	-an i line coordinate is from the center of an image
 	'''
+	dbg = False
 	
 	print 'Centering pto'
 	pto.assert_uniform_images()
 	# We require the high level representation
 	pto.parse()
 	
-	print 'lines old:'
-	for i in range(3):
-		il = pto.get_image_lines()[i]
-		print il
+	if dbg:
+		print 'lines old:'
+		for i in range(3):
+			il = pto.get_image_lines()[i]
+			print il
 		
 		
 	(ybar, xbar) = calc_center(pto)	
@@ -82,10 +84,11 @@ def center(pto):
 		i.set_x(i.x() - xbar)
 		i.set_y(i.y() - ybar)
 	
-	print 'lines new:'
-	for i in range(3):
-		il = pto.get_image_lines()[i]
-		print il
+	if dbg:
+		print 'lines new:'
+		for i in range(3):
+			il = pto.get_image_lines()[i]
+			print il
 	#import sys
 	#sys.exit(1)
 	

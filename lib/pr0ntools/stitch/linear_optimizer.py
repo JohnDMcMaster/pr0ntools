@@ -167,8 +167,10 @@ def calc_constants(order, m_real, pto_ref,
 	for cur_order in range(order):
 		this_c2s = []
 		this_c5s = []
+		candidates = 0
 		for col in range(0 + col_border, m_real.width() - col_border):
 			for row in range(0 + row_border, m_real.height() - row_border):
+				candidates += 1
 				fn = m_real.get_image(col, row)
 				if not fn in ref_fns:
 					continue
@@ -200,8 +202,12 @@ def calc_constants(order, m_real, pto_ref,
 					print c0s, c1s, c3s, c4s
 					print col, row
 					print 
+			
 					raise
-		if 0:
+		
+		print 'Order %u: %u even solutions' % (cur_order, len(this_c2s))
+		print 'Order %u: %u even solutions' % (cur_order, len(this_c5s))
+		if 1:
 			c2s.append(sum(this_c2s) / len(this_c2s))
 			c5s.append(sum(this_c5s) / len(this_c5s))
 		else:
@@ -321,6 +327,9 @@ def linear_reoptimize(pto, pto_ref = None, allow_missing = False, order = 2, bor
 	calc_ref_ys = []
 	ref_xs = []
 	ref_ys = []
+	print 'Errors:'
+	x_last = None
+	y_last = None
 	for col in range(m_ref.width()):
 		for row in range(m_ref.height()):
 			fn = m_ref.get_image(col, row)
@@ -337,7 +346,32 @@ def linear_reoptimize(pto, pto_ref = None, allow_missing = False, order = 2, bor
 			y_orig = il.y()
 			ref_xs.append(x_orig)
 			ref_ys.append(y_orig)
-			print '  c%d r%d: x%g y%g' % (col, row, x_calc - x_orig, y_calc - y_orig)
+			print '  c%d r%d: x%g y%g (x%g, y%g)' % (col, row, x_calc - x_orig, y_calc - y_orig, x_orig, y_orig)
+			if col > 0:
+				fn_old = m_ref.get_image(col - 1, row)
+				if fn_old:
+					il_old = pto_ref.get_image_by_fn(fn_old)
+					print '    dx: %g' % (il.x() - il_old.x())
+					if col > 1:
+						'''
+						x1' = x1 - x0
+						x2' = x2 - x1
+						x2'' = x2' - x1' = (x2 - x1) - (x1 - x0) = x2 - 2 x1 + x0
+						'''
+						fn_old2 = m_ref.get_image(col - 2, row)
+						if fn_old2:
+							il_old2 = pto_ref.get_image_by_fn(fn_old2)
+							print '    dx2: %g' % (il.x() - 2 * il_old.x() + il_old2.x())
+			if row != 0:
+				fn_old = m_ref.get_image(col, row - 1)
+				if fn_old:
+					il_old = pto_ref.get_image_by_fn(fn_old)
+					print '    dy: %g' % (il.y() - il_old.y())
+					if row > 1:
+						fn_old2 = m_ref.get_image(col, row - 2)
+						if fn_old2:
+							il_old2 = pto_ref.get_image_by_fn(fn_old2)
+							print '    dy2: %g' % (il.y() - 2 * il_old.y() + il_old2.y())
 	x_ref_rms_error = rms_error_diff(calc_ref_xs, ref_xs)
 	y_ref_rms_error = rms_error_diff(calc_ref_ys, ref_ys)
 	print 'Reference RMS error x%g y%g' % (x_ref_rms_error, y_ref_rms_error)

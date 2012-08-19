@@ -112,8 +112,9 @@ class PImage:
 		#print 'Trimming: doing subimage'
 		return (self.subimage(x_min, x_max, y_min, y_max), x_min, x_max, y_min, y_max)
 	
-	def save(self, filename):
-		self.image.save(filename)
+	def save(self, *args, **kwargs):
+		'''save(file name[, format, kw options]) where kw_options includes quality=<val>'''
+		self.image.save(*args, **kwargs)
 
 	def get_scaled(self, factor, filt = None):
 		if filt is None:
@@ -164,7 +165,7 @@ class PImage:
 		return PImage.from_image(self.image.crop((x_min, y_min, x_max, y_max)))
 
 	def copy(self):
-		return self.subimage(self, None, None, None, None)
+		return self.subimage(None, None, None, None)
 
 	def rotate(self, degrees):
 		return PImage.from_image(self.image.rotate(degrees))
@@ -271,6 +272,11 @@ class PImage:
 		# Shift the old image out
 		self.image = ip
 
+	def paste(self, img, x, y):
+		#self.image.paste(img, (x, y))
+		# left, upper, right, and lower
+		self.image.paste(img.image, (x, y, x + img.width(), y + img.height()))
+		
 	@staticmethod
 	def from_file(path):
 		'''

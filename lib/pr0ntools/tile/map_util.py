@@ -6,7 +6,7 @@ import shutil
 class Object():
 	pass
 
-def rotate_tiles(src_dir, dst_dir, degrees, force = False):
+def rotate_tiles(src_dir, dst_dir, degrees, force = False, rc = False):
 	self = Object()
 
 	if src_dir[-1] == '/':
@@ -28,8 +28,8 @@ def rotate_tiles(src_dir, dst_dir, degrees, force = False):
 	
 	# And that only if the tiles are the same width and height	
 	# which is not required but the usual
-	#if not degrees in (90, 180, 270):
-	if not degrees in [180]:
+	if not degrees in (90, 180, 270):
+	#if not degrees in [180]:
 		raise Exception('Only right angle degrees currently supported')
 	
 	print 'Rotating dir %s to dir %s %d degrees' % (src_dir, dst_dir, degrees)
@@ -63,13 +63,25 @@ def rotate_tiles(src_dir, dst_dir, degrees, force = False):
 		if degrees == 180:
 			dst_row = icm.height() - src_row - 1
 			dst_col = icm.width() - src_col - 1
+		elif degrees == 90:
+			# r0-c0 => r0-cn
+			# r0-cn => rn-cm
+			dst_row = src_col
+			dst_col = icm.height() - src_row - 1
+		elif degrees == 270:
+			dst_row = icm.height() - src_col - 1
+			dst_col = src_row
 		else:
 			dst_row = src_row
 			dst_col = src_col
 		
-		dst = os.path.join(dst_dir, 'y%03d_x%03d%s' % (dst_row, dst_col, extension))
+		if rc:
+			dst = os.path.join(dst_dir, 'c%04d_r%04d%s' % (dst_col, dst_row, extension))
+		else:
+			dst = os.path.join(dst_dir, 'y%03d_x%03d%s' % (dst_row, dst_col, extension))
 		pi = PImage.from_file(src)
-		pip = pi.rotate(degrees)
+		# rotates CCW...w/e
+		pip = pi.rotate(-degrees)
 		print '%d / %d: %s => %s' % (this_n, n, src, dst)
 		pip.save(dst)
 	

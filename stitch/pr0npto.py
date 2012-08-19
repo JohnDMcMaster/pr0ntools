@@ -13,6 +13,7 @@ if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description='Manipulate .pto files')
 	parser.add_argument('--center', action="store_true", dest="center", default=None, help='Center the project')
 	parser.add_argument('--anchor', action="store_true", dest="anchor", default=False, help='Re-anchor in the center')
+	parser.add_argument('--set-optimize-xy', action="store_true", dest="set_optimize_xy", default=False, help='Set project to optimize xy')
 	parser.add_argument('--optimize', action="store_true", dest="optimize", default=False, help='Optimize the project and also center by default')
 	parser.add_argument('--lens-model', action="store", type=str, dest="lens_model", default=None, help='Apply lens model file')
 	parser.add_argument('--reset-photometrics', action="store_true", dest="reset_photometrics", default=False, help='Reset photometrics')
@@ -65,6 +66,7 @@ if __name__ == "__main__":
 	if args.reset_photometrics:
 		# Overall exposure
 		# *very* important
+		#??? shouldn't this be pto.?
 		project.panorama_line.set_variable('E', 1)
 		# What about m's p and s?
 
@@ -80,6 +82,9 @@ if __name__ == "__main__":
 			image_line.set_variable('Rc', 0)
 			image_line.set_variable('Rd', 0)
 			image_line.set_variable('Re', 0)
+	
+	if args.set_optimize_xy:
+		optimize_xy_only(pto)
 	
 	# Needs to be late to get the earlier additions if we used them
 	if args.optimize:

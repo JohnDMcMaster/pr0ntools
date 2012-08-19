@@ -33,6 +33,8 @@ if __name__ == "__main__":
 			print 'Working on directory of max zoomed tiles'
 			source = TileMapSource(image_in)
 		else:
+			if image_in.find('.pto') >= 0:
+				raise ValueError('Cannot stitch .pto directly at this time, use pr0ntile first')
 			print 'Working on singe input image %s' % image_in
 			source = ImageMapSource(image_in)
 	else:

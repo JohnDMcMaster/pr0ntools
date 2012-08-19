@@ -55,6 +55,7 @@ class ImageCoordinatePair:
 
 def get_row_col(file_name):
 	'''Return (row, col) tuple identify file name position'''
+		
 	row = None
 	col = None
 	

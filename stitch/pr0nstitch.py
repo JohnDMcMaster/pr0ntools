@@ -75,6 +75,7 @@ def help():
 	print '--flip-post-transpose[=<bool>]: switch col/row after all other flips'
 	print '--no-overwrite[=<bool>]: do not allow overwrite of existing files'
 	print '--regular[=<bool>]: images are separated by regular intervals like CNC would produce, default true'
+	print '--skip-missing: allow holes'
 
 def arg_fatal(s):
 	print s
@@ -106,6 +107,7 @@ if __name__ == "__main__":
 	x_overlap = None
 	y_overlap = None
 	dry = False
+	skip_missing = False
 	
 	for arg_index in range (1, len(sys.argv)):
 		arg = sys.argv[arg_index]
@@ -155,6 +157,8 @@ if __name__ == "__main__":
 				allow_overwrite = not arg_value_bool
 			elif arg_key == 'regular':
 				regular = arg_value_bool
+			elif arg_key == 'skip-missing':
+				skip_missing = arg_value_bool
 			elif arg_key == 'x-overlap':
 				x_overlap = float(arg_value)
 			elif arg_key == 'y-overlap':
@@ -184,9 +188,12 @@ if __name__ == "__main__":
 		like its presented in many linear algebra works and XY graph
 		...but image stuff tends to to upper left, so thats what things use
 		'''
-
-		engine = GridStitch.from_file_names(input_image_file_names, flip_col, flip_row, flip_pre_transpose, flip_post_transpose, depth,
-				alt_rows, alt_cols, n_rows, n_cols)
+		if 0:
+			engine = GridStitch.from_file_names(input_image_file_names, flip_col, flip_row, flip_pre_transpose, flip_post_transpose, depth,
+					alt_rows, alt_cols, n_rows, n_cols)
+		else:
+			engine = GridStitch.from_tagged_file_names(input_image_file_names)
+		engine.skip_missing = skip_missing
 		if grid_only:
 			print 'Grid only, exiting'
 			sys.exit(0)
