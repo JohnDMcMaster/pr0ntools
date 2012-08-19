@@ -1,4 +1,10 @@
 '''
+pr0ntools
+Copyright 2011 John McMaster <JohnDMcMaster@gmail.com>
+Licensed under the terms of the LGPL V3 or later, see COPYING for details
+'''
+
+'''
 Each picture may have lens artifacts that make them not perfectly linear
 This distorts the images to match the final plane
 And command line usage is apparantly inaccurate.  
