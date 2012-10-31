@@ -1,17 +1,36 @@
 import json
 
+'''
+A few general assumptions:
+-Camera is changed rarely.  Therefore only one camera per config file
+-Objectives are changed reasonably often
+    They cannot changed during a scan
+    They can be changed in the GUI
+'''
+
 # FIXME: look into support multilevel default dictionary
 class Config:
     defaults = {
         "live_video": True,
-        "startup_run": False,
         "objective_json": "objective.json",
         "scan_json": "scan.json",
         "multithreaded": True,
-        "imager": "VC",
+        "imager": {
+            "engine":'mock',
+            "width": 3264,
+            "height": 2448,
+            "mag": 10.0,
+            # Using 10.0X relay lens and ~8MP camera
+            # I far oversample
+            # maybe helps with bayer filter though 
+            "scalar": 0.5,
+       },
         "cnc": {
             # Good for testing and makes usable to systems without CNC
-            "engine": "mock"
+            "engine": "mock",
+            "startup_run": False,
+            "startup_run_exit": False,
+            "out_dir":"out"
         }
     }
     

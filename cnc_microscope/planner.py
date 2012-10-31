@@ -105,8 +105,6 @@ class FocusLevel:
     objective_mag = None
     # Not including digital
     camera_mag = None
-    # Usually I don't use this, I'm not sure if its actually worth anything
-    camera_digital_mag = None
     # Rough estimates for now
     # The pictures it take are actually slightly larger than the view area I think
     # Inches, or w/e your measurement system is set to
@@ -141,7 +139,7 @@ class PlannerAxis:
         However, the entire quantity should not be negative
         '''
         self.images_ideal_calc = 1.0 + (self.delta() - self.view) / self.ideal_step_uniqe_area()
-        self.images_to_take = math.ceil(self.images_ideal())
+        self.images_to_take = int(math.ceil(self.images_ideal()))
         # Note that we don't need to adjust the initial view since its fixed, only the steps
         # self.images_to_take = 1.0 + (self.delta() - self.view) / self.step_size_calc
         self.step_size_calc = (self.delta() - self.view) / (self.images_to_take - 1.0)
@@ -206,8 +204,7 @@ class Planner:
         except:
             focus.eyepiece_mag = 1.0
         focus.objective_mag = float(obj_config['mag'])
-        focus.camera_mag = float(config['camera']['mag'])
-        focus.camera_digital_mag = float(config['camera']['digital_mag'])
+        focus.camera_mag = float(config['imager']['mag'])
         # FIXME: this needs a baseline and scale it
         focus.x_view = float(obj_config['x_view'])
         focus.y_view = float(obj_config['y_view'])
@@ -224,8 +221,9 @@ class Planner:
         if not self.z:
             print 'WARNING: crudely removing Z since its not present or broken'
         
-        x_pixels = 3264 / 2
-        y_pixels = 2448 / 2
+        # XXX: is this global scalar playing correctly with the objective scalar?
+        x_pixels = float(config['imager']['width']) * float(config['imager']['scalar'])
+        y_pixels = float(config['imager']['height']) * float(config['imager']['scalar'])
     
         self.x = PlannerAxis('X', ideal_overlap, focus.x_view, x_pixels, self.x_start, self.x_end)
         self.y = PlannerAxis('Y', ideal_overlap, focus.y_view, y_pixels, self.y_start, self.y_end)
@@ -554,7 +552,7 @@ class Planner:
         return "%s%s%s%s" % (rowcol, spacer, coordinate, suffix)
 
     def out_dir(self):
-        return 'out' + '//' +  self.rconfig.job_name
+        return os.path.join(config['cnc']['out_dir'], self.rconfig.job_name)
         
     def get_this_file_name(self, stack_mangle = None):
         # row and column, 0 indexed
@@ -576,6 +574,10 @@ class Planner:
             if self.rconfig.dry:
                 print 'DRY: mkdir(%s)' % od
             else:
+                base = config['cnc']['out_dir']
+                if not os.path.exists(base):
+                    print 'Creating base directory %s' % base
+                    os.mkdir(base)
                 print 'Creating output directory %s' % od
                 os.mkdir(od)
             

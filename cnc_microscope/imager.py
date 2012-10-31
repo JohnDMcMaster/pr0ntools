@@ -37,12 +37,12 @@ class Imager:
 	def take_picture(self, file_name_out = None):
 		pass
 
-class DummyImager(Imager):
+class MockImager(Imager):
 	def __init__(self):
 		pass
 		
 	def take_picture(self, file_name_out = None):
-		pass
+		print 'Mock imager: image to %s' % file_name_out
 
 class VCImager:
 	def __init__(self):

@@ -67,6 +67,8 @@ class ImagingThread(QThread):
 
 # Sends events to the imaging and movement threads
 class PlannerThread(QThread):
+    plannerDone = pyqtSignal()
+
     def __init__(self,parent, rconfig):
         QThread.__init__(self, parent)
         self.rconfig = rconfig
@@ -80,7 +82,7 @@ class PlannerThread(QThread):
         self.planner.run()
         b.stop()
         print 'Planner done!  Took : %s' % str(b)
-        self.emit('plannerDone')
+        self.emit(SIGNAL("plannerDone()"))
     
 class Axis(QWidget):
     # Absolute position given
@@ -99,12 +101,12 @@ class Axis(QWidget):
     
     def go_abs(self):
         #print 'abs'
-        self.axis.set_pos(float(self.abs_pos_le.text()))
+        self.axis.set_pos(float(str(self.abs_pos_le.text())))
         self.emit_pos()
     
     def go_rel(self):
         #print 'rel'
-        self.jog(float(self.rel_pos_le.text()))
+        self.jog(float(str(self.rel_pos_le.text())))
     
     def emit_pos(self):
         #print 'emitting pos'
@@ -149,13 +151,13 @@ class Axis(QWidget):
         row += 1
         
         # Return to 0 position
-        self.home_button = QPushButton("Home axis")
-        self.home_button.clicked.connect(self.home)
-        self.gl.addWidget(self.home_button, row, 0)
+        self.home_pb = QPushButton("Home axis")
+        self.home_pb.clicked.connect(self.home)
+        self.gl.addWidget(self.home_pb, row, 0)
         # Set the 0 position
-        self.set_home_button = QPushButton("Set home")
-        self.set_home_button.clicked.connect(self.set_home)
-        self.gl.addWidget(self.set_home_button, row, 1)
+        self.set_home_pb = QPushButton("Set home")
+        self.set_home_pb.clicked.connect(self.set_home)
+        self.gl.addWidget(self.set_home_pb, row, 1)
         row += 1
         
         self.abs_pos_le = QLineEdit('0.0')
@@ -177,11 +179,11 @@ class Axis(QWidget):
         self.meas_value = QLabel("Unknown")
         self.gl.addWidget(self.meas_value, row, 1)
         # Only resets in the GUI, not related to internal axis position counter
-        self.meas_reset_button = QPushButton("Reset meas")
+        self.meas_reset_pb = QPushButton("Reset meas")
         self.meas_reset()
-        self.meas_reset_button.clicked.connect(self.meas_reset)
+        self.meas_reset_pb.clicked.connect(self.meas_reset)
         self.axisSet.connect(self.update_meas)
-        self.gl.addWidget(self.meas_reset_button, row, 0)
+        self.gl.addWidget(self.meas_reset_pb, row, 0)
         row += 1
         
         self.l = QHBoxLayout()
@@ -259,7 +261,7 @@ class ControllerThread(QThread, Controller):
         
     def idle(self):
         '''return true if the thread is idle'''
-        return self._idle()
+        return self._idle.is_set()
         
     def wait_idle(self):
         while True:
@@ -286,6 +288,8 @@ class ControllerThread(QThread, Controller):
         self.running.clear()        
 
 class CNCGUI(QMainWindow):
+    cncProgress = pyqtSignal()
+    
     def __init__(self):
         QMainWindow.__init__(self)
 
@@ -294,14 +298,15 @@ class CNCGUI(QMainWindow):
         self.cnc_ipc = ControllerThread(self.cnc_raw)
         self.initUI()
         
+        # Offload callback to GUI thread so it can do GUI ops
+        self.cncProgress.connect(self.processCncProgress)
+        
         if self.cnc_raw is None:
             dbg("Disabling all motion controls on no CNC")
             self.setControlsEnabled(False)
         
-        if config['startup_run']:
+        if config['cnc']['startup_run']:
             self.run()
-            print 'Planner debug break'
-            sys.exit(1)
         
     def x(self, n):
         self.axes['X'].jog(n)
@@ -386,7 +391,7 @@ class CNCGUI(QMainWindow):
             axis = self.axes[k]
             axis.go_abs()
     
-    def progress_cb(self, pictures_to_take, pictures_taken, image, first):
+    def processCncProgress(self, pictures_to_take, pictures_taken, image, first):
         if first:
             print 'First CB with %d items' % pictures_to_take
             self.pb.setMinimum(0)
@@ -410,20 +415,26 @@ class CNCGUI(QMainWindow):
         imager = None
         if not dry:
             print 'Loading imager...'
-            itype = config['imager']
-            if itype == "VC":
+            itype = config['imager']['engine']
+            if itype == 'mock':
+                imager = MockImager()
+            elif itype == "VC":
                 imager = VCImager()
             elif itype == 'gstreamer':
                 raise Exception('FIXME: implement gstreamer image feed')
             else:
-                raise Exception('Invalid imager type')
+                raise Exception('Invalid imager type %s' % itype)
         if not config:
             raise Exception("missing uscope config")
         if not self.obj_config:
             raise Exception("missing obj config")
         
         rconfig.dry = dry
-        rconfig.progress_cb = self.progress_cb
+        
+        def emitCncProgress(pictures_to_take, pictures_taken, image, first):
+            self.emit(SIGNAL('cncProgress'), pictures_to_take, pictures_taken, image, first)
+        rconfig.progress_cb = emitCncProgress
+        
         rconfig.obj_config = self.obj_config            
         # Will be offloaded to its own thread
         # Operations must be blocking
@@ -431,7 +442,7 @@ class CNCGUI(QMainWindow):
         rconfig.controller = self.cnc_raw
         rconfig.imager = imager
         
-        rconfig.job_name = self.job_name_le.text()
+        rconfig.job_name = str(self.job_name_le.text())
         if len(rconfig.job_name) == 0:
             rconfig.job_name = "out"
         if not dry and os.path.exists(rconfig.job_name):
@@ -442,7 +453,7 @@ class CNCGUI(QMainWindow):
         self.cnc_ipc.wait_idle()
         
         self.pt = PlannerThread(self, rconfig)
-        self.pt.connect('plannerDone', self.plannerDone)
+        self.pt.plannerDone.connect(self.plannerDone)
         self.setControlsEnabled(False)
         #eeeee not working as well as I hoped
         # tracked it down to python video capture library operating on windows GUI frame buffer
@@ -456,7 +467,7 @@ class CNCGUI(QMainWindow):
             self.pt.run()
     
     def setControlsEnabled(self, yes):
-        self.go_button.setEnabled(yes)
+        self.go_pb.setEnabled(yes)
         self.go_abs_pb.setEnabled(yes)
         self.go_rel_pb.setEnabled(yes)
     
@@ -464,24 +475,27 @@ class CNCGUI(QMainWindow):
         # Cleanup camera objects
         self.pt = None
         self.setControlsEnabled(True)
-    
+        if config['cnc']['startup_run_exit']:
+            print 'Planner debug break on completion'
+            os._exit(1)
+
     def get_bottom_layout(self):
         bottom_layout = QHBoxLayout()
         
         axes_gb = QGroupBox('Axes')
         axes_layout = QHBoxLayout()
         
-        self.home_button = QPushButton("Home all")
-        self.home_button.connect(self.home_button, SIGNAL("clicked()"), self.home)
-        axes_layout.addWidget(self.home_button)
+        self.home_pb = QPushButton("Home all")
+        self.home_pb.connect(self.home_pb, SIGNAL("clicked()"), self.home)
+        axes_layout.addWidget(self.home_pb)
 
-        self.go_abs_button = QPushButton("Go abs all")
-        self.go_abs_button.connect(self.go_abs_button, SIGNAL("clicked()"), self.go_abs)
-        axes_layout.addWidget(self.go_abs_button)
+        self.go_abs_pb = QPushButton("Go abs all")
+        self.go_abs_pb.connect(self.go_abs_pb, SIGNAL("clicked()"), self.go_abs)
+        axes_layout.addWidget(self.go_abs_pb)
     
-        self.go_rel_button = QPushButton("Go rel all")
-        self.go_rel_button.connect(self.go_rel_button, SIGNAL("clicked()"), self.go_rel)
-        axes_layout.addWidget(self.go_rel_button)
+        self.go_rel_pb = QPushButton("Go rel all")
+        self.go_rel_pb.connect(self.go_rel_pb, SIGNAL("clicked()"), self.go_rel)
+        axes_layout.addWidget(self.go_rel_pb)
 
         self.axes = dict()
         for axis in self.cnc_ipc.axes:
@@ -500,11 +514,11 @@ class CNCGUI(QMainWindow):
         
         run_layout = QGridLayout()
         run_layout.addWidget(QLabel('Job name'), 0, 0)
-        self.job_name_le = QLineEdit('out')
+        self.job_name_le = QLineEdit('default')
         run_layout.addWidget(self.job_name_le, 0, 1)
-        self.go_button = QPushButton("Go")
-        self.go_button.clicked.connect(self.run)
-        run_layout.addWidget(self.go_button, 1, 0)
+        self.go_pb = QPushButton("Go")
+        self.go_pb.clicked.connect(self.run)
+        run_layout.addWidget(self.go_pb, 1, 0)
         self.pb = QProgressBar()
         run_layout.addWidget(self.pb, 1, 1)
         run_layout.addWidget(QLabel('Dry?'), 2, 0)
@@ -565,6 +579,9 @@ class CNCGUI(QMainWindow):
         '''
         Upper left hand coordinate system
         '''
+        # Only control explicitly, don't move by typing accident in other element
+        if not self.video_container.hasFocus():
+            return
         k = event.key()
         inc = 5
         if k == Qt.Key_Left:
