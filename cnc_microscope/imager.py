@@ -44,15 +44,7 @@ class DummyImager(Imager):
 	def take_picture(self, file_name_out = None):
 		pass
 
-class VideoCaptureImager:
-	def __init__(self):
-		self.cam = Device()
-	
-	def take_picture(self, file_name_out = None):
-		print 'Taking picture to %s' % file_name_out
-		self.cam.saveSnapshot(file_name_out)
-
-class PILImager:
+class VCImager:
 	def __init__(self):
 		if camera_in_use():
 			print 'WARNING: camera in use, not loading imager'
