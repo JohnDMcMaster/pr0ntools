@@ -29,6 +29,10 @@ import os.path
 import os
 import signal
 
+import gobject, pygst
+pygst.require('0.10')
+import gst
+
 
 def dbg(*args):
     if len(args) == 0:
@@ -197,6 +201,10 @@ class CNCGUI(QMainWindow):
             dbg("Disabling all motion controls on no CNC")
             self.setControlsEnabled(False)
         
+        if self.gstWindowId:
+            dbg("Starting gstreamer pipeline")
+            self.player.set_state(gst.STATE_PLAYING)
+        
         if config['cnc']['startup_run']:
             self.run()
         
@@ -255,17 +263,71 @@ class CNCGUI(QMainWindow):
         # Raw X-windows canvas
         self.video_container = QWidget()
         # Allows for convenient keyboard control by clicking on the video
-        self.video_container.setFocusPolicy(Qt.ClickFocus)
+        #self.video_container.setFocusPolicy(Qt.ClickFocus)
         # TODO: do something more proper once integrating vodeo feed
-        w, h = 640, 480
+        w, h = 800, 600
         self.video_container.setMinimumSize(w, h)
         self.video_container.resize(w, h)
         policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.video_container.setSizePolicy(policy)
         
+        self.gstWindowId = None
+        if config['imager']['engine'] == 'gstreamer':
+            self.source = gst.element_factory_make("v4l2src", "vsource")
+            self.source.set_property("device", "/dev/video0")
+            self.setupGst()
+        elif config['imager']['engine'] == 'gstreamer-testsrc':
+            self.source = gst.element_factory_make("videotestsrc", "video-source")
+            self.setupGst()
+
+        
         layout.addWidget(self.video_container)
         
         return layout
+    
+    def setupGst(self):
+        dbg("Setting up gstreamer pipeline")
+        self.gstWindowId = self.video_container.winId()
+
+        self.player = gst.Pipeline("player")
+        sink = gst.element_factory_make("xvimagesink", "sink")
+        fvidscale_cap = gst.element_factory_make("capsfilter", "fvidscale_cap")
+        fvidscale = gst.element_factory_make("videoscale", "fvidscale")
+        caps = gst.caps_from_string('video/x-raw-yuv')
+        fvidscale_cap.set_property('caps', caps)
+
+        self.player.add(self.source, fvidscale, fvidscale_cap, sink)
+        gst.element_link_many(self.source, fvidscale, fvidscale_cap, sink)
+        
+        bus = self.player.get_bus()
+        bus.add_signal_watch()
+        bus.enable_sync_message_emission()
+        bus.connect("message", self.on_message)
+        bus.connect("sync-message::element", self.on_sync_message)
+    
+    def on_message(self, bus, message):
+        t = message.type
+        if t == gst.MESSAGE_EOS:
+            self.player.set_state(gst.STATE_NULL)
+            print "End of stream"
+        elif t == gst.MESSAGE_ERROR:
+            err, debug = message.parse_error()
+            print "Error: %s" % err, debug
+            self.player.set_state(gst.STATE_NULL)
+        else:
+            print 'Other message: %s' % t
+            # Deadlocks upon calling this...
+            #print 'Cur state %s' % self.player.get_state()
+
+    def on_sync_message(self, bus, message):
+        if message.structure is None:
+            return
+        message_name = message.structure.get_name()
+        if message_name == "prepare-xwindow-id":
+            win_id = self.gstWindowId
+            assert win_id
+            imagesink = message.src
+            imagesink.set_xwindow_id(win_id)
     
     def home(self):
         dbg('home requested')
@@ -316,7 +378,10 @@ class CNCGUI(QMainWindow):
                     raise Exception('Import failed')
                 imager = VCImager()
             elif itype == 'gstreamer':
-                raise Exception('FIXME: implement gstreamer image feed')
+                print 'FIXME: implement gstreamer snapshots'
+                imager = MockImager()
+            elif itype == 'streamer-testsrc':
+                imager = MockImager()
             else:
                 raise Exception('Invalid imager type %s' % itype)
         if not config:
@@ -468,18 +533,18 @@ class CNCGUI(QMainWindow):
     def initUI(self):
         self.setGeometry(300, 300, 250, 150)        
         self.setWindowTitle('pr0ncnc')    
-        self.show()
         
         # top layout
         layout = QVBoxLayout()
         
-        layout.addLayout(self.get_config_layout())
+        #layout.addLayout(self.get_config_layout())
         layout.addLayout(self.get_video_layout())
-        layout.addLayout(self.get_bottom_layout())
+        #layout.addLayout(self.get_bottom_layout())
         
         w = QWidget()
         w.setLayout(layout)
         self.setCentralWidget(w)
+        self.show()
         
     def keyPressEvent(self, event):
         '''
@@ -549,7 +614,11 @@ if __name__ == '__main__':
     sys.excepthook = excepthook
     # Exit on ^C instead of ignoring
     signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+    gobject.threads_init()
     
     app = QApplication(sys.argv)
     _gui = CNCGUI()
+    # XXX: what about the gstreamer message bus?
+    # Is it simply not running?
     sys.exit(app.exec_())
