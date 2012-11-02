@@ -115,7 +115,21 @@ class FocusLevel:
         pass
 
 class PlannerAxis:
-    def __init__(self, name, ideal_overlap_percent, view, view_pixels, start, end):
+    def __init__(self, name,
+                # Desired image overlap
+                # Actual may be greater if there is more area
+                # than minimum number of pictures would support
+                req_overlap_percent, 
+                # How much the imager can see (in um)
+                view,
+                # Actual sensor dimension may be oversampled, scale down as needed
+                imager_width, imager_scalar,
+                # start and end absolute positions (in um)
+                start, end):
+        # How many the pixels the imager sees after scaling
+        # XXX: is this global scalar playing correctly with the objective scalar?
+        self.view_pixels = imager_width * imager_scalar
+        
         self.name = name
         '''
         The naming is somewhat bad on this as it has an anti-intuitive meaning
@@ -124,12 +138,43 @@ class PlannerAxis:
         Overlap of 1.0 means that images are all unique sections
         Overlap of 0.0 means never move and keep taking the same spot
         '''
-        self.ideal_overlap_percent = ideal_overlap_percent
-        self.view = view
-        self.view_pixels = view_pixels
-        self.start = start
-        self.end = end
+        self.req_overlap_percent = req_overlap_percent
         
+        self.start = start
+        # Requested end, not necessarily true end
+        self.req_end = end
+        self.end = end
+        if self.delta() < view:
+            print 'Axis %s: delta %0.3f < view %0.3f, expanding end' % (self.name, self.delta(), view)
+            self.end = start + view
+        self.view = view
+
+    def delta(self):
+        '''Total distance that will actually be imaged'''
+        return self.end - self.start
+                
+    def req_delta(self):
+        '''Total distance that needs to be imaged (ie requested)'''
+        return self.req_end - self.start
+                
+    def delta_pixels(self):
+        return self.images_ideal() * self.view_pixels
+        
+    def images_ideal(self):
+        '''
+        Always 1 non-overlapped image + the overlapped images
+        (can actually go negative though)
+        Remaining distance from the first image divided by
+        how many pixels of each image are unique to the previously taken image when linear
+        '''
+        return 1.0 + (self.req_delta() - self.view) / (self.req_overlap_percent * self.view)
+    
+    def images(self):
+        '''How many images should actually take after considering margins and rounding'''
+        return int(math.ceil(self.images_ideal()))
+    
+    def step(self):
+        '''How much to move each time we take the next image'''
         '''
         Note that one picture has wider coverage than the others
         Thus its treated specially and subtracted from the remainder
@@ -138,37 +183,17 @@ class PlannerAxis:
         try to image less than our sensor size
         However, the entire quantity should not be negative
         '''
-        self.images_ideal_calc = 1.0 + (self.delta() - self.view) / self.ideal_step_uniqe_area()
-        self.images_to_take = int(math.ceil(self.images_ideal()))
         # Note that we don't need to adjust the initial view since its fixed, only the steps
         # self.images_to_take = 1.0 + (self.delta() - self.view) / self.step_size_calc
-        self.step_size_calc = (self.delta() - self.view) / (self.images_to_take - 1.0)
-
-    def ideal_step_uniqe_area(self):
-        '''How many pixels of each image are unique to the previously taken image when linear'''
-        return self.ideal_overlap_percent * self.view
-        
-    def delta(self):
-        '''Total distance that needs to be imaged'''
-        return self.end - self.start
-                
-    def delta_pixels(self):
-        return self.images_ideal() * self.view_pixels
-        
-    def images_ideal(self):
-        return self.images_ideal_calc
-    
-    def images(self):
-        '''How many images should actually take after considering margins and rounding'''
-        return self.images_to_take
-    
-    def step(self):
-        '''How much to move each time we take the next image'''
-        return self.step_size_calc
+        images_to_take = self.images()
+        if images_to_take == 1:
+            return self.delta()
+        else:
+            return (self.delta() - self.view) / (images_to_take - 1.0)
         
     def step_percent(self):
         '''Actual percentage we move to take the next picture'''
-        # Contrast with requested value self.ideal_overlap_percent
+        # Contrast with requested value self.req_overlap_percent
         return self.step() / self.view
         
     #def overlap(self):
@@ -216,19 +241,19 @@ class Planner:
         plane calibration corner ended at 0.0000, 0.2674, -0.0129
         '''
     
-        self.parse_points()
+        self.x = PlannerAxis('X', ideal_overlap, focus.x_view, 
+                    float(config['imager']['width']), float(config['imager']['scalar']),
+                    float(scan_config['start']['x']), float(scan_config['end']['x']))
+        self.y = PlannerAxis('Y', ideal_overlap, focus.y_view,
+                    float(config['imager']['height']), float(config['imager']['scalar']),
+                    float(scan_config['start']['y']), float(scan_config['end']['y']))
         
+        self.parse_points()
         if not self.z:
             print 'WARNING: crudely removing Z since its not present or broken'
+        self.parse_focus_stack()
         
-        # XXX: is this global scalar playing correctly with the objective scalar?
-        x_pixels = float(config['imager']['width']) * float(config['imager']['scalar'])
-        y_pixels = float(config['imager']['height']) * float(config['imager']['scalar'])
-    
-        self.x = PlannerAxis('X', ideal_overlap, focus.x_view, x_pixels, self.x_start, self.x_end)
-        self.y = PlannerAxis('Y', ideal_overlap, focus.y_view, y_pixels, self.y_start, self.y_end)
-        
-        print 'X %f to %f, Y %f to %f' % (self.x_start, self.x_end, self.y_start, self.y_end)
+        print 'X %f to %f, Y %f to %f' % (self.x.start, self.x.end, self.y.start, self.y.end)
         print 'Ideal overlap: %f, actual X %g, Y %g' % (ideal_overlap, self.x.step_percent(), self.y.step_percent())
         scan_config['computed']['x']['overlap']  = self.x.step_percent()
         scan_config['computed']['y']['overlap']  = self.x.step_percent()
@@ -290,36 +315,21 @@ class Planner:
         if scan_config is None:
             raise Exception('Missing scan parameters')
         
-        self.x_gutter = 0.0
-        self.y_gutter = 0.0
-        if 'gutter' in scan_config:
-            try:
-                self.x_gutter = float(scan_config['gutter']['x'])
-                self.y_gutter = float(scan_config['gutter']['y'])
-            except:
-                g = float(scan_config['gutter'])
-                self.x_gutter = g
-                self.y_gutter = g
-        
-        self.x_start = float(scan_config['start']['x'])
-        self.y_start = float(scan_config['start']['y'])
         try:
             self.z_start = float(scan_config['start']['z'])
         except:
             print 'Failed to find z start, disabling Z'
             self.z_start = None
             self.z = False
-        self.start = [self.x_start, self.y_start, self.z_start]
-    
-        self.x_end = float(scan_config['end']['x'])
-        self.y_end = float(scan_config['end']['y'])
+        self.start = [self.x.start, self.y.start, self.z_start]
+        
         try:
             self.z_end = float(scan_config['end']['z'])
         except:
             print 'Failed to find z end, disabling Z'
             self.z_end = None
             self.z = False
-        self.end = [self.x_end, self.y_end, self.z_end]
+        self.end = [self.x.end, self.y.end, self.z_end]
     
         if 'others' in scan_config:
             self.others = []
@@ -340,8 +350,6 @@ class Planner:
             print 'Could not find other points'
             #raise Exception('die')
             self.others = None
-            
-        self.parse_focus_stack()
     
     def parse_focus_stack(self):
         config = self.rconfig.scan_config
@@ -507,8 +515,8 @@ class Planner:
             full_z_delta = self.z_end - self.z_start
         #print full_z_delta
     
-        center_length = math.sqrt(self.x_end * self.x_end + self.y_end * self.y_end)
-        projection_length = (cur_x * self.x_end + cur_y * self.y_end) / center_length
+        center_length = math.sqrt(self.x.end * self.x.end + self.y.end * self.y.end)
+        projection_length = (cur_x * self.x.end + cur_y * self.y.end) / center_length
         cur_z = full_z_delta * projection_length / center_length
         # Proportion of entire sweep
         #print 'cur_z: %f, projection_length %f, center_length %f' % (cur_z, projection_length, center_length)
@@ -578,6 +586,11 @@ class Planner:
                 if not os.path.exists(base):
                     print 'Creating base directory %s' % base
                     os.mkdir(base)
+                if os.path.exists(od):
+                    if not config['cnc']['overwrite']:
+                        raise Exception("Output dir %s already exists" % od)
+                    print 'WARNING: overwriting old output'
+                    os.rmdir(od)
                 print 'Creating output directory %s' % od
                 os.mkdir(od)
             
@@ -630,27 +643,27 @@ class Planner:
     '''
     def gen_x_points(self):
         # We want to step nicely but this simple step doesn't take into account our x field of view
-        x_end = self.x_end - self.focus.x_view
-        for cur_x in drange_at_least(self.x_start, x_end, self.x.step()):
+        x_end = self.x.end - self.focus.x_view
+        for cur_x in drange_at_least(self.x.start, x_end, self.x.step()):
             yield cur_x
     
     def gen_y_points(self):
-        y_end = self.y_end - self.focus.y_view
-        for cur_y in drange_at_least(self.y_start, y_end, self.y.step()):
+        y_end = self.y.end - self.focus.y_view
+        for cur_y in drange_at_least(self.y.start, y_end, self.y.step()):
             yield cur_y
     '''
     
     def gen_x_points(self):
         for i in range(self.x.images()):
-            yield self.x_start + i * self.x.step()
+            yield self.x.start + i * self.x.step()
     
     def gen_y_points(self):
         for i in range(self.y.images()):
-            yield self.y_start + i * self.y.step()
+            yield self.y.start + i * self.y.step()
     
     def getNumPoints(self):
         pictures_to_take = 0
-        #pictures_to_take = len(list(drange_at_least(self.x_start, self.x_end, self.x.step()))) * len(list(drange_at_least(self.y_start, self.y_end, self.y.step())))
+        #pictures_to_take = len(list(drange_at_least(self.x.start, self.x.end, self.x.step()))) * len(list(drange_at_least(self.y.start, self.y.end, self.y.step())))
         #for cur_x in self.gen_x_points():
         #    for cur_y in self.gen_y_points():
         #        pictures_to_take += 1
@@ -705,17 +718,17 @@ class Planner:
         
         fail = False
         
-        if cur_col < 0 or cur_col >= self.x.images_ideal():
-            print 'Col out of range 0 <= %d <= %d' % (cur_col, self.x.images_ideal())
+        if cur_col < 0 or cur_col >= self.x.images():
+            print 'Col out of range 0 <= %d <= %d' % (cur_col, self.x.images())
             fail = True
-        if cur_x < self.x_start - x_tol or xmax > self.x_end + x_tol:
+        if cur_x < self.x.start - x_tol or xmax > self.x.end + x_tol:
             print 'X out of range'
             fail = True
             
-        if cur_row < 0 or cur_row >= self.y.images_ideal():
-            print 'Row out of range 0 <= %d <= %d' % (cur_row, self.y.images_ideal())
+        if cur_row < 0 or cur_row >= self.y.images():
+            print 'Row out of range 0 <= %d <= %d' % (cur_row, self.y.images())
             fail = True
-        if cur_y < self.y_start - y_tol or ymax > self.y_end + y_tol:
+        if cur_y < self.y.start - y_tol or ymax > self.y.end + y_tol:
             print 'Y out of range'
             fail = True        
         
@@ -729,8 +742,8 @@ class Planner:
             raise Exception('Bad point (%g + %g = %g, %g + %g = %g) for range (%g, %g) to (%g, %g)' % (
                     cur_x, self.focus.x_view, xmax,
                     cur_y, self.focus.y_view, ymax,
-                    self.x_start, self.y_start,
-                    self.x_end, self.y_end))
+                    self.x.start, self.y.start,
+                    self.x.end, self.y.end))
     
     def getPointsEx(self):
         for p in self.getPointsExCore():
@@ -846,7 +859,7 @@ class Planner:
         if self.even_xy_backlash:
             # Make sure first backlash compensation works as expected
             # And prep y for even step
-            self.absolute_move(self.x_start, self.y_start - self.y_backlash())
+            self.absolute_move(self.x.start, self.y.start - self.y_backlash())
         
         # Because of the backlash on Z, its better to scan in same direction
         # Additionally, it doesn't matter too much for focus which direction we go, but XY is thrown off

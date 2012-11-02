@@ -30,7 +30,11 @@ class Config:
             "engine": "mock",
             "startup_run": False,
             "startup_run_exit": False,
-            "out_dir":"out"
+            "out_dir":"out",
+            "overwrite":False,
+            # Default to no action, make movement explicit
+            # Note that GUI can override this
+            "dry":True,
         }
     }
     
@@ -52,7 +56,6 @@ class Config:
     def get_scan_config(self):
         return json.loads(open(self['scan_json']).read())
         
-
 class UScopeConfig(Config):
     pass
 
@@ -75,8 +78,6 @@ class RunConfig:
         
         # Comprehensive config structure
         self.microcope_config = None
-        # Objective parameters
-        self.obj_config = None
         # What to image
         self.scan_config = None
 
@@ -88,10 +89,7 @@ class RunConfig:
         open('%s\\%s' % (dirname, fname), 'w').write(json.dumps(j, sort_keys=True, indent=4))
         
     def write_to_dir(self, dirname):
-        if self.uscope_config:
-            self.writej(self.uscope_config, 'microscope.json', dirname)
+        self.writej(config.j, 'microscope.json', dirname)
         if self.scan_config:
             self.writej(self.scan_config, 'scan.json', dirname)
-        if self.obj_config:
-            self.writej(self.obj_config, 'objective.json', dirname)
 

@@ -8,31 +8,35 @@ or maybe look into Phonon some more for rendering
 
 from planner import *
 from imager import *
-from usbio.controller import *
 from usbio.mc import MC
 from pr0ntools.benchmark import Benchmark
 from config import RunConfig
 from config import config as config
+from threads import *
+VCImager = None
+try:
+    from vcimager import *
+except ImportError:
+    print 'Note: failed to import VCImager'
 
 from PyQt4 import Qt
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
 import sys
-import Queue
-import threading
 import traceback
 import os.path
 import os
+import signal
 
 
 def dbg(*args):
     if len(args) == 0:
         print
     elif len(args) == 1:
-        print args[0]
+        print 'main: %s' % (args[0], )
     else:
-        print args[0] % args[1:]
+        print 'main: ' + (args[0] % args[1:])
 
 def get_cnc():
     engine = config['cnc']['engine']
@@ -46,24 +50,6 @@ def get_cnc():
             raise
     else:
         raise Exception("Unknown CNC engine %s" % engine)
-
-
-'''
-Try to seperate imaging and movement
-For now keep unified in planner thread
-'''
-class ImagingThread(QThread):
-    def __init__(self):
-        self.queue = Queue.Queue()
-        self.running = threading.Event()
-    
-    def run(self):
-        self.running.set()
-        while self.running.is_set():
-            time.sleep(1)
-    
-    def stop(self):
-        self.running.clear()
 
 # Sends events to the imaging and movement threads
 class PlannerThread(QThread):
@@ -191,102 +177,6 @@ class Axis(QWidget):
         self.setLayout(self.l)
         #self.addWidget(gb)
 
-'''
-Offloads controller processing to another thread (or potentially even process)
-Makes it easier to keep RT deadlines and such
-However, it doesn't provide feedback completion so use with care
-(other blocks until done)
-TODO: should block?
-'''
-'''
-There must be a way to automate this more
-Don't extend axis or the getattr won't work correctly
-maybe not the most elegant but works for current needs
-'''
-class ControllerThreadAxis:
-    def __init__(self, controller, axis):
-        # IPC controller, not core
-        self.controller = controller
-        # Core axis
-        self.axis = axis
-        self.name = axis.name
-    
-    def __str__(self):
-        return '%s-%s (IPC)' % (self.controller, self.axis)
-    
-    def get_um(self):
-        return self.axis.get_um()
-    
-    # how 'bout this
-    def __getattr__(self, name):
-        # Assumption is that non-system attributes are offloaded functions
-        if name.find("__") == 0:
-            # __len__, __nonzero__
-            return eval('self.axis.%s' % name)
-        def offload(*args):
-            self.controller.offload(self.axis, name, args)
-            # Always return None
-            # no fetch methods currently supported
-        return offload
-
-class ControllerThread(QThread, Controller):
-    def __init__(self, controller):
-        QThread.__init__(self)
-        Controller.__init__(self)
-        self.queue = Queue.Queue()
-        self.controller = controller
-        self.running = threading.Event()
-        self._idle = threading.Event()
-        self._idle.set()
-        
-        #for axis in self.controller.axes:
-        
-        if self.controller.x:
-            self.x = ControllerThreadAxis(self, self.controller.x)
-        else:
-            self.x = None
-
-        if self.controller.y:
-            self.y = ControllerThreadAxis(self, self.controller.y)
-        else:
-            self.y = None
-
-        if self.controller.z:
-            self.z = ControllerThreadAxis(self, self.controller.z)
-        else:
-            self.z = None
-            
-        self.build_axes()
-        
-        
-    def idle(self):
-        '''return true if the thread is idle'''
-        return self._idle.is_set()
-        
-    def wait_idle(self):
-        while True:
-            time.sleep(0.15)
-            if self.idle():
-                break
-        
-    def offload(self, axis, name, args):
-        self.queue.put(axis, name, args)
-
-    def run(self):
-        self.running.set()
-        self._idle.clear()
-        while self.running.is_set():
-            try:
-                (axis, name, args) = self.queue.get(True, 0.1)
-                self._idle.clear()
-            except Queue.Empty:
-                self._idle.set()
-                continue
-            axis.__dict__[name](*args)
-    
-    def stop(self):
-        self.running.clear()        
-
 class CNCGUI(QMainWindow):
     cncProgress = pyqtSignal()
     
@@ -297,6 +187,8 @@ class CNCGUI(QMainWindow):
         self.cnc_raw.on()
         self.cnc_ipc = ControllerThread(self.cnc_raw)
         self.initUI()
+        
+        self.cnc_ipc.start()
         
         # Offload callback to GUI thread so it can do GUI ops
         self.cncProgress.connect(self.processCncProgress)
@@ -328,9 +220,9 @@ class CNCGUI(QMainWindow):
         '''Make resolution display reflect current objective'''
         self.obj_config = config['objective'][self.obj_cb.currentIndex ()]
         print 'Selected objective %s' % self.obj_config['name']
-        self.obj_mag.setText('Magnification: %f' % self.obj_config["mag"])
-        self.obj_x_view.setText('X view (um): %f' % self.obj_config["x_view"])
-        self.obj_y_view.setText('Y view (um): %f' % self.obj_config["y_view"])
+        self.obj_mag.setText('Magnification: %0.2f' % self.obj_config["mag"])
+        self.obj_x_view.setText('X view (um): %0.3f' % self.obj_config["x_view"])
+        self.obj_y_view.setText('Y view (um): %0.3f' % self.obj_config["y_view"])
     
     def get_config_layout(self):
         cl = QGridLayout()
@@ -376,7 +268,7 @@ class CNCGUI(QMainWindow):
         return layout
     
     def home(self):
-        dbg('Home requested')
+        dbg('home requested')
         self.cnc_ipc.home()
             
     def go_rel(self):
@@ -392,6 +284,7 @@ class CNCGUI(QMainWindow):
             axis.go_abs()
     
     def processCncProgress(self, pictures_to_take, pictures_taken, image, first):
+        print 'Processing CNC progress'
         if first:
             print 'First CB with %d items' % pictures_to_take
             self.pb.setMinimum(0)
@@ -419,6 +312,8 @@ class CNCGUI(QMainWindow):
             if itype == 'mock':
                 imager = MockImager()
             elif itype == "VC":
+                if VCImager is None:
+                    raise Exception('Import failed')
                 imager = VCImager()
             elif itype == 'gstreamer':
                 raise Exception('FIXME: implement gstreamer image feed')
@@ -432,6 +327,7 @@ class CNCGUI(QMainWindow):
         rconfig.dry = dry
         
         def emitCncProgress(pictures_to_take, pictures_taken, image, first):
+            print 'Emitting CNC progress'
             self.emit(SIGNAL('cncProgress'), pictures_to_take, pictures_taken, image, first)
         rconfig.progress_cb = emitCncProgress
         
@@ -478,59 +374,96 @@ class CNCGUI(QMainWindow):
         if config['cnc']['startup_run_exit']:
             print 'Planner debug break on completion'
             os._exit(1)
-
-    def get_bottom_layout(self):
-        bottom_layout = QHBoxLayout()
-        
-        axes_gb = QGroupBox('Axes')
-        axes_layout = QHBoxLayout()
-        
-        self.home_pb = QPushButton("Home all")
-        self.home_pb.connect(self.home_pb, SIGNAL("clicked()"), self.home)
-        axes_layout.addWidget(self.home_pb)
-
-        self.go_abs_pb = QPushButton("Go abs all")
-        self.go_abs_pb.connect(self.go_abs_pb, SIGNAL("clicked()"), self.go_abs)
-        axes_layout.addWidget(self.go_abs_pb)
     
-        self.go_rel_pb = QPushButton("Go rel all")
-        self.go_rel_pb.connect(self.go_rel_pb, SIGNAL("clicked()"), self.go_rel)
-        axes_layout.addWidget(self.go_rel_pb)
+    def stop(self):
+        '''Stop operations after the next operation'''
+        print 'FIXME: stop'
+        
+    def estop(self):
+        '''Stop operations immediately.  Position state may become corrupted'''
+        print 'FIXME: estop'
+
+    def get_axes_layout(self):
+        layout = QHBoxLayout()
+        gb = QGroupBox('Axes')
+        
+        def get_general_layout():
+            layout = QVBoxLayout()
+
+            def get_go():
+                layout = QHBoxLayout()
+                
+                self.home_pb = QPushButton("Home all")
+                self.home_pb.clicked.connect(self.home)
+                layout.addWidget(self.home_pb)
+        
+                self.go_abs_pb = QPushButton("Go abs all")
+                self.go_abs_pb.clicked.connect(self.go_abs)
+                layout.addWidget(self.go_abs_pb)
+            
+                self.go_rel_pb = QPushButton("Go rel all")
+                self.go_rel_pb.clicked.connect(self.go_rel)
+                layout.addWidget(self.go_rel_pb)
+                
+                return layout
+                
+            def get_stop():
+                layout = QHBoxLayout()
+                
+                self.stop_pb = QPushButton("Stop")
+                self.stop_pb.clicked.connect(self.stop)
+                layout.addWidget(self.stop_pb)
+        
+                self.estop_pb = QPushButton("Emergency stop")
+                self.estop_pb.clicked.connect(self.estop)
+                layout.addWidget(self.estop_pb)
+                
+                return layout
+            
+            layout.addLayout(get_go())
+            layout.addLayout(get_stop())
+            return layout
+            
+        layout.addLayout(get_general_layout())
 
         self.axes = dict()
+        print 'Axes: %u' % len(self.cnc_ipc.axes)
         for axis in self.cnc_ipc.axes:
             axisw = Axis(axis)
-            print 'Creating axis %s' % axis.name
+            print 'Creating axis GUI %s' % axis.name
             self.axes[axis.name] = axisw
-            axes_layout.addWidget(axisw)
-        axes_gb.setLayout(axes_layout)
-        bottom_layout.addWidget(axes_gb)
+            layout.addWidget(axisw)
         
-        
-        scan_gb = QGroupBox('Scan')
-        scan_layout = QVBoxLayout()
+        gb.setLayout(layout)
+        return gb
+
+    def get_scan_layout(self):
+        gb = QGroupBox('Scan')
+        layout = QGridLayout()
 
         # TODO: add overlap widgets
         
-        run_layout = QGridLayout()
-        run_layout.addWidget(QLabel('Job name'), 0, 0)
+        layout.addWidget(QLabel('Job name'), 0, 0)
         self.job_name_le = QLineEdit('default')
-        run_layout.addWidget(self.job_name_le, 0, 1)
+        layout.addWidget(self.job_name_le, 0, 1)
         self.go_pb = QPushButton("Go")
         self.go_pb.clicked.connect(self.run)
-        run_layout.addWidget(self.go_pb, 1, 0)
+        layout.addWidget(self.go_pb, 1, 0)
         self.pb = QProgressBar()
-        run_layout.addWidget(self.pb, 1, 1)
-        run_layout.addWidget(QLabel('Dry?'), 2, 0)
+        layout.addWidget(self.pb, 1, 1)
+        layout.addWidget(QLabel('Dry?'), 2, 0)
         self.dry_cb = QCheckBox()
-        self.dry_cb.setChecked(self.dry())
-        run_layout.addWidget(self.dry_cb, 2, 1)
-        scan_layout.addLayout(run_layout)
+        self.dry_cb.setChecked(config['cnc']['dry'])
+        layout.addWidget(self.dry_cb, 2, 1)
         
-        scan_gb.setLayout(scan_layout)
-        bottom_layout.addWidget(scan_gb)
+        gb.setLayout(layout)
+        return gb
 
-        return bottom_layout
+    def get_bottom_layout(self):
+        layout = QHBoxLayout()
+        layout.addWidget(self.get_axes_layout())
+        layout.addWidget(self.get_scan_layout())
+        return layout
         
     def initUI(self):
         self.setGeometry(300, 300, 250, 150)        
@@ -608,12 +541,15 @@ def excepthook(excType, excValue, tracebackobj):
     print '%s: %s' % (excType, excValue)
     traceback.print_tb(tracebackobj)
     os._exit(1)
-    
+
 if __name__ == '__main__':
     '''
     We are controlling a robot
     '''
     sys.excepthook = excepthook
+    # Exit on ^C instead of ignoring
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
+    
     app = QApplication(sys.argv)
     _gui = CNCGUI()
     sys.exit(app.exec_())
