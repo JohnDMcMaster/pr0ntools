@@ -82,13 +82,14 @@ class CaptureSink(gst.Element):
                                         gst.caps_new_any())
 
     class Eventer(QObject):
-        imageCaptured = pyqtSignal()
+        imageCaptured = pyqtSignal(int)
         
         def __init__(self):
             QObject.__init__(self)
 
         def image_captured(self, image_id):
-            self.emit(SIGNAL("imageCaptured"), image_id)
+            print 'Image captured: %s' % image_id
+            self.imageCaptured.emit(image_id)
 
     def __init__(self):
         gst.Element.__init__(self)
@@ -131,25 +132,28 @@ class CaptureSink(gst.Element):
     '''
     
     def chainfunc(self, pad, buffer):
-        '''
-        Two major circumstances:
-        -Imaging: want next image
-        -Snapshot: want next image
-        In either case the GUI should listen to all events and clear out the ones it doesn't want
-        '''
-        #print 'Got image'
-        if self.image_requested.is_set():
-            print 'Processing image request'
-            # Does this need to be locked?
-            # Copy buffer so that even as object is reused we don't lse it
-            self.images[self.next_image_id] = str(buffer)
-            # Clear before emitting signal so that it can be re-requested in response
-            self.image_requested.clear()
-            print 'Emitting capture event'
-            #self.eventer.emit(SIGNAL("imageCaptured"), self.next_image_id)
-            self.eventer.image_captured(self.next_image_id)
-            print 'Capture event emitted'
-            self.next_image_id += 1
+        try:
+            '''
+            Two major circumstances:
+            -Imaging: want next image
+            -Snapshot: want next image
+            In either case the GUI should listen to all events and clear out the ones it doesn't want
+            '''
+            #print 'Got image'
+            if self.image_requested.is_set():
+                print 'Processing image request'
+                # Does this need to be locked?
+                # Copy buffer so that even as object is reused we don't lse it
+                self.images[self.next_image_id] = str(buffer)
+                # Clear before emitting signal so that it can be re-requested in response
+                self.image_requested.clear()
+                print 'Emitting capture event'
+                self.eventer.image_captured(self.next_image_id)
+                print 'Capture event emitted'
+                self.next_image_id += 1
+        except:
+            traceback.print_exc()
+            os._exit(1)
         
         return gst.FLOW_OK
 
@@ -186,7 +190,7 @@ class Axis(QWidget):
     
     def emit_pos(self):
         #print 'emitting pos'
-        self.emit(SIGNAL("axisSet(double)"), self.axis.get_um())
+        self.axisSet.emit(self.axis.get_um())
     
     def home(self):
         #print 'home'
@@ -499,7 +503,7 @@ class CNCGUI(QMainWindow):
         
         def emitCncProgress(pictures_to_take, pictures_taken, image, first):
             print 'Emitting CNC progress'
-            self.emit(SIGNAL('cncProgress'), pictures_to_take, pictures_taken, image, first)
+            self.cncProgress.emit(pictures_to_take, pictures_taken, image, first)
         rconfig.progress_cb = emitCncProgress
         
         rconfig.obj_config = self.obj_config            
@@ -654,13 +658,13 @@ class CNCGUI(QMainWindow):
         self.snapshot_pb.setEnabled(False)
         self.capture_sink.request_image()
     
-    def imageCaptured(self, id):
+    def imageCaptured(self, image_id):
         print 'RX image for saving'
-        image = PImage.from_image(self.capture_sink.pop_image())
-        fn_full = os.path.join(config['imager']['snapshot_dir'], self.snapshot_fn_le.text())
+        image = PImage.from_image(self.capture_sink.pop_image(image_id))
+        fn_full = os.path.join(config['imager']['snapshot_dir'], str(self.snapshot_fn_le.text()))
         factor = float(config['imager']['scalar'])
         # Use a reasonably high quality filter
-        image.resize(factor, Image.ANTIALIAS).save(fn_full)
+        image.get_scaled(factor, Image.ANTIALIAS).save(fn_full)
         
         # That image is done, get read for the next
         self.snapshot_next_serial()
