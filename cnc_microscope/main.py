@@ -6,7 +6,6 @@ Consider making video feed optional to make it continue to work on windows
 or maybe look into Phonon some more for rendering
 '''
 
-from planner import *
 from imager import *
 from usbio.mc import MC
 from pr0ntools.benchmark import Benchmark
@@ -270,7 +269,7 @@ class Axis(QWidget):
         self.setLayout(self.l)
 
 class CNCGUI(QMainWindow):
-    cncProgress = pyqtSignal()
+    cncProgress = pyqtSignal(int, int, str, int)
     
     def __init__(self):
         QMainWindow.__init__(self)
@@ -490,7 +489,7 @@ class CNCGUI(QMainWindow):
             elif itype == 'gstreamer':
                 print 'FIXME: implement gstreamer snapshots'
                 imager = MockImager()
-            elif itype == 'streamer-testsrc':
+            elif itype == 'gstreamer-testsrc':
                 imager = MockImager()
             else:
                 raise Exception('Invalid imager type %s' % itype)
@@ -503,6 +502,8 @@ class CNCGUI(QMainWindow):
         
         def emitCncProgress(pictures_to_take, pictures_taken, image, first):
             print 'Emitting CNC progress'
+            if image is None:
+                image = ''
             self.cncProgress.emit(pictures_to_take, pictures_taken, image, first)
         rconfig.progress_cb = emitCncProgress
         
@@ -541,9 +542,10 @@ class CNCGUI(QMainWindow):
         self.go_pb.setEnabled(yes)
         self.go_abs_pb.setEnabled(yes)
         self.go_rel_pb.setEnabled(yes)
-        self.snapshot_pb.setEnabled(False)
+        self.snapshot_pb.setEnabled(yes)
     
     def plannerDone(self):
+        print 'RX planner done'
         # Cleanup camera objects
         self.pt = None
         self.setControlsEnabled(True)

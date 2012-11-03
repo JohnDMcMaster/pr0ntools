@@ -3,6 +3,8 @@ import threading
 from PyQt4.QtCore import *
 import time
 from usbio.controller import *
+from planner import *
+from pr0ntools.benchmark import Benchmark
 
 def dbg(*args):
     if len(args) == 0:
@@ -147,5 +149,5 @@ class PlannerThread(QThread):
         self.planner.run()
         b.stop()
         print 'Planner done!  Took : %s' % str(b)
-        self.emit(SIGNAL("plannerDone()"))
+        self.plannerDone.emit()
     
