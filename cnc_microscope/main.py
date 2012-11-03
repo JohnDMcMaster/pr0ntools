@@ -80,16 +80,6 @@ class CaptureSink(gst.Element):
                                         gst.PAD_ALWAYS,
                                         gst.caps_new_any())
 
-    class Eventer(QObject):
-        imageCaptured = pyqtSignal(int)
-        
-        def __init__(self):
-            QObject.__init__(self)
-
-        def image_captured(self, image_id):
-            print 'Image captured: %s' % image_id
-            self.imageCaptured.emit(image_id)
-
     def __init__(self):
         gst.Element.__init__(self)
         self.sinkpad = gst.Pad(self._sinkpadtemplate, "sink")
@@ -101,13 +91,13 @@ class CaptureSink(gst.Element):
         self.image_requested = threading.Event()
         self.next_image_id = 0
         self.images = {}
-        self.eventer = self.Eventer()
         
-    def request_image(self):
+    def request_image(self, cb):
         '''Request that the next image be saved'''
         # Later we might make this multi-image
         if self.image_requested.is_set():
             raise Exception('Image already requested')
+        self.cb = cb
         self.image_requested.set()
         
     def get_image(self, image_id):
@@ -147,7 +137,7 @@ class CaptureSink(gst.Element):
                 # Clear before emitting signal so that it can be re-requested in response
                 self.image_requested.clear()
                 print 'Emitting capture event'
-                self.eventer.image_captured(self.next_image_id)
+                self.cb(self.next_image_id)
                 print 'Capture event emitted'
                 self.next_image_id += 1
         except:
@@ -270,7 +260,8 @@ class Axis(QWidget):
 
 class CNCGUI(QMainWindow):
     cncProgress = pyqtSignal(int, int, str, int)
-    
+    snapshotCaptured = pyqtSignal(int)
+        
     def __init__(self):
         QMainWindow.__init__(self)
 
@@ -388,7 +379,7 @@ class CNCGUI(QMainWindow):
 
         self.capture_enc = gst.element_factory_make("jpegenc")
         self.capture_sink = gst.element_factory_make("capturesink")
-        self.capture_sink.eventer.imageCaptured.connect(self.imageCaptured)
+        self.snapshotCaptured.connect(self.captureSnapshot)
         self.capture_sink_queue = gst.element_factory_make("queue")
 
         '''
@@ -487,8 +478,16 @@ class CNCGUI(QMainWindow):
                     raise Exception('Import failed')
                 imager = VCImager()
             elif itype == 'gstreamer':
-                print 'FIXME: implement gstreamer snapshots'
-                imager = MockImager()
+                class GstImager(Imager):
+                    def __init__(self, gui):
+                        Imager.__init__(self)
+                        self.gui = gui
+                        
+                    def take_picture(self, file_name_out = None):
+                        print 'Mock imager: image to %s' % file_name_out
+                        self.gui.capture_sink.request_image()
+
+                imager = GstImager(self)
             elif itype == 'gstreamer-testsrc':
                 imager = MockImager()
             else:
@@ -658,9 +657,12 @@ class CNCGUI(QMainWindow):
         print 'Requesting snapshot'
         # Disable until snapshot is completed
         self.snapshot_pb.setEnabled(False)
-        self.capture_sink.request_image()
+        def emitSnapshotCaptured(image_id):
+            print 'Image captured: %s' % image_id
+            self.snapshotCaptured.emit(image_id)
+        self.capture_sink.request_image(emitSnapshotCaptured)
     
-    def imageCaptured(self, image_id):
+    def captureSnapshot(self, image_id):
         print 'RX image for saving'
         image = PImage.from_image(self.capture_sink.pop_image(image_id))
         fn_full = os.path.join(config['imager']['snapshot_dir'], str(self.snapshot_fn_le.text()))
