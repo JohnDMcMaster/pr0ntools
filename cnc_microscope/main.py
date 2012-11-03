@@ -10,8 +10,7 @@ from planner import *
 from imager import *
 from usbio.mc import MC
 from pr0ntools.benchmark import Benchmark
-from config import RunConfig
-from config import config as config
+from config import *
 from threads import *
 VCImager = None
 try:
@@ -29,10 +28,17 @@ import os.path
 import os
 import signal
 
-import gobject, pygst
-pygst.require('0.10')
-import gst
-
+gobject = None
+pygst = None
+gst = None
+try:
+    import gobject, pygst
+    pygst.require('0.10')
+    import gst
+except ImportError:
+    if config['imager']['engine'] == 'gstreamer' or config['imager']['engine'] == 'gstreamer-testrc':
+        print 'Failed to import a gstreamer package when gstreamer is required'
+        raise
 
 def dbg(*args):
     if len(args) == 0:
@@ -179,7 +185,6 @@ class Axis(QWidget):
         self.l = QHBoxLayout()
         self.l.addWidget(self.gb)
         self.setLayout(self.l)
-        #self.addWidget(gb)
 
 class CNCGUI(QMainWindow):
     cncProgress = pyqtSignal()
@@ -191,6 +196,16 @@ class CNCGUI(QMainWindow):
         self.cnc_raw.on()
         self.cnc_ipc = ControllerThread(self.cnc_raw)
         self.initUI()
+        
+        # Must not be initialized until after layout is set
+        self.gstWindowId = None
+        if config['imager']['engine'] == 'gstreamer':
+            self.source = gst.element_factory_make("v4l2src", "vsource")
+            self.source.set_property("device", "/dev/video0")
+            self.setupGst()
+        elif config['imager']['engine'] == 'gstreamer-testsrc':
+            self.source = gst.element_factory_make("videotestsrc", "video-source")
+            self.setupGst()    
         
         self.cnc_ipc.start()
         
@@ -270,16 +285,6 @@ class CNCGUI(QMainWindow):
         self.video_container.resize(w, h)
         policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.video_container.setSizePolicy(policy)
-        
-        self.gstWindowId = None
-        if config['imager']['engine'] == 'gstreamer':
-            self.source = gst.element_factory_make("v4l2src", "vsource")
-            self.source.set_property("device", "/dev/video0")
-            self.setupGst()
-        elif config['imager']['engine'] == 'gstreamer-testsrc':
-            self.source = gst.element_factory_make("videotestsrc", "video-source")
-            self.setupGst()
-
         
         layout.addWidget(self.video_container)
         
@@ -537,9 +542,9 @@ class CNCGUI(QMainWindow):
         # top layout
         layout = QVBoxLayout()
         
-        #layout.addLayout(self.get_config_layout())
+        layout.addLayout(self.get_config_layout())
         layout.addLayout(self.get_video_layout())
-        #layout.addLayout(self.get_bottom_layout())
+        layout.addLayout(self.get_bottom_layout())
         
         w = QWidget()
         w.setLayout(layout)
@@ -621,4 +626,5 @@ if __name__ == '__main__':
     _gui = CNCGUI()
     # XXX: what about the gstreamer message bus?
     # Is it simply not running?
+    # must be what pygst is doing
     sys.exit(app.exec_())
