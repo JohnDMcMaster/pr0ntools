@@ -13,6 +13,7 @@ import numpy.linalg
 import os
 from config import config
 import copy
+import shutil
 
 VERSION = '0.1'
 
@@ -590,7 +591,7 @@ class Planner:
                     if not config['cnc']['overwrite']:
                         raise Exception("Output dir %s already exists" % od)
                     print 'WARNING: overwriting old output'
-                    os.rmdir(od)
+                    shutil.rmtree(od)
                 print 'Creating output directory %s' % od
                 os.mkdir(od)
             

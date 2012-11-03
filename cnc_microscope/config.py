@@ -1,4 +1,5 @@
 import json
+import os
 
 '''
 A few general assumptions:
@@ -87,7 +88,7 @@ class RunConfig:
         
     def writej(self, j, fname, dirname):
         # print json.dumps(j, sort_keys=True, indent=4)
-        open('%s\\%s' % (dirname, fname), 'w').write(json.dumps(j, sort_keys=True, indent=4))
+        open(os.path.join(dirname, fname), 'w').write(json.dumps(j, sort_keys=True, indent=4))
         
     def write_to_dir(self, dirname):
         self.writej(config.j, 'microscope.json', dirname)

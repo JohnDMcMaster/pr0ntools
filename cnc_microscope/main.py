@@ -477,19 +477,35 @@ class CNCGUI(QMainWindow):
                 if VCImager is None:
                     raise Exception('Import failed')
                 imager = VCImager()
-            elif itype == 'gstreamer':
+            elif itype == 'gstreamer' or itype == 'gstreamer-testsrc':
                 class GstImager(Imager):
                     def __init__(self, gui):
                         Imager.__init__(self)
                         self.gui = gui
+                        self.image_ready = threading.Event()
+                        self.image_id = None
                         
                     def take_picture(self, file_name_out = None):
-                        print 'Mock imager: image to %s' % file_name_out
-                        self.gui.capture_sink.request_image()
+                        print 'gstreamer imager: taking image to %s' % file_name_out
+                        def emitSnapshotCaptured(image_id):
+                            print 'Image captured reported: %s' % image_id
+                            self.image_id = image_id
+                            self.image_ready.set()
+
+                        self.image_id = None
+                        self.image_ready.clear()
+                        self.gui.capture_sink.request_image(emitSnapshotCaptured)
+                        print 'Waiting for next image...'
+                        self.image_ready.wait()
+                        print 'Got image %s' % self.image_id
+                        image = PImage.from_image(self.gui.capture_sink.pop_image(self.image_id))
+                        factor = float(config['imager']['scalar'])
+                        # Use a reasonably high quality filter
+                        scaled = image.get_scaled(factor, Image.ANTIALIAS)
+                        if not self.gui.dry():
+                            scaled.save(file_name_out)
 
                 imager = GstImager(self)
-            elif itype == 'gstreamer-testsrc':
-                imager = MockImager()
             else:
                 raise Exception('Invalid imager type %s' % itype)
         if not config:
