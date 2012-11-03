@@ -22,11 +22,17 @@ from PyQt4 import Qt
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
+from pr0ntools.pimage import PImage
+
+import StringIO
+
 import sys
 import traceback
 import os.path
 import os
 import signal
+
+import Image
 
 gobject = None
 pygst = None
@@ -61,25 +67,99 @@ def get_cnc():
     else:
         raise Exception("Unknown CNC engine %s" % engine)
 
-# Sends events to the imaging and movement threads
-class PlannerThread(QThread):
-    plannerDone = pyqtSignal()
+# nope...
+# metaclass conflict: the metaclass of a derived class must be a (non-strict) subclass of the metaclasses of all its bases
+# ...and one stack overflow post later I know more about python classes than I ever wanted to
+# basically magic + magic = fizzle
+#class CaptureSink(gst.Element, QObject):
+class CaptureSink(gst.Element):
+    __gstdetails__ = ('CaptureSink','Sink', \
+                      'Captures images for the CNC', 'John McMaster')
 
-    def __init__(self,parent, rconfig):
-        QThread.__init__(self, parent)
-        self.rconfig = rconfig
+    _sinkpadtemplate = gst.PadTemplate ("sinkpadtemplate",
+                                        gst.PAD_SINK,
+                                        gst.PAD_ALWAYS,
+                                        gst.caps_new_any())
+
+    class Eventer(QObject):
+        imageCaptured = pyqtSignal()
         
-    def run(self):
-        print 'Initializing planner!'
+        def __init__(self):
+            QObject.__init__(self)
 
-        self.planner = Planner.get(self.rconfig)
-        print 'Running planner'
-        b = Benchmark()
-        self.planner.run()
-        b.stop()
-        print 'Planner done!  Took : %s' % str(b)
-        self.emit(SIGNAL("plannerDone()"))
+        def image_captured(self, image_id):
+            self.emit(SIGNAL("imageCaptured"), image_id)
+
+    def __init__(self):
+        gst.Element.__init__(self)
+        self.sinkpad = gst.Pad(self._sinkpadtemplate, "sink")
+        self.add_pad(self.sinkpad)
+
+        self.sinkpad.set_chain_function(self.chainfunc)
+        self.sinkpad.set_event_function(self.eventfunc)
+
+        self.image_requested = threading.Event()
+        self.next_image_id = 0
+        self.images = {}
+        self.eventer = self.Eventer()
+        
+    def request_image(self):
+        '''Request that the next image be saved'''
+        # Later we might make this multi-image
+        if self.image_requested.is_set():
+            raise Exception('Image already requested')
+        self.image_requested.set()
+        
+    def get_image(self, image_id):
+        '''Fetch the image but keep it in the buffer'''
+        return self.images[image_id]
+        
+    def del_image(self, image_id):
+        '''Delete image in buffer'''
+        del self.images[image_id]
+
+    def pop_image(self, image_id):
+        '''Fetch the image and delete it form the buffer'''
+        ret = self.images[image_id]
+        del self.images[image_id]
+        # Arbitrarily convert to PIL here
+        # TODO: should pass rawer/lossless image to PIL instead of jpg?
+        return Image.open(StringIO.StringIO(ret))
     
+    '''
+    gstreamer plugin core methods
+    '''
+    
+    def chainfunc(self, pad, buffer):
+        '''
+        Two major circumstances:
+        -Imaging: want next image
+        -Snapshot: want next image
+        In either case the GUI should listen to all events and clear out the ones it doesn't want
+        '''
+        #print 'Got image'
+        if self.image_requested.is_set():
+            print 'Processing image request'
+            # Does this need to be locked?
+            # Copy buffer so that even as object is reused we don't lse it
+            self.images[self.next_image_id] = str(buffer)
+            # Clear before emitting signal so that it can be re-requested in response
+            self.image_requested.clear()
+            print 'Emitting capture event'
+            #self.eventer.emit(SIGNAL("imageCaptured"), self.next_image_id)
+            self.eventer.image_captured(self.next_image_id)
+            print 'Capture event emitted'
+            self.next_image_id += 1
+        
+        return gst.FLOW_OK
+
+    def eventfunc(self, pad, event):
+        return True
+    
+gobject.type_register(CaptureSink)
+# Register the element into this process' registry.
+gst.element_register (CaptureSink, 'capturesink', gst.RANK_MARGINAL)
+
 class Axis(QWidget):
     # Absolute position given
     axisSet = pyqtSignal()
@@ -139,8 +219,7 @@ class Axis(QWidget):
         self.gb.setLayout(self.gl)
         row = 0
         
-        self.pos_value = QLabel("Pos (um):")
-        self.gl.addWidget(self.pos_value, row, 0)
+        self.gl.addWidget(QLabel("Pos (um):"), row, 0)
         self.pos_value = QLabel("Unknown")
         self.gl.addWidget(self.pos_value, row, 1)
         self.axisSet.connect(self.updateAxis)
@@ -300,9 +379,27 @@ class CNCGUI(QMainWindow):
         fvidscale = gst.element_factory_make("videoscale", "fvidscale")
         caps = gst.caps_from_string('video/x-raw-yuv')
         fvidscale_cap.set_property('caps', caps)
+        self.stream_queue = gst.element_factory_make("queue")
 
-        self.player.add(self.source, fvidscale, fvidscale_cap, sink)
-        gst.element_link_many(self.source, fvidscale, fvidscale_cap, sink)
+        self.tee = gst.element_factory_make("tee")
+
+        self.capture_enc = gst.element_factory_make("jpegenc")
+        self.capture_sink = gst.element_factory_make("capturesink")
+        self.capture_sink.eventer.imageCaptured.connect(self.imageCaptured)
+        self.capture_sink_queue = gst.element_factory_make("queue")
+
+        '''
+        TODO: should these be split into two different piplines?
+        Might be more reliable to not run video stream during CNC
+        Also note that image aren't scaled in hardware
+        Do scaling in PIL where we have more control
+        '''
+        self.player.add(self.source, self.tee, self.stream_queue, fvidscale, fvidscale_cap, sink)
+        self.player.add(self.capture_sink_queue, self.capture_enc, self.capture_sink)
+        # Video render stream
+        gst.element_link_many(self.source, self.tee, self.stream_queue, fvidscale, fvidscale_cap, sink)
+        # Frame grabber stream
+        gst.element_link_many(self.tee, self.capture_sink_queue, self.capture_enc, self.capture_sink)
         
         bus = self.player.get_bus()
         bus.add_signal_watch()
@@ -368,6 +465,10 @@ class CNCGUI(QMainWindow):
         return self.dry_cb.isChecked()
     
     def run(self):
+        if not self.snapshot_pb.isEnabled():
+            print "Wait for snapshot to complete before CNC'ing"
+            return
+        
         dry = self.dry()
         if dry:
             dbg('Dry run checked')
@@ -436,6 +537,7 @@ class CNCGUI(QMainWindow):
         self.go_pb.setEnabled(yes)
         self.go_abs_pb.setEnabled(yes)
         self.go_rel_pb.setEnabled(yes)
+        self.snapshot_pb.setEnabled(False)
     
     def plannerDone(self):
         # Cleanup camera objects
@@ -507,6 +609,63 @@ class CNCGUI(QMainWindow):
         gb.setLayout(layout)
         return gb
 
+    def get_snapshot_layout(self):
+        gb = QGroupBox('Snapshot')
+        layout = QGridLayout()
+
+        snapshot_dir = config['imager']['snapshot_dir']
+        if not os.path.isdir(snapshot_dir):
+            print 'Snapshot dir %s does not exist' % snapshot_dir
+            if os.path.exists(snapshot_dir):
+                raise Exception("Snapshot directory is not accessible")
+            os.mkdir(snapshot_dir)
+            print 'Snapshot dir %s created' % snapshot_dir        
+
+        # nah...just have it in the config
+        # d = QFileDialog.getExistingDirectory(self, 'Select snapshot directory', snapshot_dir)
+
+        layout.addWidget(QLabel('File name'), 0, 0)
+        self.snapshot_serial = -1
+        self.snapshot_fn_le = QLineEdit('')
+        self.snapshot_next_serial()
+        layout.addWidget(self.snapshot_fn_le, 0, 1)
+        self.snapshot_pb = QPushButton("Snapshot")
+        self.snapshot_pb.clicked.connect(self.take_snapshot)
+        layout.addWidget(self.snapshot_pb, 1, 0, 2, 1)
+        
+        gb.setLayout(layout)
+        return gb
+    
+    def snapshot_next_serial(self):
+        while True:
+            self.snapshot_serial += 1
+            fn_base = 'snapshot00%u.jpg' % self.snapshot_serial
+            fn_full = os.path.join(config['imager']['snapshot_dir'], fn_base)
+            if os.path.exists(fn_full):
+                print 'Snapshot %s already exists, skipping' % fn_full
+                continue
+            # Omit base to make GUI easier to read
+            self.snapshot_fn_le.setText(fn_base)
+            break
+    
+    def take_snapshot(self):
+        print 'Requesting snapshot'
+        # Disable until snapshot is completed
+        self.snapshot_pb.setEnabled(False)
+        self.capture_sink.request_image()
+    
+    def imageCaptured(self, id):
+        print 'RX image for saving'
+        image = PImage.from_image(self.capture_sink.pop_image())
+        fn_full = os.path.join(config['imager']['snapshot_dir'], self.snapshot_fn_le.text())
+        factor = float(config['imager']['scalar'])
+        # Use a reasonably high quality filter
+        image.resize(factor, Image.ANTIALIAS).save(fn_full)
+        
+        # That image is done, get read for the next
+        self.snapshot_next_serial()
+        self.snapshot_pb.setEnabled(True)
+    
     def get_scan_layout(self):
         gb = QGroupBox('Scan')
         layout = QGridLayout()
@@ -532,11 +691,16 @@ class CNCGUI(QMainWindow):
     def get_bottom_layout(self):
         layout = QHBoxLayout()
         layout.addWidget(self.get_axes_layout())
-        layout.addWidget(self.get_scan_layout())
+        def get_lr_layout():
+            layout = QVBoxLayout()
+            layout.addWidget(self.get_snapshot_layout())
+            layout.addWidget(self.get_scan_layout())
+            return layout
+        layout.addLayout(get_lr_layout())
         return layout
         
     def initUI(self):
-        self.setGeometry(300, 300, 250, 150)        
+        self.setGeometry(300, 300, 250, 150)
         self.setWindowTitle('pr0ncnc')    
         
         # top layout

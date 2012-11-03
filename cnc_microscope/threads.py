@@ -130,3 +130,22 @@ class ControllerThread(QThread, Controller):
     def stop(self):
         self.running.clear()        
 
+# Sends events to the imaging and movement threads
+class PlannerThread(QThread):
+    plannerDone = pyqtSignal()
+
+    def __init__(self,parent, rconfig):
+        QThread.__init__(self, parent)
+        self.rconfig = rconfig
+        
+    def run(self):
+        print 'Initializing planner!'
+
+        self.planner = Planner.get(self.rconfig)
+        print 'Running planner'
+        b = Benchmark()
+        self.planner.run()
+        b.stop()
+        print 'Planner done!  Took : %s' % str(b)
+        self.emit(SIGNAL("plannerDone()"))
+    

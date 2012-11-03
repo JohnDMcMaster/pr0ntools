@@ -17,6 +17,7 @@ class Config:
         "multithreaded": True,
         "imager": {
             "engine":'mock',
+            "snapshot_dir":"snapshot",
             "width": 3264,
             "height": 2448,
             "mag": 10.0,
