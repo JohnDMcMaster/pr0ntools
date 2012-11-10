@@ -13,7 +13,7 @@ may generate inner and outer polygon
     can tell which is which by area fairly easily
 What to do?  Some options:
 -Take inner
--Take outter
+-Take outer
 -Take middle
 When I'm drawing I've been shooting for middle
 Inner is probably preferable for now
@@ -299,7 +299,7 @@ def segment_contour(contour, max_segment):
     '''Accepts an unclosed contour and returns an unclosed contour with small segments'''
     # TODO: should really be a generator
     if len(contour) < 2:
-        raise ValueError("Bad contour")
+        raise ValueError("Bad contour of len %d" % len(contour))
     # Always anchor at the first point
     ret = [contour[0]]
     for pointi in xrange(len(contour) - 1):
@@ -361,7 +361,7 @@ def vertex_len(p0, p1):
 
 def contour_len(contour, closed=False):
     if len(contour) < 2:
-        raise ValueError("Bad contour")
+        raise ValueError("Bad contour of len %d" % len(contour))
     '''Return floating point integer of contour length'''
     # I'm sure there's a function for this 
     # but its a good excercise and I'm not sure what the func is
@@ -396,93 +396,159 @@ g_image = None
 
 
 def filter(contour):
-    return False
+    #return False
     # Reject noise
-    if area < min_area:
+    if contour_area < min_area:
         return True
-    if area > max_area:
+    if contour_area > max_area:
         return True
     return False
 
 def process(fn):
     global g_image
+    global total_area
+    global contour_area
+    global min_area
+    global max_area
     
-    # Fixed for now, then move to best match
-    g_thresh = 100
+    best_contour = None
+    best_thresh = None
+    best_diff = float('inf')
+    # All contours generated
+    total_contours = 0
+    # Excluding those filtered out
+    checked_contours = 0
     
-    print 'Working on %s' % fn
-    
-    g_image = cv.LoadImage(fn)
-    if not g_image:
-        raise Exception('Failed to load %s' % fn)
-    total_area = g_image.width * g_image.height
-    print 'Size: %dw X %dh = %g' % (g_image.width, g_image.height, total_area)
-    # Select this by some metric with tagged features, say smallest - 10%
-    min_area = 100.0
-    max_area = total_area * 0.9
-    
-    gray_img = cv.CreateImage( cv.GetSize(g_image), 8, 1 )
-    storage = cv.CreateMemStorage(0)
-    
-    cv.CvtColor( g_image, gray_img, cv.CV_BGR2GRAY )
-    cv.Threshold( gray_img, gray_img, g_thresh, 255, cv.CV_THRESH_BINARY )
-    print 'Saving intermediate B&W'
-    cv.SaveImage('diffusion_0_thresh.png', gray_img)
-    
-    '''
-    int cvFindContours(
-                              img,
-       IplImage*
-       CvMemStorage*          storage,
-       CvSeq**                firstContour,
-       int                    headerSize = sizeof(CvContour),
-       CvContourRetrievalMode mode        = CV_RETR_LIST,
-       CvChainApproxMethod    method       = CV_CHAIN_APPROX_SIMPLE
-    );
-    '''
-    contour_begin = cv.FindContours( gray_img, storage )
-    
-    contour = contour_begin
-    min_rejected = 0
-    max_rejected = 0
-    total = 0
-    contouri = -1
-    for contour in icontours(contour_begin):
-        contouri += 1
-        if filter(contour):
-            continue
-        #if contouri != 5:
-        #    continue
-        print '%d' % contouri
-        #print '  Points:'
-        #print_contour(contour, '    ')
-        print '  len %f' % contour_len(contour)
-        print '  area %f' % cv.ContourArea(contour)
-        # Roughly on the center of the left side
-        line = [(63, 115), (65, 319)]
-        print '  diff %f' % contour_line_diff(contour, line)
-        #draw_contour(contour)
+    # TODO: should try a finer sweep after rough?
+    for g_thresh in xrange(0, 256, 8):
+        print 'Working on %s' % fn
         
-def draw_contour(contour):
+        g_image = cv.LoadImage(fn)
+        if not g_image:
+            raise Exception('Failed to load %s' % fn)
+        total_area = g_image.width * g_image.height
+        # Select this by some metric with tagged features, say smallest - 10%
+        min_area = 100.0
+        max_area = total_area * 0.9
+        print 'Size: %dw X %dh = %g' % (g_image.width, g_image.height, total_area)
+        
+        size = cv.GetSize(g_image)
+        print 'Size: %s' % (size,)
+        gray_img = cv.CreateImage( size, 8, 1 )
+        storage = cv.CreateMemStorage(0)
+        
+        cv.CvtColor( g_image, gray_img, cv.CV_BGR2GRAY )
+        cv.Threshold( gray_img, gray_img, g_thresh, 255, cv.CV_THRESH_BINARY )
+        if g_thresh == 70:
+            print 'Saving intermediate B&W'
+            cv.SaveImage('img_thresh.png', gray_img)
+        
+        '''
+        int cvFindContours(
+                                  img,
+           IplImage*
+           CvMemStorage*          storage,
+           CvSeq**                firstContour,
+           int                    headerSize = sizeof(CvContour),
+           CvContourRetrievalMode mode        = CV_RETR_LIST,
+           CvChainApproxMethod    method       = CV_CHAIN_APPROX_SIMPLE
+        );
+        '''
+        contour_begin = cv.FindContours( gray_img, storage )
+        
+        min_rejected = 0
+        max_rejected = 0
+        total = 0
+        contouri = -1
+        for contour in icontours(contour_begin):
+            total_contours += 1
+            contouri += 1
+            contour_area = cv.ContourArea(contour)
+            if filter(contour):
+                continue
+            checked_contours += 1
+            #if contouri != 5:
+            #    continue
+            print '%d' % contouri
+            #print '  Points:'
+            #print_contour(contour, '    ')
+            print '  len %f' % contour_len(contour)
+            print '  area %f' % contour_area
+            # Roughly on the center of the left side
+            #line = [(63, 115), (65, 319)]
+            # Now try finding a circle
+            line = [(103, 304), (130, 308)]
+            this_diff = contour_line_diff(contour, line)
+            print '  diff %f' % this_diff
+            if this_diff < best_diff:
+                print 'New best contour'
+                best_contour = contour
+                best_thresh = g_thresh
+                best_diff = this_diff
+            #draw_contour(contour)
+    print "Best contour:"
+    print '  Threshold: %d' % best_thresh
+    print '  Best diff: %g' % best_diff
+    print_contour(best_contour, prefix = '  ')
+    if 0:
+        draw_contour(best_contour)
+    else:
+        gray_img = cv.CreateImage( size, 8, 1 )
+        storage = cv.CreateMemStorage(0)
+        cv.CvtColor( g_image, gray_img, cv.CV_BGR2GRAY )
+        #cv.Threshold( gray_img, gray_img, best_thresh, 255, cv.CV_THRESH_BINARY )
+        
+        '''Takes in list of (contour, color) tuples where contour is iterable for (x, y) tuples'''
+        cv.PolyLine( gray_img , [best_contour] , True , cv.CV_RGB(128, 255, 255) )
+        cv.ShowImage( "Contours", gray_img )
+        cv.WaitKey()
+    
+    
+    print 'Total contours: %d' % total_contours
+    print 'Checked contours: %d' % checked_contours
+    
+        
+def draw_contour(contour, color=None):
     gray_img = cv.CreateImage( cv.GetSize(g_image), 8, 1 )
     #cv.CvtColor( g_image, gray_img, cv.CV_BGR2GRAY )
     cv.Zero( gray_img )
     # DrawContours(img, contour, external_color, hole_color, max_level [, thickness [, lineType [, offset]]]) -> None
      # in my small example external didn't get value but internal did
-    cv.DrawContours(
-            #img
-            gray_img,
-            # contour
-            contour,
-            # external_color
-            cv.ScalarAll(255),
-            # hole_color
-            cv.ScalarAll(255),
-            # max_level
-            0,
-            # Thickness
-            1
-            )
+    if 0:
+        cv.DrawContours(
+                #img
+                gray_img,
+                # contour
+                contour,
+                # external_color
+                cv.ScalarAll(255),
+                # hole_color
+                cv.ScalarAll(255),
+                # max_level
+                0,
+                # Thickness
+                1
+                )
+    else:
+        #  void cvPolyLine(CvArr* img,
+        #        CvPoint** pts, int* npts,
+        #        int contours, int is_closed, CvScalar color,
+        #        int thickness=1, int lineType=8, int shift=0)
+        if color is None:
+            # White for default black background
+            #color = cv.CV_RGB(255, 255, 255)
+            color = cv.ScalarAll(255)
+        cv.PolyLine( gray_img , [contour] , True , color )
+    cv.ShowImage( "Contours", gray_img )
+    cv.WaitKey()
+
+def draw_color_contours(color_contours, color=None):
+    '''Takes in list of (contour, color) tuples where contour is iterable for (x, y) tuples'''
+    gray_img = cv.CreateImage( cv.GetSize(g_image), 8, 1 )
+    #cv.CvtColor( g_image, gray_img, cv.CV_BGR2GRAY )
+    cv.Zero( gray_img )
+    for (contour, color) in color_contours:
+        cv.PolyLine( gray_img , [contour] , True , color )
     cv.ShowImage( "Contours", gray_img )
     cv.WaitKey()
 
