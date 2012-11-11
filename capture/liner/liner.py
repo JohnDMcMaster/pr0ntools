@@ -566,6 +566,7 @@ if __name__ == '__main__':
     if show:
         cv.NamedWindow( "Contours", 1 );
     args.files = ['img_bw.jpg']
+    args.files = ['img.jpg']
     for fn in args.files:
         process(fn)
 
