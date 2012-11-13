@@ -40,25 +40,34 @@ problem: how to tell if a polygon contains a line?
     for each edge on the polygon do a match?
     probably need to match multiple segments...linear regression?
 '''
-import cv
-import argparse        
+# XXX: why does PyDev analysis fail on first but succeed on second?
+#import cv
+from cv2 import cv
 import sys
 import time
 import math
+import os
+import shutil
+
+dbgl = 3
+pdbg = 0
+logf = None
+logf = open('liner.log', 'w')
+draw_thresh_contours = 1
+thresh_dir = "liner-thresholds"
 
 def set_dbg(yes):
     global pdbg
     pdbg = yes
 
-pdbg = 1
-logf = None
-#logf = open('liner.log', 'w')
 def dbg(s, level = 1):
-    global f
-    if level <= pdbg:
+    if level > dbgl:
+        return
+    s = 'pr0nliner-lib: %s' % str(s)
+    if pdbg:
         print s
     if logf:
-        f.write('%s\n' % s)
+        logf.write('%s\n' % str(s))
     
 def linearize(p0, p1):
     m = (p1[1] - p0[1]) / (p1[0] - p0[0])
@@ -68,7 +77,7 @@ def linearize(p0, p1):
 def linearized_pgen(p0, p1):
     '''Return a generator that generates points between two points'''
     
-    l = vertex_len(p0, p1)
+    #l = vertex_len(p0, p1)
     # Give nth point (x, y) where 0 gives p0 and n_points - 1 gives p1
     f = None
     # So we get to have some fun then
@@ -123,7 +132,10 @@ def contour_len(contour, closed=False):
     #draw_contour(contour)
     return ret
     
-def print_contour(contour, prefix = ''):
+def print_contour(contour, prefix = '', level=3):
+    if level > dbgl:
+        return
+    dbg('%sContour:' % prefix)
     for pointi in xrange(len(contour) - 1):
         p = contour[pointi]
         '''
@@ -162,13 +174,7 @@ def contour_line_diff(contour_in, line):
     # return a point along the line
     line_pgen = linearized_pgen(line[0], line[1])
 
-    # Needs to at least squiggle back and forth
-    if contour_len(contour) < 2 * line_len:
-        dbg('  Contour did not meet minimum size', level=2)
-        return float('inf')
-    
     working_len = 0.0
-    working = []
     # Next point to close a vertex
     vertexi = 1
     # Last point currently using
@@ -193,7 +199,6 @@ def contour_line_diff(contour_in, line):
             #    raise Exception('oops')
             
             def diff_line(contour_indices):
-                n = 0
                 this_diff = 0.0
                 ith = 0
                 for i in contour_indices:
@@ -281,17 +286,17 @@ def contour_line_diff(contour_in, line):
             raise
         
     dbg('  Best len from %u to %u' % (best_start, best_end), level=3)
-    if pdbg > 3:
+    if dbgl > 3:
         for i in xrange(best_start, best_end + 1, 1):
             dbg('    (%dx, %dy)' % (contour[i][0], contour[i][1]))
     return best_diff
 
-def list2contour(list):
+def list2contour(l):
     # FIXME: look into this
-    ret = cv.CreateMat( len(list), 2, cv.CV_32FC1 )
-    for i in xrange(len(list)):
-        ret[i][0] = list[i][0]
-        ret[i][1] = list[i][1]
+    ret = cv.CreateMat( len(l), 2, cv.CV_32FC1 )
+    for i in xrange(len(l)):
+        ret[i][0] = l[i][0]
+        ret[i][1] = l[i][1]
     return ret
     
 def segment_contour(contour, max_segment):
@@ -319,8 +324,7 @@ def segment_contour(contour, max_segment):
         dbg('      p0: (%dx, %dy)' % p0, level=3)
         dbg('      p1: (%dx, %dy)' % p1, level=3)
         n_points = int(math.ceil(n_ideal))
-        if pdbg > 3:
-            dbg('      n_points: %d (ideal %g)' % (n_points, n_ideal))
+        dbg('      n_points: %d (ideal %g)' % (n_points, n_ideal), level=3)
         '''
         Skip 0 since previous covers it
         '''
@@ -331,7 +335,7 @@ def segment_contour(contour, max_segment):
             dbg('      split to (%dx, %dy) w/ %g percent' % (p[0], p[1], per * 100), level=3)
             ret.append(p)
     
-    if pdbg > 3:
+    if dbgl > 3:
         dbg('  Orig:')
         last = None
         for (x, y) in contour:
@@ -356,9 +360,10 @@ def segment_contour(contour, max_segment):
     
     return ret
 
-def pplane(name, plane):
-    print 'Plane %s (%dw X %dh)' % (name, plane.width, plane.height)
+def pplane(name, plane, prefix=''):
+    print '%sPlane %s (%dw X %dh)' % (prefix, name, plane.width, plane.height)
     for x in xrange(plane.width):
+        print prefix,
         for y in xrange(plane.height):
             p = plane[x, y]
             if y % 2 == 1:
@@ -367,7 +372,7 @@ def pplane(name, plane):
     print
 
 def hs_histogram(src, mask=None):
-    '''Takes a cvMat and computes a HS histogram (V is dropped)'''
+    '''Takes a cvMat and computes a hue-saturation histogram (value is dropped)'''
     # Convert to HSV
     # Allocate the 3 HSV 8 bit channels
     hsv = cv.CreateImage(cv.GetSize(src), 8, 3)
@@ -382,9 +387,13 @@ def hs_histogram(src, mask=None):
     cv.Split(hsv, h_plane, s_plane, v_plane, None)
     planes = [h_plane, s_plane]
 
+    if 0:
+        pplane('H plane', h_plane, prefix='    ')
+        pplane('S plane', s_plane, prefix='    ')
+
     h_bins = 8
     s_bins = 8
-    hist_size = [h_bins, s_bins]
+    #hist_size = [h_bins, s_bins]
     # hue varies from 0 (~0 deg red) to 180 (~360 deg red again
     # ??? My values give a hue of 0-255
     h_ranges = [0, 255]
@@ -436,7 +445,7 @@ Algorithm:
 TODO: is there some way to leverage linear regression to simplify this?
 would give us an idea of slope, then would just need to justify range
 '''
-class Liner():
+class LinerBase():
     def __init__(self, fn, line, ref_polygon, show=False):
         # Interestingly enough doesn't work if its a list
         def polygize(poly):
@@ -446,9 +455,9 @@ class Liner():
         self.ref_polygon = polygize(ref_polygon)
         self.show = show
         self.ref_hist = None
-        self.image = None
+        self.cur_thresh = None
             
-    def filter(self, contour):
+    def filter(self):
         #return False
         # Reject noise
         if self.contour_area < self.min_area:
@@ -457,201 +466,226 @@ class Liner():
             return True
         return False
     
+    def get_ref(self):
+        '''Return reference (image, polygon)'''
+        raise Exception('Required')
+    
     def compute_ref(self):
         '''Compute a reference histogram that matched regions should approximate'''
-        (width, height) = cv.GetSize(self.image)
+        (image, polygon) = self.get_ref()
+        
+        (width, height) = cv.GetSize(image)
+        # (rows, cols,...)
         dest = cv.CreateMat(height, width, cv.CV_8UC3)
-        mask8x1 = cv.CreateImage(cv.GetSize(self.image), 8, 1)
-        mask8x3 = cv.CreateImage(cv.GetSize(self.image), 8, 3)
-        for mask in (mask8x1, mask8x3):
-            cv.Zero(mask)
-            cv.FillConvexPoly(mask, self.ref_polygon, cv.ScalarAll(255))
-        cv.Copy(self.image, dest, mask8x3)
+        mask8x1 = cv.CreateImage(cv.GetSize(image), 8, 1)
+        cv.Zero(mask8x1)
+        cv.FillConvexPoly(mask8x1, polygon, cv.ScalarAll(255))
+        cv.Copy(image, dest)
     
         self.ref_hist = hs_histogram(dest, mask8x1)
     
     def compare_ref(self, polygon):
         '''Compare new polygon against the reference polygon histogram'''
-        (width, height) = cv.GetSize(self.image)
-        dest = cv.CreateMat(height, width, cv.CV_8UC3)
-        mask8x1 = cv.CreateImage(cv.GetSize(self.image), 8, 1)
-        mask8x3 = cv.CreateImage(cv.GetSize(self.image), 8, 3)
-        for mask in (mask8x1, mask8x3):
-            cv.Zero(mask)
-            cv.FillConvexPoly(mask, polygon, cv.ScalarAll(255))
-        cv.Copy(self.image, dest, mask8x3)
-        return cv.CompareHist(self.ref_hist, hs_histogram(dest, mask8x1), cv.CV_COMP_CORREL) 
+        
+        (image, mask) = self.get_working()
+        return cv.CompareHist(self.ref_hist, hs_histogram(image, mask), cv.CV_COMP_CORREL) 
     
+    def get_working(self):
+        '''Return a CvMat containing the currently being processed polygon plus a mask indicating the ROI'''
+        raise Exception("Required")
+        
+        
+    def try_contour(self):
+        self.total_contours += 1
+        self.contouri += 1
+        self.contour_area = cv.ContourArea(self.cur_contour)
+        dbg('Thresh contour %d' % self.contouri, level=2)
+        if self.filter():
+            dbg('  Rejected: filtered contour b/c not %f <= %f <= %f'% (self.min_area, self.contour_area, self.max_area))
+            if draw_thresh_contours:
+                cv.PolyLine(self.contours_map, [self.cur_contour], True, cv.CV_RGB(255, 0, 0) )
+            return
+            
+        self.checked_contours += 1
+        #if contouri != 5:
+        #    continue
+        #print '  Points:'
+        #print_contour(contour, '    ')
+        contour_len_ = contour_len(self.cur_contour)
+        dbg('  len %f' % contour_len_, level=2)
+        dbg('  area %f' % self.contour_area, level=2)
+        if contour_len_ < self.min_len:
+            dbg('  Rejected: did not meet minimum size w/ %f < %f' % (contour_len_, self.min_len), level=2)
+            if draw_thresh_contours:
+                cv.PolyLine(self.contours_map, [self.cur_contour], True, cv.CV_RGB(0, 255, 0) )
+            return
+        
+        this_diff = contour_line_diff(self.cur_contour, self.line)
+        dbg('  diff %f' % this_diff, level=2)
+        if this_diff >= self.best_diff:
+            dbg("  Rejected: worse diff %f >= %f" % (this_diff, self.best_diff), level=2)
+            if draw_thresh_contours:
+                cv.PolyLine(self.contours_map, [self.cur_contour], True, cv.CV_RGB(0, 0, 255) )
+            return
+        hist_diff = self.compare_ref(self.cur_contour)
+        dbg("  Hist diff: %f" % hist_diff, level=2)
+        # 0.95 was too lose
+        if hist_diff < 0.90:
+            dbg("  Rejected: poor histogram match", level=2)
+            if draw_thresh_contours:
+                cv.PolyLine(self.contours_map, [self.cur_contour], True, cv.CV_RGB(128, 128, 0) )
+            return
+        dbg('  Accepted: new best contour', level=2)
+        self.best_contour = self.cur_contour
+        self.best_thresh = self.cur_thresh
+        self.best_diff = this_diff
+        self.best_hist_diff = hist_diff
+        #draw_contour(self.cur_contour)
+        if draw_thresh_contours:
+            cv.PolyLine(self.contours_map, [self.cur_contour], True, cv.CV_RGB(0, 128, 128) )
+            
+    def try_thresh(self):
+        dbg('', level=2)
+        dbg('thres %d, best so far %s' % (self.cur_thresh, self.best_diff), level=1)
+        
+        line_len = vertex_len(self.line[0], self.line[1])
+        # Needs to at least squiggle back and forth
+        self.min_len = 2 * line_len
+        
+        self.total_area = self.image.width * self.image.height
+        # Select this by some metric with tagged features, say smallest - 10%
+        self.min_area = 100.0
+        self.max_area = self.total_area * 0.9
+        dbg('Size: %dw X %dh = %g' % (self.image.width, self.image.height, self.total_area), level=3)
+        
+        size = cv.GetSize(self.image)
+        dbg('Size: %s' % (size,), level=3)
+        self.gray_img = cv.CreateImage( size, 8, 1 )
+        storage = cv.CreateMemStorage(0)
+        
+        cv.CvtColor( self.image, self.gray_img, cv.CV_BGR2GRAY )
+        cv.Threshold( self.gray_img, self.gray_img, self.cur_thresh, 255, cv.CV_THRESH_BINARY )
+        if 0 and self.cur_thresh == 70:
+            dbg('Saving intermediate B&W')
+            cv.SaveImage('img_thresh.png', self.gray_img)
+        
+        '''
+        int cvFindContours(
+           IplImage*              img,
+           CvMemStorage*          storage,
+           CvSeq**                firstContour,
+           int                    headerSize = sizeof(CvContour),
+           CvContourRetrievalMode mode        = CV_RETR_LIST,
+           CvChainApproxMethod    method       = CV_CHAIN_APPROX_SIMPLE
+        );
+        '''
+        self.contour_begin = cv.FindContours(self.gray_img, storage)
+        
+        if draw_thresh_contours:
+            # B&W background but color highlighting
+            self.contours_map = cv.CreateImage( cv.GetSize(self.image), 8, 3 )
+            cv.CvtColor( self.gray_img, self.contours_map, cv.CV_GRAY2BGR )
+        
+        self.contouri = -1
+        for self.cur_contour in icontours(self.contour_begin):
+            self.try_contour()
+        
+        if draw_thresh_contours:
+            # TODO: save image instead
+            if 0:
+                cv.ShowImage( "Contours", self.contours_map )
+                cv.WaitKey()
+            else:
+                cv.SaveImage(os.path.join(thresh_dir, '%03d.png' % self.cur_thresh), self.contours_map)
+            
     def run(self):
         '''Given a filename w/ target image, a line tuple, and a reference rectangle ROI, return a polygon near the line'''
         start = time.time()
-        # No code should modify this
-        self.image = cv.LoadImage(self.fn)
         
-        fn = self.fn
-
+        if draw_thresh_contours:
+            if os.path.exists(thresh_dir):
+                shutil.rmtree(thresh_dir)
+            os.mkdir(thresh_dir)
+        
         self.compute_ref()
         
-        best_contour = None
-        best_thresh = None
-        best_diff = float('inf')
-        best_hist_diff = None
+        self.best_contour = None
+        self.best_thresh = None
+        self.best_diff = float('inf')
+        self.best_hist_diff = None
         # All contours generated
-        total_contours = 0
+        self.total_contours = 0
         # Excluding those filtered out
-        checked_contours = 0
+        self.checked_contours = 0
         
         # TODO: should try a finer sweep after rough?
         #for g_thresh in xrange(0, 256, 8):
-        for g_thresh in xrange(64, 168, 8):
-            dbg('', level=2)
-            dbg('thres %d, working on %s' % (g_thresh, fn), level=2)
-            
-            if not self.image:
-                raise Exception('Failed to load %s' % fn)
-            self.total_area = self.image.width * self.image.height
-            # Select this by some metric with tagged features, say smallest - 10%
-            self.min_area = 100.0
-            self.max_area = self.total_area * 0.9
-            dbg('Size: %dw X %dh = %g' % (self.image.width, self.image.height, self.total_area), level=3)
-            
-            size = cv.GetSize(self.image)
-            dbg('Size: %s' % (size,), level=3)
-            gray_img = cv.CreateImage( size, 8, 1 )
-            storage = cv.CreateMemStorage(0)
-            
-            cv.CvtColor( self.image, gray_img, cv.CV_BGR2GRAY )
-            cv.Threshold( gray_img, gray_img, g_thresh, 255, cv.CV_THRESH_BINARY )
-            if 0 and g_thresh == 70:
-                dbg('Saving intermediate B&W')
-                cv.SaveImage('img_thresh.png', gray_img)
-            
-            '''
-            int cvFindContours(
-                                      img,
-               IplImage*
-               CvMemStorage*          storage,
-               CvSeq**                firstContour,
-               int                    headerSize = sizeof(CvContour),
-               CvContourRetrievalMode mode        = CV_RETR_LIST,
-               CvChainApproxMethod    method       = CV_CHAIN_APPROX_SIMPLE
-            );
-            '''
-            contour_begin = cv.FindContours( gray_img, storage )
-            
-            min_rejected = 0
-            max_rejected = 0
-            total = 0
-            contouri = -1
-            for contour in icontours(contour_begin):
-                total_contours += 1
-                contouri += 1
-                self.contour_area = cv.ContourArea(contour)
-                if self.filter(contour):
-                    continue
-                checked_contours += 1
-                #if contouri != 5:
-                #    continue
-                dbg('%d' % contouri, level=2)
-                #print '  Points:'
-                #print_contour(contour, '    ')
-                if pdbg > 1:
-                    dbg('  len %f' % contour_len(contour))
-                    dbg('  area %f' % self.contour_area)
-                this_diff = contour_line_diff(contour, self.line)
-                if pdbg > 1:
-                    dbg('  diff %f' % this_diff)
-                if this_diff >= best_diff:
-                    continue
-                hist_diff = self.compare_ref(contour)
-                # 0.95 was too lose
-                if hist_diff < 0.99:
-                    if pdbg > 1:
-                        dbg("Rejected for poor histogram match")
-                    continue
-                dbg('New best contour', level=2)
-                best_contour = contour
-                best_thresh = g_thresh
-                best_diff = this_diff
-                best_hist_diff = hist_diff
-                #draw_contour(contour)
+        # somewhat arbitrary "reasonable" range
+        # TODO: tune based off of training data
+        for self.cur_thresh in xrange(64, 168, 8):
+            self.try_thresh()
+        if self.best_contour is None:
+            raise Exception('Failed to match a contour')
+        #for self.cur_thresh in xrange(152, 153, 8):
         dbg("Best contour:")
-        dbg('  Points: %d' % len(best_contour))
-        dbg('  Threshold: %d' % best_thresh)
-        dbg('  Best diff: %g' % best_diff)
-        dbg('  Hist diff: %g' % best_hist_diff)
-        if pdbg > 2:
-            print_contour(best_contour, prefix = '  ')
+        dbg('  Points: %d' % len(self.best_contour))
+        dbg('  Threshold: %d' % self.best_thresh)
+        dbg('  Best diff: %g' % self.best_diff)
+        dbg('  Hist diff: %g' % self.best_hist_diff)
+        print_contour(self.best_contour, prefix = '  ', level=3)
     
-        def show_liner():
-            if 0:
-                draw_img = cv.CreateImage( size, 8, 3 )
-                cv.Copy(self.image, draw_img)
-            if 0:
-                draw_img = cv.CreateImage( size, 8, 1 )
-                cv.Zero( draw_img )
-                #cv.CvtColor( self.image, draw_img, cv.CV_BGR2GRAY )
-            # B&W background but color highlighting
-            if 1:
-                gray_img = cv.CreateImage( size, 8, 1 )
-                draw_img = cv.CreateImage( size, 8, 3 )
-                #cv.Copy(self.image, draw_img)
-                cv.CvtColor( self.image, gray_img, cv.CV_BGR2GRAY )
-                cv.CvtColor( gray_img, draw_img, cv.CV_GRAY2BGR )
-            
-            '''Takes in list of (contour, color) tuples where contour is iterable for (x, y) tuples'''
-            cv.PolyLine(draw_img, [best_contour], True, cv.CV_RGB(255, 0, 0) )
-            cv.PolyLine(draw_img, [self.ref_polygon], True, cv.CV_RGB(0, 0, 255) )
-            print self.line
-            cv.PolyLine(draw_img, [self.line], True, cv.CV_RGB(0, 255, 0) )
-
-            cv.ShowImage( "Contours", draw_img )
-            cv.WaitKey()
-            sys.exit(1)
-        if self.show:
-            show_liner()
-        
-        dbg('Total contours: %d' % total_contours)
-        dbg('Checked contours: %d' % checked_contours)
+        dbg('Total contours: %d' % self.total_contours)
+        dbg('Checked contours: %d' % self.checked_contours)
         end = time.time()
         dbg('Liner delta: %0.3f sec' % (end - start,))
-        return best_contour
+        return self.best_contour
             
-    def draw_contour(contour, color=None):
+'''
+Liner the operates on a single source image
+No tiling
+'''
+class SimpleLiner(LinerBase):
+    def __init__(self, *args, **kwargs):
+        LinerBase.__init__(self, *args, **kwargs)
+        self.image = None
+    
+    def get_ref(self):
+        '''
+        Could return a subimage bounded by polygon which is
+        probably more efficient
+        but if they care about performacne they should use the tile version?
+        '''
+        return (self.image, self.ref_polygon)
+    
+    def get_working(self):
+        (width, height) = cv.GetSize(self.image)
+        dest = cv.CreateMat(height, width, cv.CV_8UC3)
+        mask8x1 = cv.CreateImage(cv.GetSize(self.image), 8, 1)
+        cv.Zero(mask8x1)
+        cv.FillConvexPoly(mask8x1, self.cur_contour, cv.ScalarAll(255))
+        # Could 8x3 mask copy but histogram mask will take care of it
+        cv.Copy(self.image, dest)
+        return (dest, mask8x1)
+
+    def draw_contour(self, contour, color=None):
         gray_img = cv.CreateImage( cv.GetSize(self.image), 8, 1 )
         #cv.CvtColor( self.image, gray_img, cv.CV_BGR2GRAY )
         cv.Zero( gray_img )
         # DrawContours(img, contour, external_color, hole_color, max_level [, thickness [, lineType [, offset]]]) -> None
-         # in my small example external didn't get value but internal did
-        if 0:
-            cv.DrawContours(
-                    #img
-                    gray_img,
-                    # contour
-                    contour,
-                    # external_color
-                    cv.ScalarAll(255),
-                    # hole_color
-                    cv.ScalarAll(255),
-                    # max_level
-                    0,
-                    # Thickness
-                    1
-                    )
-        else:
-            #  void cvPolyLine(CvArr* img,
-            #        CvPoint** pts, int* npts,
-            #        int contours, int is_closed, CvScalar color,
-            #        int thickness=1, int lineType=8, int shift=0)
-            if color is None:
-                # White for default black background
-                #color = cv.CV_RGB(255, 255, 255)
-                color = cv.ScalarAll(255)
-            cv.PolyLine( gray_img , [contour] , True , color )
+        # in my small example external didn't get value but internal did
+        #  void cvPolyLine(CvArr* img,
+        #        CvPoint** pts, int* npts,
+        #        int contours, int is_closed, CvScalar color,
+        #        int thickness=1, int lineType=8, int shift=0)
+        if color is None:
+            # White for default black background
+            #color = cv.CV_RGB(255, 255, 255)
+            color = cv.ScalarAll(255)
+        cv.PolyLine( gray_img , [contour] , True , color )
         cv.ShowImage( "Contours", gray_img )
         cv.WaitKey()
     
-    def draw_color_contours(color_contours, color=None):
+    def draw_color_contours(self, color_contours, color=None):
         '''Takes in list of (contour, color) tuples where contour is iterable for (x, y) tuples'''
         gray_img = cv.CreateImage( cv.GetSize(self.image), 8, 1 )
         #cv.CvtColor( self.image, gray_img, cv.CV_BGR2GRAY )
@@ -661,7 +695,51 @@ class Liner():
         cv.ShowImage( "Contours", gray_img )
         cv.WaitKey()
 
+    def show_liner(self):
+        size = cv.GetSize(self.image)
+        # B&W background but color highlighting
+        gray_img = cv.CreateImage( size, 8, 1 )
+        draw_img = cv.CreateImage( size, 8, 3 )
+        #cv.Copy(self.image, draw_img)
+        cv.CvtColor( self.image, gray_img, cv.CV_BGR2GRAY )
+        cv.CvtColor( gray_img, draw_img, cv.CV_GRAY2BGR )
+        
+        '''Takes in list of (contour, color) tuples where contour is iterable for (x, y) tuples'''
+        cv.PolyLine(draw_img, [self.best_contour], True, cv.CV_RGB(255, 0, 0) )
+        cv.PolyLine(draw_img, [self.ref_polygon], True, cv.CV_RGB(0, 0, 255) )
+        print self.line
+        cv.PolyLine(draw_img, [self.line], True, cv.CV_RGB(0, 255, 0) )
+
+        cv.ShowImage( "Contours", draw_img )
+        cv.WaitKey()
+        sys.exit(1)
+    
+    def run(self):
+        # No code should modify this
+        self.image = cv.LoadImage(self.fn)
+        if not self.image:
+            raise Exception('Failed to load %s' % self.fn)
+        ret = LinerBase.run(self)
+        
+        if self.show:
+            self.show_liner()
+        
+        return ret
+
+'''
+Liner the operates in a directory of tiles instead of a single image
+'''
+class TileLiner(LinerBase):
+    def __init__(self, *args, **kwargs):
+        LinerBase.__init__(self, *args, **kwargs)
+        
+    def get_ref(self):
+        pass
+    
+    def get_working(self):
+        pass
+
 def liner(*args, **kwargs):
     '''Given a filename w/ target image, a line tuple, and a reference rectangle ROI, return a polygon near the line'''
-    return Liner(*args, **kwargs).run()
+    return SimpleLiner(*args, **kwargs).run()
     

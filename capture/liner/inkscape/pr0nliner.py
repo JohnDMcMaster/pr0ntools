@@ -21,15 +21,15 @@ def set_dbg(yes):
     global pdbg
     pdbg = yes
 
-pdbg = 1
+pdbg = 0
 logf = None
-#logf = open('ink-liner.log', 'w')
+logf = open('ink-liner.log', 'w')
 def dbg(s):
-    global f
+    s = 'pr0nliner-ink: %s' % str(s)
     if pdbg:
         print s
     if logf:
-        f.write('%s\n' % s)
+        logf.write('%s\n' % str(s))
     
 class PathifyEffect(inkex.Effect):
     def __init__(self):
@@ -40,7 +40,7 @@ class PathifyEffect(inkex.Effect):
         # Call the base class constructor.
         inkex.Effect.__init__(self)
         self.layer_prefix = 'active'
-        self.layer_prefix = 'contact'
+        #self.layer_prefix = 'contact'
 
     def create_output_layer(self):
         '''
@@ -88,13 +88,17 @@ class PathifyEffect(inkex.Effect):
         '''Throw exception if polygon goes out of bounds'''
         for (x, y) in polygon:
             if x < 0 or x >= self.width():
-                dbg(polygon)
-                dbg(x, y)
+                dbg('')
+                dbg('Polygon check failure')
+                dbg('Polygon: %s' % polygon)
+                dbg('Bad coords: (%f, %f)' % (x, y))
                 dbg('Width: %d' % self.width())
                 raise Exception('X out of bounds')
             if y < 0 or y >= self.height():
-                dbg(polygon)
-                dbg(x, y)
+                dbg('')
+                dbg('Polygon check failure')
+                dbg('Polygon: %s' % polygon)
+                dbg('Bad coords: (%f, %f)' % (x, y))
                 dbg('Height: %d' % self.height())
                 raise Exception('Y out of bounds')
     
@@ -198,19 +202,27 @@ class PathifyEffect(inkex.Effect):
         # TODO: need to append this?
         # transform="translate(-167.57144,-304.50507)"
         transforme = l.get('transform')
-        transform = None
+        transforml = None
         if transforme:
-            transform = map(float, re.match('^translate\((.*),(.*)\)$', transforme).group(1, 2))
-            dbg('Transform: (%fx, %fy)' % (transform[0], transform[1]))
+            transforml = map(float, re.match('^translate\((.*),(.*)\)$', transforme).group(1, 2))
+            dbg('Transform (layer): (%fx, %fy)' % (transforml[0], transforml[1]))
         
         ret = []
         for pathe in l.findall(self.svgns('path')):
+            transformp = None
+            transformpe = pathe.get('transform')
+            if transformpe:
+                transformp = map(float, re.match('^translate\((.*),(.*)\)$', transformpe).group(1, 2))
+                dbg('Transform (path): (%fx, %fy)' % (transformp[0], transformp[1]))
+            
             m = re.match('^m (.*),(.*) (.*),(.*)$', pathe.get('d'))
             path = map(float, map(float, m.group(*range(1, 5))))
             # Transform into list of coordinates
             path = [path[0:2], path[2:4]]
-            if transform:
-                path[0] = (path[0][0] + transform[0], path[0][1] + transform[1])
+            if transforml:
+                path[0] = (path[0][0] + transforml[0], path[0][1] + transforml[1])
+            if transformp:
+                path[0] = (path[0][0] + transformp[0], path[0][1] + transformp[1])
             # Since relative need to accumulate
             for i in xrange(1, len(path)):
                 path[i] = (path[i - 1][0] + path[i][0], path[i - 1][1] + path[i][1])
