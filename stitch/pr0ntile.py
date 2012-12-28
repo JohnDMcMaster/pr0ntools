@@ -97,6 +97,8 @@ if __name__ == "__main__":
 		I might do a smaller one first
 		'''
 		#fn = 'xc9536xl_vqg44awn1105__neo50xulwd__semipol_lev_noz_dirty.jpg'
+		max_level = None
+		min_level = None
 		SingleTiler(fn, max_level, min_level).run()
 	else:
 		usage()
