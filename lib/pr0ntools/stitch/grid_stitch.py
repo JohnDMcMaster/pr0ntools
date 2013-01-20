@@ -91,7 +91,7 @@ class GridStitch(CommonStitch):
 			print 'pair images: ' + repr(pair_images)
 			if pair_images[0] is None or pair_images[1] is None:
 				if not self.skip_missing:
-					raise Exception('Missing images')
+					raise Exception('Missing images.  Use --skip-missing to continue')
 				print 'WARNING: skipping missing image'
 				continue
 

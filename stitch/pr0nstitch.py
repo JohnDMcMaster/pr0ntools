@@ -12,7 +12,7 @@ pr0nstitch is described in detail at
 http://uvicrec.blogspot.com/2011/02/scaling-up-image-stitching.html
 '''
 
-import sys 
+import sys
 import os.path
 import pr0ntools.pimage
 from pr0ntools.pimage import PImage
@@ -61,8 +61,8 @@ def help():
 	print '\t\t--pto_merge=<path>, default = pto_merge'
 	print '\tinternal: quick and dirty internal version'
 	print '--algorithm=<algorithm>'
-	print '\tgrid: assume input is a regular grid'
-	print '\twander: assume input is contiguous. Use for back and forth pattern (default)'
+	print '\tgrid: assume input is a regular grid tagged with row/col (default)'
+	print '\twander: assume input is contiguous. Use for back and forth pattern'
 	# Did hacks, not supported externally
 	#print '\tfortify: use input-project and try to fill in additional control points'
 	# Consider supporting
@@ -82,10 +82,6 @@ def arg_fatal(s):
 	help()
 	sys.exit(1)
 
-ALGORITHM_GRID = "grid"
-ALGORITHM_WANDER = "wander"
-ALGORITHM_FORTIFY = "fortify"
-
 if __name__ == "__main__":
 	input_image_file_names = list()
 	input_project_file_name = None
@@ -100,7 +96,7 @@ if __name__ == "__main__":
 	flip_pre_transpose = False
 	flip_post_transpose = False
 	depth = 1
-	algorithm = None
+	algorithm = "grid"
 	# CNC like precision?
 	# Default to true for me
 	regular = True
@@ -175,20 +171,17 @@ if __name__ == "__main__":
 			else:
 				arg_fatal('unrecognized arg: %s' % arg)
 
-	if algorithm is None:
-		algorithm = ALGORITHM_GRID
-
 	print 'post arg'
 	print 'output image: %s' % output_image_file_name
 	print 'output project: %s' % output_project_file_name
 	
-	if algorithm == ALGORITHM_GRID:
+	if algorithm == "grid":
 		'''
 		Probably most intuitive is to have (0, 0) at lower left 
 		like its presented in many linear algebra works and XY graph
 		...but image stuff tends to to upper left, so thats what things use
 		'''
-		if 0:
+		if n_rows or n_cols:
 			engine = GridStitch.from_file_names(input_image_file_names, flip_col, flip_row, flip_pre_transpose, flip_post_transpose, depth,
 					alt_rows, alt_cols, n_rows, n_cols)
 		else:
@@ -197,9 +190,9 @@ if __name__ == "__main__":
 		if grid_only:
 			print 'Grid only, exiting'
 			sys.exit(0)
-	elif algorithm == ALGORITHM_WANDER:
+	elif algorithm == "wander":
 		engine = WanderStitch.from_file_names(input_image_file_names)
-	elif algorithm == ALGORITHM_FORTIFY:
+	elif algorithm == "fortify":
 		if len(input_image_file_names) > 0:
 			raise Exception('Cannot use old project and image files')
 		if input_project_file_name is None:

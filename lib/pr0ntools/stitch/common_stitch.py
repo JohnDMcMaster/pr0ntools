@@ -155,64 +155,75 @@ class CommonStitch:
 		
 		self.project.image_file_names = self.image_file_names
 
-		'''
-		Generate control points
-		'''
-		self.generate_control_points()
-
-		if False:
-			self.photometric_optimizer = PhotometricOptimizer(self.project)
-			self.photometric_optimizer.run()
-
-		# Remove statistically unpleasant points
-		if False:
-			self.cleaner = PTOClean(self.project)
-			self.cleaner.run()
-		
-		print 'Post stitch fixup...'
-		optimize_xy_only(self.project)
-		fixup_i_lines(self.project)
-		fixup_p_lines(self.project)
-		if 0:
-			center_anchor(self.project)
-		
-		
-		print
-		print '***PTO project baseline final (%s / %s) data length %d***' % (self.project.file_name, self.output_project_file_name, len(self.project.get_text()))
-		print
-		
-		if self.failures:
-			print 'Writing failure JSON'
-			cc = self.failures.critical_count()
-			print '%d pairs failed to make %d images critical' % (self.failures.pair_count(), cc)
-			if cc:
-				print '******WARNING WARNING WARING******'
-				print '%d images are not connected' % cc
-				print '******WARNING WARNING WARING******'
-			open('stitch_failures.json', 'w').write(str(self.failures))
+		try:
+			'''
+			Generate control points
+			'''
+			self.generate_control_points()
+	
+			if False:
+				self.photometric_optimizer = PhotometricOptimizer(self.project)
+				self.photometric_optimizer.run()
+	
+			# Remove statistically unpleasant points
+			if False:
+				self.cleaner = PTOClean(self.project)
+				self.cleaner.run()
+			
+			print 'Post stitch fixup...'
+			optimize_xy_only(self.project)
+			fixup_i_lines(self.project)
+			fixup_p_lines(self.project)
+			if 0:
+				center_anchor(self.project)
+			
+			
 			print
-		
-		# Make dead sure its saved up to date
-		self.project.save()
-		# having issues with this..
-		if self.output_project_file_name and not self.project.file_name == self.output_project_file_name:
-			raise Exception('project file name changed %s %s', self.project.file_name, self.output_project_file_name)
-		
-		self.optimize = False
-		if self.optimize:
-			self.optimizer = optimizer.PTOptimizer(self.project)
-			self.optimizer.run()
-			center(self.project)
-
-		# TODO: missing calc opt size/width/height/fov and crop
-		
-		# Did we request an actual stitch?
-		if self.output_image_file_name:
-			print 'Stitching...'
-			self.remapper = Remapper(self.project)
-			self.remapper.remap(self.output_image_file_name)
-		else:
-			print 'NOT stitching (common stitch)'
+			print '***PTO project baseline final (%s / %s) data length %d***' % (self.project.file_name, self.output_project_file_name, len(self.project.get_text()))
+			print
+			
+			if self.failures:
+				print 'Writing failure JSON'
+				cc = self.failures.critical_count()
+				print '%d pairs failed to make %d images critical' % (self.failures.pair_count(), cc)
+				if cc:
+					print '******WARNING WARNING WARING******'
+					print '%d images are not connected' % cc
+					print '******WARNING WARNING WARING******'
+				open('stitch_failures.json', 'w').write(str(self.failures))
+				print
+			
+			# Make dead sure its saved up to date
+			self.project.save()
+			# having issues with this..
+			if self.output_project_file_name and not self.project.file_name == self.output_project_file_name:
+				raise Exception('project file name changed %s %s', self.project.file_name, self.output_project_file_name)
+			
+			self.optimize = False
+			if self.optimize:
+				self.optimizer = optimizer.PTOptimizer(self.project)
+				self.optimizer.run()
+				center(self.project)
+	
+			# TODO: missing calc opt size/width/height/fov and crop
+			
+			# Did we request an actual stitch?
+			if self.output_image_file_name:
+				print 'Stitching...'
+				self.remapper = Remapper(self.project)
+				self.remapper.remap(self.output_image_file_name)
+			else:
+				print 'NOT stitching (common stitch)'
+		except Exception as e:
+			print
+			print 'WARNING: stitch FAILED'
+			try:
+				fn = self.project.file_name + ".failed"
+				print 'Attempting to save intermediate result to %s' % fn
+				self.project.save_as(fn)
+			except:
+				print 'WARNING: failed intermediate save'
+			raise e
 
 	def control_points_by_subimage(self, pair, image_fn_pair, subimage_factor = None):
 		'''Stitch two images together by cropping to restrict overlap'''
