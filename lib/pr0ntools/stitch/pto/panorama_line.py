@@ -41,6 +41,7 @@ class PanoramaLine(line.Line):
 		self.set_variable('S', '%d,%d,%d,%d' % tuple(crop))
 	
 	def get_crop(self):
+		'''Return (left, right, top, bottom) or None'''
 		c = self.get_variable('S')
 		#print 'got c to %s' % str(c)
 		if c is None:

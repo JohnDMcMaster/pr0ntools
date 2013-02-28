@@ -134,6 +134,7 @@ class Tiler:
 		self.st_scalar_heuristic = st_scalar_heuristic
 		self.ignore_errors = False
 		self.verbose = False
+		self.verbosity = 2
 		self.stw = stw
 		self.sth = sth
 		self.clip_width = clip_width
@@ -270,6 +271,11 @@ class Tiler:
 		# We build this in run
 		self.map = None
 		
+	def msg(self, s, l):
+		'''Print message s at verbosity level l'''
+		if l <= self.verbosity:
+			print s
+		
 	def expected_sts(self):
 		'''Number of expected supertiles'''
 		return len(list(self.gen_supertiles()))
@@ -365,29 +371,25 @@ class Tiler:
 		self.clip_width = int(image_width * 1.5)
 		self.clip_height = int(image_height * 1.5)
 	
+	'''
 	def build_spatial_map(self):
 		#image_file_names = self.pto.get_file_names()
 		#self.map = ImageCoordinateMap.from_file_names(image_file_names)
 		
 		items = [PolygonQuadTreeItem(il.left(), il.right(), il.top(), il.bottom()) for il in self.pto.get_image_lines()]
 		self.map = PolygonQuadTree(items)	
+	'''
 	
 	def gen_supertile_tiles(self, x0, x1, y0, y1):
 		'''Yield UL coordinates in (y, x) pairs'''
-	
-		'''
-		There is no garauntee that our supertile is a multiple of our tile size
-		This will particularly cause issues near the edges if we are not careful
-		FIXME: alignment truncation
-		'''
 		xt0 = ceil_mult(x0, self.tw, align=self.x0)
-		xt1 = floor_mult(x1, self.tw, align=self.x0)
+		xt1 = ceil_mult(x1, self.tw, align=self.x0)
 		if xt0 >= xt1:
 			print x0, x1
 			print xt0, xt1
 			raise Exception('Bad input x dimensions')
 		yt0 = ceil_mult(y0, self.th, align=self.y0)
-		yt1 = floor_mult(y1, self.th, align=self.y0)
+		yt1 = ceil_mult(y1, self.th, align=self.y0)
 		if yt0 >= yt1:
 			print y0, y1
 			print yt0, yt1
@@ -438,6 +440,7 @@ class Tiler:
 					continue
 				yield (y, x)
 			
+			
 	def try_supertile(self, x0, x1, y0, y1):
 		'''x0/1 and y0/1 are global absolute coordinates'''
 		# First generate all of the valid tiles across this area to see if we can get any useful work done?
@@ -478,12 +481,10 @@ class Tiler:
 			gen_tiles = 0
 			print
 			# TODO: get the old info back if I miss it after yield refactor
-			if 0:
-				print 'Phase 4: chopping up supertile, step(x: %d, y: %d)' % (self.tw, self.th)
-				print 'x in xrange(%d, %d, %d)' % (xt0, xt1, self.tw)
-				print 'y in xrange(%d, %d, %d)' % (yt0, yt1, self.th)
-			else:
-				print 'Phase 4: chopping up supertile'
+			print 'Phase 4: chopping up supertile'
+			self.msg('step(x: %d, y: %d)' % (self.tw, self.th), 3)
+			#self.msg('x in xrange(%d, %d, %d)' % (xt0, xt1, self.tw), 3)
+			#self.msg('y in xrange(%d, %d, %d)' % (yt0, yt1, self.th), 3)
 		
 			for (y, x) in self.gen_supertile_tiles(x0, x1, y0, y1):	
 				# If we made it this far the tile can be constructed with acceptable enblend artifacts
@@ -535,7 +536,7 @@ class Tiler:
 			'''
 			if ip.width() != self.tw or ip.height() != self.th:
 				print 'WARNING: %s: expanding partial tile (%d X %d) to full tile size' % (nfn, ip.width(), ip.height())
-				ip.set_canvas_size(t_width, t_height)
+				ip.set_canvas_size(self.tw, self.th)
 			ip.image.save(nfn)	
 		self.mark_done(row, col)
 				
@@ -626,8 +627,8 @@ class Tiler:
 			if y1 >= self.bottom():
 				y_done = True
 				y0 = max(self.top(), self.bottom() - self.sth)
-				print 'Y %d would have overstretched, shifting y0 to maximum height position %d' % (y, y0)
 				y1 = self.bottom()
+				print 'Y %d:%d would have overstretched, shifting to maximum height position %d:%d' % (y, y + self.sth, y0, y1)
 				
 			#col = 0
 			x_done = False
@@ -640,7 +641,7 @@ class Tiler:
 					x_done = True
 					x0 = max(self.left(), self.right() - self.stw)
 					x1 = self.right()
-					print 'X %d would have overstretched, shifting to maximum width position %d' % (x, x0)
+					print 'X %d:%d would have overstretched, shifting to maximum width position %d:%d' % (x, x + self.stw, x0, x1)
 				
 				yield [x0, x1, y0, y1]
 				
@@ -736,11 +737,16 @@ class Tiler:
 		self.n_expected_sts = len(list(self.gen_supertiles()))
 		print 'Generating %d supertiles' % self.n_expected_sts
 		
-		x_tiles = math.ceil(self.width() / self.tw)
-		y_tiles = math.ceil(self.height() / self.th)
+		x_tiles_ideal = 1.0 * self.width() / self.tw
+		x_tiles = math.ceil(x_tiles_ideal)
+		y_tiles_ideal = 1.0 * self.height() / self.th
+		y_tiles = math.ceil(y_tiles_ideal)
 		self.net_expected_tiles = x_tiles * y_tiles
-		print 'Expecting to generate x%d, y%d (%d) basic tiles' % (x_tiles, y_tiles, self.net_expected_tiles)
-		
+		ideal_tiles = x_tiles_ideal * y_tiles_ideal
+		print 'Ideal tiles: %0.3f x, %0.3f y tiles => %0.3f net' % (
+				x_tiles_ideal, y_tiles_ideal, ideal_tiles)
+		print 'Expecting to generate x%d, y%d => %d basic tiles' % (
+				x_tiles, y_tiles, self.net_expected_tiles)
 		if self.merge:
 			self.seed_merge()
 		
