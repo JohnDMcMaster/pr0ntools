@@ -48,11 +48,20 @@ import time
 import math
 import os
 import shutil
+import random
 
 dbgl = 3
 pdbg = 0
 logf = None
 logf = open('liner.log', 'w')
+'''
+gray: derrived from grayscale image            
+purple: area rejected
+red: length rejected
+teal: worse than existing diff
+yellow: histogram rejected
+green: new best
+'''
 draw_thresh_contours = 1
 thresh_dir = "liner-thresholds"
 
@@ -118,6 +127,18 @@ def contour_len(contour, closed=False):
     '''Return floating point integer of contour length'''
     # I'm sure there's a function for this 
     # but its a good excercise and I'm not sure what the func is
+    '''
+    the function?
+    double cvArcLength(
+        const void* curve,
+        CvSlice     slice     = CV_WHOLE_SEQ,
+        int         is_closed = -1
+    );
+    #define cvContourPerimeter( contour )      \
+       cvArcLength( contour, CV_WHOLE_SEQ, 1 )
+    
+    cv.ArchLength exists but cv.ContourPerimeter does not
+    '''
     ret = 0.0
     for pointi in xrange(len(contour) - 1):
         p0 = contour[pointi]
@@ -501,9 +522,10 @@ class LinerBase():
         self.contour_area = cv.ContourArea(self.cur_contour)
         dbg('Thresh contour %d' % self.contouri, level=2)
         if self.filter():
-            dbg('  Rejected: filtered contour b/c not %f <= %f <= %f'% (self.min_area, self.contour_area, self.max_area))
+            dbg('  Rejected: filtered contour b/c area not %f <= %f <= %f'% (self.min_area, self.contour_area, self.max_area))
             if draw_thresh_contours:
-                cv.PolyLine(self.contours_map, [self.cur_contour], True, cv.CV_RGB(255, 0, 0) )
+                # Purple
+                cv.PolyLine(self.contours_map, [self.cur_contour], True, cv.CV_RGB(128, 0, 128) )
             return
             
         self.checked_contours += 1
@@ -515,9 +537,10 @@ class LinerBase():
         dbg('  len %f' % contour_len_, level=2)
         dbg('  area %f' % self.contour_area, level=2)
         if contour_len_ < self.min_len:
-            dbg('  Rejected: did not meet minimum size w/ %f < %f' % (contour_len_, self.min_len), level=2)
+            dbg('  Rejected: did not meet minimum length w/ %f < %f' % (contour_len_, self.min_len), level=2)
             if draw_thresh_contours:
-                cv.PolyLine(self.contours_map, [self.cur_contour], True, cv.CV_RGB(0, 255, 0) )
+                # red
+                cv.PolyLine(self.contours_map, [self.cur_contour], True, cv.CV_RGB(255, 0, 0) )
             return
         
         this_diff = contour_line_diff(self.cur_contour, self.line)
@@ -525,7 +548,8 @@ class LinerBase():
         if this_diff >= self.best_diff:
             dbg("  Rejected: worse diff %f >= %f" % (this_diff, self.best_diff), level=2)
             if draw_thresh_contours:
-                cv.PolyLine(self.contours_map, [self.cur_contour], True, cv.CV_RGB(0, 0, 255) )
+                # Teal 
+                cv.PolyLine(self.contours_map, [self.cur_contour], True, cv.CV_RGB(0, 128, 128) )
             return
         hist_diff = self.compare_ref(self.cur_contour)
         dbg("  Hist diff: %f" % hist_diff, level=2)
@@ -533,7 +557,9 @@ class LinerBase():
         if hist_diff < 0.90:
             dbg("  Rejected: poor histogram match", level=2)
             if draw_thresh_contours:
-                cv.PolyLine(self.contours_map, [self.cur_contour], True, cv.CV_RGB(128, 128, 0) )
+                # Yellow
+                #cv.PolyLine(self.contours_map, [self.cur_contour], True, cv.CV_RGB(255, 255, 0) )
+                cv.PolyLine(self.contours_map, [self.cur_contour], True, cv.CV_RGB(random.randint(0, 256), random.randint(0, 256), random.randint(0, 256)) )
             return
         dbg('  Accepted: new best contour', level=2)
         self.best_contour = self.cur_contour
@@ -542,7 +568,8 @@ class LinerBase():
         self.best_hist_diff = hist_diff
         #draw_contour(self.cur_contour)
         if draw_thresh_contours:
-            cv.PolyLine(self.contours_map, [self.cur_contour], True, cv.CV_RGB(0, 128, 128) )
+            # green
+            cv.PolyLine(self.contours_map, [self.cur_contour], True, cv.CV_RGB(0, 255, 0) )
             
     def try_thresh(self):
         dbg('', level=2)
@@ -582,8 +609,13 @@ class LinerBase():
         self.contour_begin = cv.FindContours(self.gray_img, storage)
         
         if draw_thresh_contours:
-            # B&W background but color highlighting
+            '''
+            B&W background but color highlighting
+            actually the image is missing...but looks fine so w/e
+            '''
             self.contours_map = cv.CreateImage( cv.GetSize(self.image), 8, 3 )
+            # Sort of works although not very well...does not look like the gray image
+            #cv.Zero(self.contours_map)
             cv.CvtColor( self.gray_img, self.contours_map, cv.CV_GRAY2BGR )
         
         self.contouri = -1
@@ -742,4 +774,3 @@ class TileLiner(LinerBase):
 def liner(*args, **kwargs):
     '''Given a filename w/ target image, a line tuple, and a reference rectangle ROI, return a polygon near the line'''
     return SimpleLiner(*args, **kwargs).run()
-    
