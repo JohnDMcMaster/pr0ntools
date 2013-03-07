@@ -68,6 +68,72 @@ def get_cnc():
     else:
         raise Exception("Unknown CNC engine %s" % engine)
 
+
+
+
+# Example sink code at
+# https://coherence.beebits.net/svn/branches/xbox-branch-2/coherence/transcoder.py
+class ResizeSink(gst.Element):
+    # Above didn't have this but seems its not optional
+    __gstdetails__ = ('ResizeSink','Sink', \
+                      'Resize source to get around X11 memory limitations', 'John McMaster')
+
+    _sinkpadtemplate = gst.PadTemplate ("sinkpadtemplate",
+                                        gst.PAD_SINK,
+                                        gst.PAD_ALWAYS,
+                                        gst.caps_new_any())
+
+
+    _srcpadtemplate =  gst.PadTemplate ("srcpadtemplate",
+                                        gst.PAD_SRC,
+                                        gst.PAD_ALWAYS,
+                                        gst.caps_new_any())
+
+    def __init__(self):
+        gst.Element.__init__(self)
+        self.sinkpad = gst.Pad(self._sinkpadtemplate, "sink")
+        self.srcpad = gst.Pad(self._srcpadtemplate, "src")
+        self.add_pad(self.sinkpad)
+        self.add_pad(self.srcpad)
+
+        self.sinkpad.set_chain_function(self.chainfunc)
+        self.sinkpad.set_event_function(self.eventfunc)
+    
+    def chainfunc(self, pad, buffer):
+        try:
+            print 'Got resize buffer'
+            # Simplest: just propagate the data
+            # self.srcpad.push(buffer)
+            
+            # Import into PIL and downsize it
+            # Raw jpeg to pr0n PIL wrapper object
+            print 'resize chain', len(buffer.data), len(buffer.data) / 3264.0
+            #open('temp.jpg', 'w').write(buffer.data)
+            #io = StringIO.StringIO(buffer.data)
+            io = StringIO.StringIO(str(buffer))
+            try:
+                image = PImage.from_image(Image.open(io))
+            except:
+                print 'failed to create image'
+                return gst.FLOW_OK
+            # Use a fast filter since this is realtime
+            image = image.get_scaled(0.5, Image.NEAREST)
+
+            output = StringIO.StringIO()
+            image.save(output, 'jpeg')
+            self.srcpad.push(gst.Buffer(output.getvalue()))
+        except:
+            traceback.print_exc()
+            os._exit(1)
+        
+        return gst.FLOW_OK
+
+    def eventfunc(self, pad, event):
+        return True
+
+gobject.type_register(ResizeSink)
+gst.element_register (ResizeSink, 'myresize', gst.RANK_MARGINAL)
+
 # nope...
 # metaclass conflict: the metaclass of a derived class must be a (non-strict) subclass of the metaclasses of all its bases
 # ...and one stack overflow post later I know more about python classes than I ever wanted to
@@ -156,64 +222,6 @@ class CaptureSink(gst.Element):
 gobject.type_register(CaptureSink)
 # Register the element into this process' registry.
 gst.element_register (CaptureSink, 'capturesink', gst.RANK_MARGINAL)
-
-
-
-# Example code at
-# https://coherence.beebits.net/svn/branches/xbox-branch-2/coherence/transcoder.py
-class ResizeSink(gst.Element):
-    '''
-    __gstdetails__ = ('ResizeSink','Sink', \
-                      'Resize source to get around X11 memory limitations', 'John McMaster')
-    '''
-
-    _sinkpadtemplate = gst.PadTemplate ("sinkpadtemplate",
-                                        gst.PAD_SINK,
-                                        gst.PAD_ALWAYS,
-                                        gst.caps_new_any())
-
-
-    _srcpadtemplate =  gst.PadTemplate ("srcpadtemplate",
-                                        gst.PAD_SRC,
-                                        gst.PAD_ALWAYS,
-                                        gst.caps_new_any())
-
-    def __init__(self):
-        gst.Element.__init__(self)
-        self.sinkpad = gst.Pad(self._sinkpadtemplate, "sink")
-        self.srcpad = gst.Pad(self._srcpadtemplate, "src")
-        self.add_pad(self.sinkpad)
-        self.add_pad(self.srcpad)
-
-        self.sinkpad.set_chain_function(self.chainfunc)
-        self.sinkpad.set_event_function(self.eventfunc)
-    
-    def chainfunc(self, pad, buffer):
-        try:
-            print 'Got buffer'
-            # Simplest: just propagate the data
-            # self.srcpad.push(buffer)
-            
-            # Import into PIL and downsize it
-            # Raw jpeg to pr0n PIL wrapper object
-            image = PImage.from_image(Image.open(StringIO.StringIO(buffer)))
-            # Use a fast filter since this is realtime
-            image = image.get_scaled(0.5, Image.NEAREST)
-
-            output = StringIO.StringIO()
-            image.save(output, 'jpeg')
-            self.srcpad.push(gst.Buffer(output.getvalue()))
-        except:
-            traceback.print_exc()
-            os._exit(1)
-        
-        return gst.FLOW_OK
-
-    def eventfunc(self, pad, event):
-        return True
-
-gobject.type_register(ResizeSink)
-gst.element_register (ResizeSink, 'pr0nresize', gst.RANK_MARGINAL)
 
 
 class Axis(QWidget):
@@ -418,7 +426,7 @@ class CNCGUI(QMainWindow):
         # TODO: do something more proper once integrating vodeo feed
         w, h = 800, 600
         w, h = 3264/8, 2448/8
-        w, h = 3264/4, 2448/4
+        w, h = 3264/8, 2448/8
         self.video_container.setMinimumSize(w, h)
         self.video_container.resize(w, h)
         policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
@@ -514,17 +522,19 @@ class CNCGUI(QMainWindow):
         self.player = gst.Pipeline("player")
         #sinkxv = gst.element_factory_make("xvimagesink")
         sinkx = gst.element_factory_make("ximagesink")
-        fvidscale_cap = gst.element_factory_make("capsfilter")
+        #fvidscale_cap = gst.element_factory_make("capsfilter")
         #fvidscale = gst.element_factory_make("videoscale")
         fcs = gst.element_factory_make('ffmpegcolorspace')
         caps = gst.caps_from_string('video/x-raw-yuv')
-        fvidscale_cap.set_property('caps', caps)
+        #fvidscale_cap.set_property('caps', caps)
         self.stream_queue = gst.element_factory_make("queue")
 
         self.tee = gst.element_factory_make("tee")
 
         self.capture_enc = gst.element_factory_make("jpegenc")
         self.capture_sink = gst.element_factory_make("capturesink")
+        #self.resizer = gst.element_factory_make("myresize")
+        self.resizer =  gst.element_factory_make("videoscale")
         self.snapshotCaptured.connect(self.captureSnapshot)
         self.capture_sink_queue = gst.element_factory_make("queue")
 
@@ -537,14 +547,20 @@ class CNCGUI(QMainWindow):
         The later resizes the window but doesn't allow taking full res pictures
         However, we don't want full res in the view window
         '''
-        self.player.add(self.source, self.tee, self.stream_queue, fvidscale_cap)
+        # works at lower res and resizes
         #self.player.add(fvidscale, sinkxv)
-        self.player.add(fcs, sinkx)
+        # what was this being used for?
+        self.player.add(self.source, self.tee, self.stream_queue)
+        # works at full res but doesn't resize
+        #self.player.add(fcs, sinkx)
+        # compromise
+        self.player.add(fcs, self.resizer, sinkx)
+        
         self.player.add(self.capture_sink_queue, self.capture_enc, self.capture_sink)
         # Video render stream
         gst.element_link_many(self.source, self.tee)
         #gst.element_link_many(self.tee, self.stream_queue, fvidscale, fvidscale_cap, sinkxv)
-        gst.element_link_many(self.tee, self.stream_queue, fcs, sinkx)
+        gst.element_link_many(self.tee, self.stream_queue, fcs, self.resizer, sinkx)
         # Frame grabber stream
         gst.element_link_many(self.tee, self.capture_sink_queue, self.capture_enc, self.capture_sink)
         
@@ -787,6 +803,8 @@ class CNCGUI(QMainWindow):
         self.axes = dict()
         print 'Axes: %u' % len(self.cnc_ipc.axes)
         for axis in self.cnc_ipc.axes:
+            if axis.name == 'Z':
+                continue
             axisw = Axis(axis)
             print 'Creating axis GUI %s' % axis.name
             self.axes[axis.name] = axisw
