@@ -46,6 +46,8 @@ except ImportError:
         raise
 
 def dbg(*args):
+    if 0:
+        return
     if len(args) == 0:
         print
     elif len(args) == 1:
@@ -121,6 +123,7 @@ class CaptureSink(gst.Element):
     '''
     
     def chainfunc(self, pad, buffer):
+        #print 'Capture sink buffer in'
         try:
             '''
             Two major circumstances:
@@ -132,7 +135,8 @@ class CaptureSink(gst.Element):
             if self.image_requested.is_set():
                 print 'Processing image request'
                 # Does this need to be locked?
-                # Copy buffer so that even as object is reused we don't lse it
+                # Copy buffer so that even as object is reused we don't lose it
+                # is there a difference between str(buffer) and buffer.data?
                 self.images[self.next_image_id] = str(buffer)
                 # Clear before emitting signal so that it can be re-requested in response
                 self.image_requested.clear()
@@ -153,9 +157,68 @@ gobject.type_register(CaptureSink)
 # Register the element into this process' registry.
 gst.element_register (CaptureSink, 'capturesink', gst.RANK_MARGINAL)
 
+
+
+# Example code at
+# https://coherence.beebits.net/svn/branches/xbox-branch-2/coherence/transcoder.py
+class ResizeSink(gst.Element):
+    '''
+    __gstdetails__ = ('ResizeSink','Sink', \
+                      'Resize source to get around X11 memory limitations', 'John McMaster')
+    '''
+
+    _sinkpadtemplate = gst.PadTemplate ("sinkpadtemplate",
+                                        gst.PAD_SINK,
+                                        gst.PAD_ALWAYS,
+                                        gst.caps_new_any())
+
+
+    _srcpadtemplate =  gst.PadTemplate ("srcpadtemplate",
+                                        gst.PAD_SRC,
+                                        gst.PAD_ALWAYS,
+                                        gst.caps_new_any())
+
+    def __init__(self):
+        gst.Element.__init__(self)
+        self.sinkpad = gst.Pad(self._sinkpadtemplate, "sink")
+        self.srcpad = gst.Pad(self._srcpadtemplate, "src")
+        self.add_pad(self.sinkpad)
+        self.add_pad(self.srcpad)
+
+        self.sinkpad.set_chain_function(self.chainfunc)
+        self.sinkpad.set_event_function(self.eventfunc)
+    
+    def chainfunc(self, pad, buffer):
+        try:
+            print 'Got buffer'
+            # Simplest: just propagate the data
+            # self.srcpad.push(buffer)
+            
+            # Import into PIL and downsize it
+            # Raw jpeg to pr0n PIL wrapper object
+            image = PImage.from_image(Image.open(StringIO.StringIO(buffer)))
+            # Use a fast filter since this is realtime
+            image = image.get_scaled(0.5, Image.NEAREST)
+
+            output = StringIO.StringIO()
+            image.save(output, 'jpeg')
+            self.srcpad.push(gst.Buffer(output.getvalue()))
+        except:
+            traceback.print_exc()
+            os._exit(1)
+        
+        return gst.FLOW_OK
+
+    def eventfunc(self, pad, event):
+        return True
+
+gobject.type_register(ResizeSink)
+gst.element_register (ResizeSink, 'pr0nresize', gst.RANK_MARGINAL)
+
+
 class Axis(QWidget):
     # Absolute position given
-    axisSet = pyqtSignal()
+    axisSet = pyqtSignal(int)
     
     def __init__(self, axis, parent = None):
         QWidget.__init__(self, parent)
@@ -163,35 +226,35 @@ class Axis(QWidget):
         # Note that its wrapped in IPC layer
         self.axis = axis
         self.initUI()
+        self.jogging = False
+    
+    def emit_pos(self):
+        self.axisSet.emit(self.axis.get_um())
     
     def jog(self, n):
         self.axis.jog(n)
-        self.emit_pos()
+        self.axisSet.emit(self.axis.get_um())
     
     def go_abs(self):
         #print 'abs'
         self.axis.set_pos(float(str(self.abs_pos_le.text())))
-        self.emit_pos()
+        self.axisSet.emit(self.axis.get_um())
     
     def go_rel(self):
         #print 'rel'
-        self.jog(float(str(self.rel_pos_le.text())))
-    
-    def emit_pos(self):
-        #print 'emitting pos'
-        self.axisSet.emit(self.axis.get_um())
+        self.jog(float(str(self.rel_pos_le.text())))        
     
     def home(self):
         #print 'home'
         self.axis.home()
         # We moved to 0 position
-        self.emit_pos()
+        self.axisSet.emit(self.axis.get_um())
     
     def set_home(self):
         #print 'setting new home position'
         self.axis.set_home()
         # We made the current position 0
-        self.emit_pos()
+        self.axisSet.emit(self.axis.get_um())
         
     def meas_reset(self):
         dbg('meas reset')
@@ -351,9 +414,11 @@ class CNCGUI(QMainWindow):
         # Raw X-windows canvas
         self.video_container = QWidget()
         # Allows for convenient keyboard control by clicking on the video
-        #self.video_container.setFocusPolicy(Qt.ClickFocus)
+        self.video_container.setFocusPolicy(Qt.ClickFocus)
         # TODO: do something more proper once integrating vodeo feed
         w, h = 800, 600
+        w, h = 3264/8, 2448/8
+        w, h = 3264/4, 2448/4
         self.video_container.setMinimumSize(w, h)
         self.video_container.resize(w, h)
         policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
@@ -364,13 +429,94 @@ class CNCGUI(QMainWindow):
         return layout
     
     def setupGst(self):
+        '''
+        gst-launch v4l2src device=/dev/video0 ! tee ! queue ! videoscale ! capsfilter caps=video/x-raw-yuv ! xvimagesink 
+            gst-launch v4l2src device=/dev/video0 ! videoscale ! xvimagesink
+        gst-launch v4l2src device=/dev/video0 ! ffmpegcolorspace ! ximagesink
+            works...hmm
+        
+        
+        sysctl kernel.shmmax=67108864
+            cranked up to 128M, no change
+            er no that was in KB so that was 128GB...
+        sysctl kernel.shmall=32768
+            didn't try messing with this
+            kernel.shmall = 2097152
+            2GB, should be plenty
+
+
+            
+        sysctl kernel.shmmax=67108864
+            default: 33554432
+        sysctl kernel.shmall=32768
+            default: 2097152
+            
+        Default IPC limits
+        root@gespenst:/home/mcmaster# ipcs -l
+
+            ------ Shared Memory Limits --------
+            max number of segments = 4096
+            max seg size (kbytes) = 32768
+            max total shared memory (kbytes) = 8388608
+            min seg size (bytes) = 1
+
+            ------ Semaphore Limits --------
+            max number of arrays = 128
+            max semaphores per array = 250
+            max semaphores system wide = 32000
+            max ops per semop call = 32
+            semaphore max value = 32767
+
+            ------ Messages Limits --------
+            max queues system wide = 1471
+            max size of message (bytes) = 8192
+            default max size of queue (by        
+        
+        Works fine at med res
+        mcmaster@gespenst:~/document/external/pr0ntools/cnc_microscope/snapshot$ gst-launch v4l2src device=/dev/video0 ! videoscale ! xvimagesink 
+            Setting pipeline to PAUSED ...
+            Pipeline is live and does not need PREROLL ...
+            Setting pipeline to PLAYING ...
+            New clock: GstSystemClock
+
+            (close window)
+
+            ERROR: from element /GstPipeline:pipeline0/GstXvImageSink:xvimagesink0: Output window was closed
+            Additional debug info:
+            xvimagesink.c(1326): gst_xvimagesink_handle_xevents (): /GstPipeline:pipeline0/GstXvImageSink:xvimagesink0
+            Execution ended after 2888164132 ns.
+            Setting pipeline to PAUSED ...
+            Setting pipeline to READY ...
+            Setting pipeline to NULL ...
+            Freeing pipeline ...
+        Dies at high res
+        mcmaster@gespenst:~/document/external/pr0ntools/cnc_microscope/snapshot$ gst-launch v4l2src device=/dev/video0 ! videoscale ! xvimagesink 
+            Setting pipeline to PAUSED ...
+            Pipeline is live and does not need PREROLL ...
+            Setting pipeline to PLAYING ...
+            New clock: GstSystemClock
+            ERROR: from element /GstPipeline:pipeline0/GstXvImageSink:xvimagesink0: Failed to create output image buffer of 3264x2448 pixels
+            Additional debug info:
+            xvimagesink.c(2404): gst_xvimagesink_show_frame (): /GstPipeline:pipeline0/GstXvImageSink:xvimagesink0:
+            XServer allocated buffer size did not match input buffer
+            Execution ended after 1854135991 ns.
+            Setting pipeline to PAUSED ...
+            Setting pipeline to READY ...
+            Setting pipeline to NULL ...
+            Freeing pipeline ...
+        On Fedora I had to do something like vmalloc=192M, related?
+        
+        '''
+        
         dbg("Setting up gstreamer pipeline")
         self.gstWindowId = self.video_container.winId()
 
         self.player = gst.Pipeline("player")
-        sink = gst.element_factory_make("xvimagesink", "sink")
-        fvidscale_cap = gst.element_factory_make("capsfilter", "fvidscale_cap")
-        fvidscale = gst.element_factory_make("videoscale", "fvidscale")
+        #sinkxv = gst.element_factory_make("xvimagesink")
+        sinkx = gst.element_factory_make("ximagesink")
+        fvidscale_cap = gst.element_factory_make("capsfilter")
+        #fvidscale = gst.element_factory_make("videoscale")
+        fcs = gst.element_factory_make('ffmpegcolorspace')
         caps = gst.caps_from_string('video/x-raw-yuv')
         fvidscale_cap.set_property('caps', caps)
         self.stream_queue = gst.element_factory_make("queue")
@@ -383,15 +529,22 @@ class CNCGUI(QMainWindow):
         self.capture_sink_queue = gst.element_factory_make("queue")
 
         '''
-        TODO: should these be split into two different piplines?
-        Might be more reliable to not run video stream during CNC
-        Also note that image aren't scaled in hardware
-        Do scaling in PIL where we have more control
+        Per #gstreamer question evidently v4l2src ! ffmpegcolorspace ! ximagesink
+            gst-launch v4l2src ! ffmpegcolorspace ! ximagesink
+        allocates memory different than v4l2src ! videoscale ! xvimagesink 
+            gst-launch v4l2src ! videoscale ! xvimagesink 
+        Problem is that the former doesn't resize the window but allows taking full res pictures
+        The later resizes the window but doesn't allow taking full res pictures
+        However, we don't want full res in the view window
         '''
-        self.player.add(self.source, self.tee, self.stream_queue, fvidscale, fvidscale_cap, sink)
+        self.player.add(self.source, self.tee, self.stream_queue, fvidscale_cap)
+        #self.player.add(fvidscale, sinkxv)
+        self.player.add(fcs, sinkx)
         self.player.add(self.capture_sink_queue, self.capture_enc, self.capture_sink)
         # Video render stream
-        gst.element_link_many(self.source, self.tee, self.stream_queue, fvidscale, fvidscale_cap, sink)
+        gst.element_link_many(self.source, self.tee)
+        #gst.element_link_many(self.tee, self.stream_queue, fvidscale, fvidscale_cap, sinkxv)
+        gst.element_link_many(self.tee, self.stream_queue, fcs, sinkx)
         # Frame grabber stream
         gst.element_link_many(self.tee, self.capture_sink_queue, self.capture_enc, self.capture_sink)
         
@@ -411,9 +564,10 @@ class CNCGUI(QMainWindow):
             print "Error: %s" % err, debug
             self.player.set_state(gst.STATE_NULL)
         else:
-            print 'Other message: %s' % t
+            #print 'Other message: %s' % t
             # Deadlocks upon calling this...
             #print 'Cur state %s' % self.player.get_state()
+            ''
 
     def on_sync_message(self, bus, message):
         if message.structure is None:
@@ -570,12 +724,19 @@ class CNCGUI(QMainWindow):
     
     def stop(self):
         '''Stop operations after the next operation'''
-        print 'FIXME: stop'
+        for axis in self.cnc_ipc.axes:
+            axis.stop()
         
     def estop(self):
         '''Stop operations immediately.  Position state may become corrupted'''
-        print 'FIXME: estop'
+        for axis in self.cnc_ipc.axes:
+            axis.estop()
 
+    def clear_estop(self):
+        '''Stop operations immediately.  Position state may become corrupted'''
+        for axis in self.cnc_ipc.axes:
+            axis.unestop()
+            
     def get_axes_layout(self):
         layout = QHBoxLayout()
         gb = QGroupBox('Axes')
@@ -610,6 +771,10 @@ class CNCGUI(QMainWindow):
                 self.estop_pb = QPushButton("Emergency stop")
                 self.estop_pb.clicked.connect(self.estop)
                 layout.addWidget(self.estop_pb)
+
+                self.clear_estop_pb = QPushButton("Clear e-stop")
+                self.clear_estop_pb.clicked.connect(self.clear_estop)
+                layout.addWidget(self.clear_estop_pb)
                 
                 return layout
             
@@ -741,60 +906,88 @@ class CNCGUI(QMainWindow):
         
     def keyPressEvent(self, event):
         '''
-        print event
-        #print dir(event)
-        print event.text()
-        print 'type: %s' % str(event.type())
-        print event.nativeScanCode()
-        print event.nativeVirtualKey()
-        print len(event.text())
-        if event == Qt.Key_Left:
-            print 'left'
-        event.ignore()
-        '''
-        '''
-        Stuck direction
-        2
-        3
-        1
-        4
-    
-        now it goes
-        3
-        2
-        4
-        1
-        '''
-    
-        
-        '''
         Upper left hand coordinate system
         '''
         # Only control explicitly, don't move by typing accident in other element
         if not self.video_container.hasFocus():
             return
         k = event.key()
-        inc = 5
+        # Ignore duplicates, want only real presses
+        if event.isAutoRepeat():
+            return
+        #inc = 5
         if k == Qt.Key_Left:
-            print 'left'
-            self.x(-inc)
+            dbg('left')
+            if self.axes['X'].jogging:
+                return
+            self.axes['X'].jogging = True
+            self.axes['X'].axis.forever_neg()
         elif k == Qt.Key_Right:
-            print 'right'
-            self.x(inc)
+            dbg('right')
+            if self.axes['X'].jogging:
+                return
+            self.axes['X'].jogging = True
+            self.axes['X'].axis.forever_pos()
         elif k == Qt.Key_Up:
-            print 'up'
-            self.y(-inc)
+            if self.axes['Y'].jogging:
+                return
+            self.axes['Y'].jogging = True
+            self.axes['Y'].axis.forever_neg()
         elif k == Qt.Key_Down:
-            print 'down'
-            self.y(inc)
-        # Focus is sensitive
-        elif k == Qt.Key_PageUp:
-            print 'up'
-            self.z(1)
+            if self.axes['Y'].jogging:
+                return
+            self.axes['Y'].jogging = True
+            self.axes['Y'].axis.forever_pos()
+        # Focus is sensitive...should step slower?
+        # worry sonce focus gets re-integrated
         elif k == Qt.Key_PageDown:
-            print 'down'
-            self.z(-1)
+            if self.axes['Z'].jogging:
+                return
+            self.axes['Z'].jogging = True
+            self.axes['Z'].axis.forever_neg()
+        elif k == Qt.Key_PageUp:
+            if self.axes['Z'].jogging:
+                return
+            self.axes['Z'].jogging = True
+            self.axes['Z'].axis.forever_pos()
+        elif k == Qt.Key_Escape:
+            self.stop()
 
+    def keyReleaseEvent(self, event):
+        if not self.video_container.hasFocus():
+            return
+        k = event.key()
+        # Ignore duplicates, want only real presses
+        if event.isAutoRepeat():
+            return
+        #inc = 5
+        if k == Qt.Key_Left:
+            dbg('left release')
+            self.axes['X'].axis.stop()
+            self.axes['X'].jogging = False
+            self.axes['X'].emit_pos()
+        elif k == Qt.Key_Right:
+            dbg('right release')
+            self.axes['X'].axis.stop()
+            self.axes['X'].jogging = False
+            self.axes['X'].emit_pos()
+        elif k == Qt.Key_Up:
+            self.axes['Y'].axis.stop()
+            self.axes['Y'].jogging = False
+            self.axes['Y'].emit_pos()
+        elif k == Qt.Key_Down:
+            self.axes['Y'].axis.stop()
+            self.axes['Y'].jogging = False
+            self.axes['Y'].emit_pos()
+        elif k == Qt.Key_PageDown:
+            self.axes['Z'].axis.stop()
+            self.axes['Z'].jogging = False
+            self.axes['Z'].emit_pos()
+        elif k == Qt.Key_PageUp:
+            self.axes['Z'].axis.stop()
+            self.axes['Z'].jogging = False
+            self.axes['Z'].emit_pos()
+        
 def excepthook(excType, excValue, tracebackobj):
     print '%s: %s' % (excType, excValue)
     traceback.print_tb(tracebackobj)

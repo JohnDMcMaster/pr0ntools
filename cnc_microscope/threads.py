@@ -56,7 +56,15 @@ class ControllerThreadAxis:
     
     def get_um(self):
         return self.axis.get_um()
+        
+    def stop(self):
+        '''Stop as soon as convenient.  Thread safe'''
+        self.axis.stop()
     
+    def estop(self):
+        '''Stop immediately.  Thread safe'''
+        self.axis.estop()
+        
     # how 'bout this
     def __getattr__(self, name):
         # Assumption is that non-system attributes are offloaded functions
