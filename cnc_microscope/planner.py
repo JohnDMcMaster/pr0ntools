@@ -223,9 +223,10 @@ class Planner:
             rconfig.scan_config = config.get_scan_config()
         scan_config = rconfig.scan_config
 
-        scan_config['computed'] = dict()
-        scan_config['computed']['x'] = dict()
-        scan_config['computed']['y'] = dict()
+        scan_config['computed'] = {
+                'x':{},
+                'y':{},
+                }
         
         ideal_overlap = 2.0 / 3.0
         if 'overlap' in scan_config:
@@ -306,6 +307,7 @@ class Planner:
     
         # Try actually generating the points and see if it matches how many we thought we were going to get
         self.pictures_to_take = self.getNumPoints()
+        self.rconfig.scan_config['computed']['pictures_to_take'] = self.pictures_to_take
         if self.pictures_to_take != expected_n_pictures:
             print 'Going to take %d pictures but thought was going to take %d pictures (x %d X y %d)' % (self.pictures_to_take, expected_n_pictures, self.x.images(), self.y.images())
             print 'Points:'
@@ -833,6 +835,7 @@ class Planner:
         return 50
         
     def run(self):
+        self.start_time = time.time()
         print
         print
         print
@@ -973,6 +976,7 @@ class Planner:
         self.cur_y = cur_y
         self.home()
         self.end_program()
+        self.end_time = time.time()
 
         print
         print
@@ -981,7 +985,19 @@ class Planner:
         #self.comment('Pictures: %d' % pictures_taken)
         if not self.pictures_taken == self.pictures_to_take:
             raise Exception('pictures taken mismatch (taken: %d, to take: %d)' % (self.pictures_to_take, self.pictures_taken))
-            
+           
+        self.rconfig.scan_config['run_data'] = {
+            # In seconds
+            'time': (self.end_time - self.start_time),
+            'pictures_taken': self.pictures_taken,
+            'x': {
+                'backlash': self.x_backlash(),
+            },
+            'y': {
+                'backlash': self.y_backlash(),
+            },
+        }
+        
         self.write_metadata()
         
     def home(self):
