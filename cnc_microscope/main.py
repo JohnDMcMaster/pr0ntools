@@ -416,24 +416,49 @@ class CNCGUI(QMainWindow):
         return cl
     
     def get_video_layout(self):
-        layout = QVBoxLayout()
-        layout.addWidget(QLabel("View"))
+        # Overview
+        def low_res_layout():
+            layout = QVBoxLayout()
+            layout.addWidget(QLabel("Overview"))
+            
+            # Raw X-windows canvas
+            self.video_container = QWidget()
+            # Allows for convenient keyboard control by clicking on the video
+            self.video_container.setFocusPolicy(Qt.ClickFocus)
+            # TODO: do something more proper once integrating vodeo feed
+            w, h = 800, 600
+            w, h = 3264/8, 2448/8
+            self.video_container.setMinimumSize(w, h)
+            self.video_container.resize(w, h)
+            policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+            self.video_container.setSizePolicy(policy)
+            
+            layout.addWidget(self.video_container)
+            
+            return layout
         
-        # Raw X-windows canvas
-        self.video_container = QWidget()
-        # Allows for convenient keyboard control by clicking on the video
-        self.video_container.setFocusPolicy(Qt.ClickFocus)
-        # TODO: do something more proper once integrating vodeo feed
-        w, h = 800, 600
-        w, h = 3264/8, 2448/8
-        w, h = 3264/8, 2448/8
-        self.video_container.setMinimumSize(w, h)
-        self.video_container.resize(w, h)
-        policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        self.video_container.setSizePolicy(policy)
-        
-        layout.addWidget(self.video_container)
-        
+        # Higher res in the center for focusing
+        def high_res_layout():
+            layout = QVBoxLayout()
+            layout.addWidget(QLabel("Focus"))
+            
+            # Raw X-windows canvas
+            self.video_container2 = QWidget()
+            # TODO: do something more proper once integrating vodeo feed
+            w, h = 800, 600
+            w, h = 3264/8, 2448/8
+            self.video_container2.setMinimumSize(w, h)
+            self.video_container2.resize(w, h)
+            policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+            self.video_container2.setSizePolicy(policy)
+            
+            layout.addWidget(self.video_container2)
+            
+            return layout
+            
+        layout = QHBoxLayout()
+        layout.addLayout(low_res_layout())
+        layout.addLayout(high_res_layout())
         return layout
     
     def setupGst(self):
@@ -442,6 +467,9 @@ class CNCGUI(QMainWindow):
             gst-launch v4l2src device=/dev/video0 ! videoscale ! xvimagesink
         gst-launch v4l2src device=/dev/video0 ! ffmpegcolorspace ! ximagesink
             works...hmm
+        
+        
+        gst-launch v4l2src device=/dev/video0 ! ffmpegcolorspace ! videocrop top=100 left=1 right=4 bottom=0 ! ximagesink
         
         
         sysctl kernel.shmmax=67108864
@@ -518,10 +546,12 @@ class CNCGUI(QMainWindow):
         
         dbg("Setting up gstreamer pipeline")
         self.gstWindowId = self.video_container.winId()
+        self.gstWindowId2 = self.video_container2.winId()
 
         self.player = gst.Pipeline("player")
         #sinkxv = gst.element_factory_make("xvimagesink")
-        sinkx = gst.element_factory_make("ximagesink")
+        sinkx = gst.element_factory_make("ximagesink", 'sinkx_overview')
+        sinkx_focus = gst.element_factory_make("ximagesink", 'sinkx_focus')
         #fvidscale_cap = gst.element_factory_make("capsfilter")
         #fvidscale = gst.element_factory_make("videoscale")
         fcs = gst.element_factory_make('ffmpegcolorspace')
@@ -554,13 +584,43 @@ class CNCGUI(QMainWindow):
         # works at full res but doesn't resize
         #self.player.add(fcs, sinkx)
         # compromise
-        self.player.add(fcs, self.resizer, sinkx)
+        self.player.add(fcs, self.resizer, sinkx, sinkx_focus)
         
         self.player.add(self.capture_sink_queue, self.capture_enc, self.capture_sink)
         # Video render stream
         gst.element_link_many(self.source, self.tee)
         #gst.element_link_many(self.tee, self.stream_queue, fvidscale, fvidscale_cap, sinkxv)
-        gst.element_link_many(self.tee, self.stream_queue, fcs, self.resizer, sinkx)
+
+        self.size_tee = gst.element_factory_make("tee")
+        self.size_queue_overview = gst.element_factory_make("queue")
+        self.size_queue_focus = gst.element_factory_make("queue")
+        # First lets make this identical to keep things simpler
+        self.videocrop = gst.element_factory_make("videocrop")
+        '''
+        TODO: make this more automagic
+        w, h = 3264/8, 2448/8 => 408, 306
+        Want 3264/2, 2448,2 type resolution
+        Image is coming in raw at this point which menas we need to end up with
+        408*2, 306*2 => 816, 612
+        since its centered crop the same amount off the top and bottom:
+        (3264 - 816)/2, (2448 - 612)/2 => 1224, 918
+        '''
+        self.videocrop.set_property("top", 918)
+        self.videocrop.set_property("bottom", 918)
+        self.videocrop.set_property("left", 1224)
+        self.videocrop.set_property("right", 1224)
+        self.scale2 = gst.element_factory_make("videoscale")
+        self.player.add(self.size_tee, self.size_queue_overview, self.size_queue_focus, self.videocrop, self.scale2)
+        
+        gst.element_link_many(self.tee, self.stream_queue, fcs, self.size_tee)
+        gst.element_link_many(self.size_tee, self.size_queue_overview, self.resizer, sinkx)
+        # gah
+        # libv4l2: error converting / decoding frame data: v4l-convert: error destination buffer too small (16777216 < 23970816)
+        gst.element_link_many(self.size_tee, self.size_queue_focus, self.videocrop, self.scale2, sinkx_focus)
+        #self.resizer_temp = gst.element_factory_make("myresize")
+        #self.player.add(self.resizer_temp)
+        #gst.element_link_many(self.size_tee, self.size_queue_focus, self.scale2, sinkx_focus)
+                
         # Frame grabber stream
         gst.element_link_many(self.tee, self.capture_sink_queue, self.capture_enc, self.capture_sink)
         
@@ -590,7 +650,13 @@ class CNCGUI(QMainWindow):
             return
         message_name = message.structure.get_name()
         if message_name == "prepare-xwindow-id":
-            win_id = self.gstWindowId
+            if message.src.get_name() == 'sinkx_overview':
+                win_id = self.gstWindowId
+            elif message.src.get_name() == 'sinkx_focus':
+                win_id = self.gstWindowId2
+            else:
+                raise Exception('oh noes')
+            
             assert win_id
             imagesink = message.src
             imagesink.set_xwindow_id(win_id)
