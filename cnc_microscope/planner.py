@@ -126,6 +126,7 @@ class PlannerAxis:
                 # Actual sensor dimension may be oversampled, scale down as needed
                 imager_width, imager_scalar,
                 # start and end absolute positions (in um)
+                # Inclusive such that 0:0 means image at position 0 only
                 start, end):
         # How many the pixels the imager sees after scaling
         # XXX: is this global scalar playing correctly with the objective scalar?
@@ -152,11 +153,11 @@ class PlannerAxis:
 
     def delta(self):
         '''Total distance that will actually be imaged'''
-        return self.end - self.start
+        return self.end - self.start + 1
                 
     def req_delta(self):
         '''Total distance that needs to be imaged (ie requested)'''
-        return self.req_end - self.start
+        return self.req_end - self.start + 1
                 
     def delta_pixels(self):
         return self.images_ideal() * self.view_pixels
@@ -168,11 +169,20 @@ class PlannerAxis:
         Remaining distance from the first image divided by
         how many pixels of each image are unique to the previously taken image when linear
         '''
-        return 1.0 + (self.req_delta() - self.view) / (self.req_overlap_percent * self.view)
+        if self.req_delta() <= self.view:
+            return 1.0 * self.req_delta() / self.view
+        ret = 1.0 + (self.req_delta() - self.view) / (self.req_overlap_percent * self.view)
+        if ret < 0:
+            raise Exception('bad number of idea images %s' % ret)
+        return ret
     
     def images(self):
         '''How many images should actually take after considering margins and rounding'''
-        return int(math.ceil(self.images_ideal()))
+        ret = int(math.ceil(self.images_ideal()))
+        if ret < 1:
+            print self.images_ideal()
+            raise Exception('Bad number of images %d' % ret)
+        return ret
     
     def step(self):
         '''How much to move each time we take the next image'''
