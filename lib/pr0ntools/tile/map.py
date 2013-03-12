@@ -109,8 +109,9 @@ class TileMapSource(MapSource):
 		gen.run()
 	
 class Map:
-	def __init__(self, source):
+	def __init__(self, source, copyright_=None):
 		self.source = source
+		self.copyright = copyright_
 		
 		self.page_title = None
 		# Consider mangling this pased on the image name
@@ -136,6 +137,7 @@ class Map:
 		return '''	
 <html>
 <head>
+<meta http-equiv="Content-Type" content="application/xhtml+xml; charset=utf-8" />  
 <title>%s</title>
 <script type="text/javascript" src="http://maps.google.com/maps/api/js?sensor=false"></script>
 <style type="text/css">
@@ -294,13 +296,29 @@ var %s = new google.maps.ImageMapType({
 		return 'ic'
 
 	def script_footer(self):
-		return '''
+		ret = '''
 %s.projection = new SiProjection();
 
 
 siMap.mapTypes.set('%s', %s);
 siMap.setMapTypeId('%s');
+''' % (self.type_obj_name(), self.type_obj_name(), self.type_obj_name(), self.type_obj_name())
+		if self.copyright:
+			ret += '''
+// Create div for showing copyrights.
+var copyrightNode;
+copyrightNode = document.createElement('div');
+copyrightNode.id = 'copyright-control';
+copyrightNode.style.fontSize = '11px';
+copyrightNode.style.fontFamily = 'Arial, sans-serif';
+copyrightNode.style.margin = '0 2px 2px 0';
+copyrightNode.style.whiteSpace = 'nowrap';
+copyrightNode.index = 0;
+copyrightNode.innerHTML = "%s";
+siMap.controls[google.maps.ControlPosition.BOTTOM_RIGHT].push(copyrightNode);
+''' % self.copyright
 
+		ret += '''
 siMap.setOptions({
   mapTypeControlOptions: {
     mapTypeIds: [
@@ -312,7 +330,8 @@ siMap.setOptions({
 
 
 </script>
-''' % (self.type_obj_name(), self.type_obj_name(), self.type_obj_name(), self.type_obj_name(), self.map_type())
+''' % (self.map_type(),)
+		return ret
 
 	def footer(self):
 		return '''
