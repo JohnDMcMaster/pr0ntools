@@ -537,7 +537,13 @@ class Tiler:
 			if ip.width() != self.tw or ip.height() != self.th:
 				print 'WARNING: %s: expanding partial tile (%d X %d) to full tile size' % (nfn, ip.width(), ip.height())
 				ip.set_canvas_size(self.tw, self.th)
-			ip.image.save(nfn)	
+			# http://www.pythonware.com/library/pil/handbook/format-jpeg.htm
+			# JPEG is a good quality vs disk space compromise but beware:
+			# The image quality, on a scale from 1 (worst) to 95 (best).
+			# The default is 75. 
+			# Values above 95 should be avoided;
+			# 100 completely disables the JPEG quantization stage.
+			ip.image.save(nfn, quality=95)	
 		self.mark_done(row, col)
 				
 	def x2col(self, x):
