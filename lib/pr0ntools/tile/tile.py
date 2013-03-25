@@ -133,7 +133,7 @@ class TileTiler:
 		self.t_width = 250
 		self.t_height = 250
 		# JPEG quality level, 1-100 or something
-		self.quality = 70
+		self.quality = 90
 
 	def set_out_extension(self, s):
 		self.out_extension = s
