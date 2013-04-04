@@ -6,11 +6,10 @@ They can be either a single large input image or the bottom level tiles
 '''
 
 import os
-import sys
 import argparse		
 from pr0ntools.tile.map import Map, ImageMapSource, TileMapSource
 
-std_copyright = '&copy;2013 John McMaster blah blah blah, CC BY-NC-SA'
+std_copyright = '&copy;2013 John McMaster, CC BY-NC-SA'
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description='Generate Google Maps code from image file(s)')
