@@ -1,6 +1,6 @@
 #!/usr/bin/python
 '''
-pr0nstitch: IC die image stitching
+pr0nstitch: IC die image feature generation for stitching
 Copyright 2010 John McMaster <JohnDMcMaster@gmail.com>
 Licensed under a 2 clause BSD license, see COPYING for details
 

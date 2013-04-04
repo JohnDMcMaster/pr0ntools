@@ -43,7 +43,6 @@ Greedy algorithm to generate a tile if its legal (and safe)
 
 from pr0ntools.stitch.remapper import Remapper
 from pr0ntools.stitch.blender import Blender
-from pr0ntools.stitch.pto.project import PTOProject
 from image_coordinate_map import ImageCoordinateMap
 from pr0ntools.config import config
 from pr0ntools.temp_file import ManagedTempFile
@@ -51,7 +50,7 @@ from pr0ntools.temp_file import ManagedTempDir
 #from pr0ntiles.tile import Tiler as TilerCore
 from pr0ntools.pimage import PImage
 from pr0ntools.benchmark import Benchmark
-from pr0ntools.util.geometry import floor_mult, ceil_mult
+from pr0ntools.util.geometry import ceil_mult
 import os
 import math
 import shutil
@@ -139,6 +138,7 @@ class Tiler:
 		self.sth = sth
 		self.clip_width = clip_width
 		self.clip_height = clip_height
+		self.st_dir = None
 		
 		# TODO: this is a heuristic just for this, uniform input images aren't actually required
 		for i in pto.get_image_lines():
@@ -306,7 +306,6 @@ class Tiler:
 			h_extra = 0
 			for y in xrange(self.top(), self.bottom(), self.super_t_ystep):
 				h_sts += 1
-				y0 = y
 				y1 = y + self.sth
 				if y1 >= self.bottom():
 					h_extra = y1 - self.bottom()
@@ -316,7 +315,6 @@ class Tiler:
 			w_extra = 0
 			for x in xrange(self.left(), self.right(), self.super_t_xstep):
 				w_sts += 1
-				x0 = x
 				x1 = x + self.stw
 				if x1 >= self.right():
 					w_extra = x1 - self.right()
@@ -466,9 +464,10 @@ class Tiler:
 				print 'Dry: skipping loading PTO'
 				img = None
 			else:
+				if self.st_dir:
+					shutil.copyfile(temp_file.file_name, 'st_%06fx_%06fy.tif' % (x0, y0))
 				img = PImage.from_file(temp_file.file_name)
 				print 'Supertile width: %d, height: %d' % (img.width(), img.height())
-			new = 0
 		
 			
 		
@@ -573,7 +572,6 @@ class Tiler:
 		return len(self.closed_list)
 	
 	def gen_open_list(self):
-		open_list = set()
 		for y in xrange(self.rows()):
 			for x in xrange(self.cols()):
 				if not self.is_done(y, x):
@@ -660,10 +658,7 @@ class Tiler:
 		print 'All supertiles generated'
 		
 	def n_supertile_tiles(self, x0, x1, y0, y1):
-		ret = 0
-		for t in self.gen_supertile_tiles(x0, x1, y0, y1):
-			ret += 1
-		return ret
+		return len(list(self.gen_supertile_tiles(x0, x1, y0, y1)))
 		
 	def should_try_supertile(self, x0, x1, y0, y1):
 		# If not merging always stitch
@@ -737,6 +732,8 @@ class Tiler:
 				raise Exception("Must set force to override output")
 		if not self.dry and not os.path.exists(self.out_dir):
 			os.mkdir(self.out_dir)
+		if self.st_dir and not self.dry and not os.path.exists(self.st_dir):
+			os.mkdir(self.st_dir)
 		# in form (row, col)
 		self.closed_list = set()
 		
@@ -771,7 +768,7 @@ class Tiler:
 				
 				try:
 					self.try_supertile(x0, x1, y0, y1)
-				except CommandFailed as e:
+				except CommandFailed:
 					if self.ignore_errors:
 						# We shouldn't be trying commands during dry but just in case should raise?
 						print 'WARNING: got exception trying supertile %d' % (self.n_supertiles)
