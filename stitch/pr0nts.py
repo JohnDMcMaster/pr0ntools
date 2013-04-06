@@ -129,6 +129,8 @@ if __name__ == "__main__":
 			stp = mem2pix(mksize(stm))
 	
 	t = Tiler(project, 'out', stw=mksize(args.stw), sth=mksize(args.sth), stp=stp, clip_width=args.clip_width, clip_height=args.clip_height)
+	if args.st_dir is None:
+		args.st_dir = 'single'
 	t.st_dir = args.st_dir
 	t.force = args.force
 	t.merge = args.merge

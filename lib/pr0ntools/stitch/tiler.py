@@ -44,6 +44,7 @@ Greedy algorithm to generate a tile if its legal (and safe)
 from pr0ntools.stitch.remapper import Remapper
 from pr0ntools.stitch.blender import Blender
 from image_coordinate_map import ImageCoordinateMap
+from pr0ntools.execute import Execute
 from pr0ntools.config import config
 from pr0ntools.temp_file import ManagedTempFile
 from pr0ntools.temp_file import ManagedTempDir
@@ -465,7 +466,13 @@ class Tiler:
 				img = None
 			else:
 				if self.st_dir:
-					shutil.copyfile(temp_file.file_name, 'st_%06fx_%06fy.tif' % (x0, y0))
+					# nah...tiff takes up too much space
+					dst = os.path.join(self.st_dir, 'st_%06fx_%06fy.tif' % (x0, y0))
+					#shutil.copyfile(temp_file.file_name, dst)
+					(rc, _output) = Execute.with_output('convert',
+							('-quality', '90', temp_file.file_name, dst))
+					if not rc == 0:
+						raise Exception('Failed to copy stitched file')
 				img = PImage.from_file(temp_file.file_name)
 				print 'Supertile width: %d, height: %d' % (img.width(), img.height())
 		
