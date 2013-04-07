@@ -467,7 +467,7 @@ class Tiler:
 			else:
 				if self.st_dir:
 					# nah...tiff takes up too much space
-					dst = os.path.join(self.st_dir, 'st_%06fx_%06fy.tif' % (x0, y0))
+					dst = os.path.join(self.st_dir, 'st_%06fx_%06fy.jpg' % (x0, y0))
 					#shutil.copyfile(temp_file.file_name, dst)
 					(rc, _output) = Execute.with_output('convert',
 							('-quality', '90', temp_file.file_name, dst))
