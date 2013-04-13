@@ -11,6 +11,7 @@ from usbio.mc import MC
 from pr0ntools.benchmark import Benchmark
 from config import *
 from threads import *
+import re
 VCImager = None
 try:
     from vcimager import *
@@ -902,14 +903,31 @@ class CNCGUI(QMainWindow):
         self.snapshot_pb = QPushButton("Snapshot")
         self.snapshot_pb.clicked.connect(self.take_snapshot)
         layout.addWidget(self.snapshot_pb, 1, 0, 2, 1)
+
+        self.time_lapse_timer = None
+        self.time_lapse_pb = QPushButton("Time lapse")
+        self.time_lapse_pb.clicked.connect(self.time_lapse)
+        layout.addWidget(self.time_lapse_pb, 1, 1, 2, 1)
         
         gb.setLayout(layout)
         return gb
     
     def snapshot_next_serial(self):
+        prefix = self.snapshot_fn_le.text().split('.')[0]
+        if prefix == '':
+            self.snapshot_serial = 0
+            prefix = 'snapshot'
+        else:
+            print prefix
+            m = re.search('([a-zA-z]*)([0-9]*)', prefix)
+            if m:
+                print 'Group 1: ' + m.group(1)
+                print 'Group 2: ' + m.group(2)
+                prefix = m.group(1)
+                self.snapshot_serial = int(m.group(2))
         while True:
             self.snapshot_serial += 1
-            fn_base = 'snapshot00%u.jpg' % self.snapshot_serial
+            fn_base = '%s00%u.jpg' % (prefix, self.snapshot_serial)
             fn_full = os.path.join(config['imager']['snapshot_dir'], fn_base)
             if os.path.exists(fn_full):
                 print 'Snapshot %s already exists, skipping' % fn_full
@@ -927,6 +945,21 @@ class CNCGUI(QMainWindow):
             self.snapshotCaptured.emit(image_id)
         self.capture_sink.request_image(emitSnapshotCaptured)
     
+    def time_lapse(self):
+        if self.time_lapse_pb.text() == 'Stop':
+            self.time_lapse_timer.stop()
+            self.time_lapse_pb.setText('Time lapse')
+        else:
+            self.time_lapse_pb.setText('Stop')
+            self.time_lapse_timer = QTimer()
+            def f():
+                self.take_snapshot()
+            self.time_lapse_timer.timeout.connect(f)
+            # 5 seconds
+            # Rather be more aggressive for now
+            self.time_lapse_timer.start(5000)
+            self.take_snapshot()
+        
     def captureSnapshot(self, image_id):
         print 'RX image for saving'
         image = PImage.from_image(self.capture_sink.pop_image(image_id))
