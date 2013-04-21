@@ -916,10 +916,10 @@ class CNCGUI(QMainWindow):
         prefix = self.snapshot_fn_le.text().split('.')[0]
         if prefix == '':
             self.snapshot_serial = 0
-            prefix = 'snapshot'
+            prefix = 'snapshot_'
         else:
             print prefix
-            m = re.search('([a-zA-z]*)([0-9]*)', prefix)
+            m = re.search('([a-zA-z0-9_\-]*_)([0-9]+)', prefix)
             if m:
                 print 'Group 1: ' + m.group(1)
                 print 'Group 2: ' + m.group(2)
