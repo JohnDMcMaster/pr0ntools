@@ -6,6 +6,10 @@ Consider making video feed optional to make it continue to work on windows
 or maybe look into Phonon some more for rendering
 '''
 
+'''
+Question: why on Ubuntu 12.04 w/ custom kernel can I take pictures but not stream to screen?
+'''
+
 from imager import *
 from usbio.mc import MC
 from pr0ntools.benchmark import Benchmark
@@ -543,6 +547,8 @@ class CNCGUI(QMainWindow):
             Freeing pipeline ...
         On Fedora I had to do something like vmalloc=192M, related?
         
+        
+        gst-launch v4l2src device=/dev/video0 ! tee ! queue ! ffmpegcolorspace ! ximagesink
         '''
         
         dbg("Setting up gstreamer pipeline")
@@ -558,7 +564,6 @@ class CNCGUI(QMainWindow):
         fcs = gst.element_factory_make('ffmpegcolorspace')
         caps = gst.caps_from_string('video/x-raw-yuv')
         #fvidscale_cap.set_property('caps', caps)
-        self.stream_queue = gst.element_factory_make("queue")
 
         self.tee = gst.element_factory_make("tee")
 
@@ -578,19 +583,9 @@ class CNCGUI(QMainWindow):
         The later resizes the window but doesn't allow taking full res pictures
         However, we don't want full res in the view window
         '''
-        # works at lower res and resizes
-        #self.player.add(fvidscale, sinkxv)
-        # what was this being used for?
-        self.player.add(self.source, self.tee, self.stream_queue)
-        # works at full res but doesn't resize
-        #self.player.add(fcs, sinkx)
-        # compromise
-        self.player.add(fcs, self.resizer, sinkx, sinkx_focus)
-        
-        self.player.add(self.capture_sink_queue, self.capture_enc, self.capture_sink)
         # Video render stream
+        self.player.add(self.source, self.tee)
         gst.element_link_many(self.source, self.tee)
-        #gst.element_link_many(self.tee, self.stream_queue, fvidscale, fvidscale_cap, sinkxv)
 
         self.size_tee = gst.element_factory_make("tee")
         self.size_queue_overview = gst.element_factory_make("queue")
@@ -611,18 +606,56 @@ class CNCGUI(QMainWindow):
         self.videocrop.set_property("left", 1224)
         self.videocrop.set_property("right", 1224)
         self.scale2 = gst.element_factory_make("videoscale")
-        self.player.add(self.size_tee, self.size_queue_overview, self.size_queue_focus, self.videocrop, self.scale2)
         
-        gst.element_link_many(self.tee, self.stream_queue, fcs, self.size_tee)
+        self.player.add(fcs, self.size_tee)
+        gst.element_link_many(self.tee, fcs, self.size_tee)
+        self.player.add(self.size_queue_overview, self.resizer, sinkx)
         gst.element_link_many(self.size_tee, self.size_queue_overview, self.resizer, sinkx)
         # gah
         # libv4l2: error converting / decoding frame data: v4l-convert: error destination buffer too small (16777216 < 23970816)
-        gst.element_link_many(self.size_tee, self.size_queue_focus, self.videocrop, self.scale2, sinkx_focus)
-        #self.resizer_temp = gst.element_factory_make("myresize")
-        #self.player.add(self.resizer_temp)
-        #gst.element_link_many(self.size_tee, self.size_queue_focus, self.scale2, sinkx_focus)
-                
+        '''
+        Ubuntu 12.04 w/ 3.9.0-rc4 giving:
+        Error: The stream is in the wrong format. gstbasesrc.c(2830): gst_base_src_start (): /GstPipeline:player/GstV4l2Src:vsource:
+        Culprit seems to be videocrop
+        gst-launch v4l2src device=/dev/video0 ! videocrop top=918 bottom=918 left=1224 right=1224 ! videoscale ! ximagesink
+        gst-launch v4l2src device=/dev/video0 ! ffmpegcolorspace ! videocrop top=918 bottom=918 left=1224 right=1224 ! videoscale ! ximagesink
+	        
+	mcmaster@pr0nscope:~/document/external/pr0ntools/cnc_microscope$ gst-launch v4l2src device=/dev/video0 ! videocrop top=918 bottom=918 left=1224 right=1224 ! videoscale ! ximagesink
+		Setting pipeline to PAUSED ...
+		ERROR: Pipeline doesn't want to pause.
+		ERROR: from element /GstPipeline:pipeline0/GstV4l2Src:v4l2src0: Could not negotiate format
+		Additional debug info:
+		gstbasesrc.c(2830): gst_base_src_start (): /GstPipeline:pipeline0/GstV4l2Src:v4l2src0:
+		Check your filtered caps, if any
+		Setting pipeline to NULL ...
+		Freeing pipeline ...
+        gst-launch v4l2src device=/dev/video0 ! ffmpegcolorspace ! videocrop top=100 left=1 right=4 bottom=0 ! ximagesink
+	        works
+	mcmaster@pr0nscope:~/document/external/pr0ntools/cnc_microscope$ gst-launch v4l2src device=/dev/video0 ! ffmpegcolorspace ! videocrop top=100 left=1 right=4 bottom=0 ! ximagesink
+		Setting pipeline to PAUSED ...
+		Pipeline is live and does not need PREROLL ...
+		Setting pipeline to PLAYING ...
+		New clock: GstSystemClock
+		ERROR: from element /GstPipeline:pipeline0/GstXImageSink:ximagesink0: Output window was closed
+		Additional debug info:
+		ximagesink.c(1119): gst_ximagesink_handle_xevents (): /GstPipeline:pipeline0/GstXImageSink:ximagesink0
+		Execution ended after 4460586853 ns.
+		Setting pipeline to PAUSED ...
+		Setting pipeline to READY ...
+		Setting pipeline to NULL ...
+		Freeing pipeline ...
+	aha: the culprit is that I'm running the full driver which is defaulting to lower res
+        '''
+        if 0:
+		self.player.add(self.size_queue_focus, self.videocrop)
+		gst.element_link_many(self.size_tee, self.size_queue_focus, self.videocrop)
+        if 1:
+		self.player.add(self.size_queue_focus, self.videocrop, self.scale2, sinkx_focus)
+		gst.element_link_many(self.size_tee, self.size_queue_focus, self.videocrop, self.scale2, sinkx_focus)
+
         # Frame grabber stream
+        # compromise
+        self.player.add(self.capture_sink_queue, self.capture_enc, self.capture_sink)
         gst.element_link_many(self.tee, self.capture_sink_queue, self.capture_enc, self.capture_sink)
         
         bus = self.player.get_bus()
@@ -652,9 +685,11 @@ class CNCGUI(QMainWindow):
         message_name = message.structure.get_name()
         if message_name == "prepare-xwindow-id":
             if message.src.get_name() == 'sinkx_overview':
+            	print 'sinkx_overview win_id'
                 win_id = self.gstWindowId
             elif message.src.get_name() == 'sinkx_focus':
                 win_id = self.gstWindowId2
+            	print 'sinkx_focus win_id'
             else:
                 raise Exception('oh noes')
             
@@ -898,22 +933,30 @@ class CNCGUI(QMainWindow):
         layout.addWidget(QLabel('File name'), 0, 0)
         self.snapshot_serial = -1
         self.snapshot_fn_le = QLineEdit('')
-        self.snapshot_next_serial()
         layout.addWidget(self.snapshot_fn_le, 0, 1)
+
+        layout.addWidget(QLabel('Auto-number?'), 1, 0)
+        self.auto_number_cb = QCheckBox()
+        self.auto_number_cb.setChecked(True)
+        layout.addWidget(self.auto_number_cb, 1, 1)
+
         self.snapshot_pb = QPushButton("Snapshot")
         self.snapshot_pb.clicked.connect(self.take_snapshot)
-        layout.addWidget(self.snapshot_pb, 1, 0, 2, 1)
 
         self.time_lapse_timer = None
         self.time_lapse_pb = QPushButton("Time lapse")
         self.time_lapse_pb.clicked.connect(self.time_lapse)
-        layout.addWidget(self.time_lapse_pb, 1, 1, 2, 1)
+        layout.addWidget(self.time_lapse_pb, 2, 1)
+        layout.addWidget(self.snapshot_pb, 2, 0)
         
         gb.setLayout(layout)
+        self.snapshot_next_serial()
         return gb
     
     def snapshot_next_serial(self):
-        prefix = self.snapshot_fn_le.text().split('.')[0]
+        if not self.auto_number_cb.isChecked():
+                return
+	prefix = self.snapshot_fn_le.text().split('.')[0]
         if prefix == '':
             self.snapshot_serial = 0
             prefix = 'snapshot_'
@@ -925,6 +968,7 @@ class CNCGUI(QMainWindow):
                 print 'Group 2: ' + m.group(2)
                 prefix = m.group(1)
                 self.snapshot_serial = int(m.group(2))
+
         while True:
             self.snapshot_serial += 1
             fn_base = '%s00%u.jpg' % (prefix, self.snapshot_serial)
