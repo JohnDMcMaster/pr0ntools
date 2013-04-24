@@ -70,6 +70,12 @@ def get_cnc():
         except IOError:
             print 'Failed to open MC device'
             raise
+    elif engine == 'auto':
+        try:
+            return MC()
+        except IOError:
+            print 'Failed to open MC device, falling back to mock'
+            return MockController()
     else:
         raise Exception("Unknown CNC engine %s" % engine)
 
