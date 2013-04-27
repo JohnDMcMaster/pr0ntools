@@ -94,6 +94,10 @@ class AutopanoSiftC:
 
 #class AutopanoAJ : ControlPointGenerator:	
 class ControlPointGenerator:
+	def __init__(self):
+		# For compatibility, I'd like to remove this entirely with default False
+		self.invalidate_on_ransac = True
+		self.print_output = False
 	'''
 	autopano.exe /f /tmp/file1.jpg /tmp/file2.jpg /project:hugin 
 	Example stitch command
@@ -125,7 +129,7 @@ class ControlPointGenerator:
 
 		#sys.exit(1)
 		# go go go
-		(rc, output) = Execute.with_output(command, args, temp_dir.file_name)
+		(rc, output) = Execute.with_output(command, args, temp_dir.file_name, self.print_output)
 		print 'Finished control point pair execution'
 		if not rc == 0:
 			print
@@ -148,8 +152,12 @@ class ControlPointGenerator:
 		  Timing : 583.7 us
 		'''
 		if output.find('REMOVED') >= 0:
+			# This is normal for > 2 image projects
+			# Usually for 2 images this indicates that it removed all control points
+			# FIXME: it would be better to check the output control point list than check here
 			print 'WARNING: RANSAC invalidated control points'
-			return None
+			if self.invalidate_on_ransac:
+				return None
 		
 		output_file_name = os.path.join(temp_dir.file_name, "panorama0.pto")
 		
@@ -199,6 +207,15 @@ def ajpto2pto_text_simple(pto_str, load_images = True):
 	return ajpto2pto_text_generic(pto_str, None, None, None, None, load_images)
 
 def ajpto2pto_text_generic(pto_str, sub_image_files, x_delta, y_delta, sub_to_real, load_images = True):
+	'''
+	Convert .oto text (like from autopanoaj) to a .pto
+	
+	XXX: there's a friggen .pto option
+	why aren't I using that...
+	
+	Should seperate parsing the project and shifting the data
+	This function has multiple issues
+	'''
 	# image index to subimage file name link (not symbolic link)
 	index_to_sub_file_name = dict()
 	imgfile_index = 0
@@ -206,9 +223,6 @@ def ajpto2pto_text_generic(pto_str, sub_image_files, x_delta, y_delta, sub_to_re
 	
 	ret = PTOProject.from_simple()
 	
-	#out = ''
-	
-	'''Convert .oto text (like from autopanoaj) to a .pto'''
 	# Actually I think really is a .pto, just in a less common format
 	for line in pto_str.split('\n'):
 		if len(line.strip()) == 0:
@@ -216,26 +230,27 @@ def ajpto2pto_text_generic(pto_str, sub_image_files, x_delta, y_delta, sub_to_re
 		# This type of line is gen by autopano-sift-c
 		elif line[0] == 'c':
 			# c n0 N1 x1142.261719 y245.074757 X699.189408 Y426.042661 t0
-		
-			# Parse
-			parts = line.split()
-			if not parts[1] == 'n0':
-				print parts[1]
-				raise Exception('mismatch')
-			if not parts[2] == 'N1':
-				print parts[2]
-				raise Exception('mismatch')
-			
-			x = float(parts[3][1:])								
-			y = float(parts[4][1:])
-			X = float(parts[5][1:])
-			Y = float(parts[6][1:])
-
-			#sub_image_1_x_end = image_1.width()
-			#sub_image_1_y_end = image_1.height()
-
 			# Adjust the image towards the upper left hand corner
 			if x_delta or y_delta:
+				# Parse
+				parts = line.split()
+				if not parts[1] == 'n0':
+					print line
+					print parts[1]
+					raise Exception('n0 mismatch')
+				if not parts[2] == 'N1':
+					print line
+					print parts[2]
+					raise Exception('N1 mismatch')
+				
+				x = float(parts[3][1:])								
+				y = float(parts[4][1:])
+				X = float(parts[5][1:])
+				Y = float(parts[6][1:])
+	
+				#sub_image_1_x_end = image_1.width()
+				#sub_image_1_y_end = image_1.height()
+	
 				# FIXME: still the two file optimized version
 				# Assumes that it only has to compare one since it knows the other
 				if index_to_sub_file_name[0] == sub_image_files[0].file_name:
@@ -253,11 +268,13 @@ def ajpto2pto_text_generic(pto_str, sub_image_files, x_delta, y_delta, sub_to_re
 					print 'sub_image_0_file: %s' % repr(sub_image_files[0])
 					print 'sub_image_1_file: %s' % repr(sub_image_files[1])
 					raise Exception("confused")
-
-			# Write
-			new_line = "c n0 N1 x%f y%f X%f Y%f t0" % (x, y, X, Y)
-			#out += new_line + '\n'
-			ret.add_control_point_line_by_text(new_line)
+	
+				# Write
+				new_line = "c n0 N1 x%f y%f X%f Y%f t0" % (x, y, X, Y)
+				#out += new_line + '\n'
+				ret.add_control_point_line_by_text(new_line)
+			else:
+				ret.add_control_point_line_by_text(line)
 		elif line[0] == 'p':
 			#ret.panorama_line = PanoramaLine(line, ret)
 			ret.set_pano_line_by_text(line)

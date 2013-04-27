@@ -61,18 +61,18 @@ class Execute:
 		return rc
 
 	@staticmethod
-	def with_output(program, args, working_dir = None):
+	def with_output(program, args, working_dir = None, print_output = False):
 		'''Return (rc, output)'''
 		to_exec = program
 		for arg in args:
 			to_exec += ' "' + arg + '"'
-		return Execute.with_output_simple(to_exec, working_dir)
+		return Execute.with_output_simple(to_exec, working_dir, print_output)
 		
 	@staticmethod
-	def with_output_simple(cmd, working_dir = None):	
+	def with_output_simple(cmd, working_dir = None, print_output = False):	
 		'''Return (rc, output)'''
 		# Somehow the pipe seems to really slow down the shutdown...not sure why
-		print_output = False
+		# Don't use it for .pto grid stitching
 		
 		working_dir_str = ''
 		tmp_file = ManagedTempFile.get(None, '_exec.txt')
