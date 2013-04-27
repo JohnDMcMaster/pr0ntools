@@ -255,7 +255,7 @@ class ImageLine(line.Line):
 	Higher x moves the image left on the screen
 	'''
 	
-	def shift(dx, dy):
+	def shift(self, dx, dy):
 		self.set_x(self.x() + dx)
 		self.set_y(self.y() + dy)
 

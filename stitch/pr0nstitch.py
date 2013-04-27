@@ -18,6 +18,7 @@ import pr0ntools.pimage
 from pr0ntools.pimage import PImage
 from pr0ntools.pimage import TempPImage
 from pr0ntools.stitch.wander_stitch import WanderStitch
+from pr0ntools.stitch.all_stitch import AllStitch
 from pr0ntools.stitch.grid_stitch import GridStitch
 from pr0ntools.stitch.fortify_stitch import FortifyStitch
 from pr0ntools.execute import Execute
@@ -192,12 +193,14 @@ if __name__ == "__main__":
 			sys.exit(0)
 	elif algorithm == "wander":
 		engine = WanderStitch.from_file_names(input_image_file_names)
+	elif algorithm == "all":
+		engine = AllStitch.from_file_names(input_image_file_names)
 	elif algorithm == "fortify":
 		if len(input_image_file_names) > 0:
 			raise Exception('Cannot use old project and image files')
 		if input_project_file_name is None:
 			raise Exception('Requires input project')
-		engine = ForitfyStitch.from_existing_project_file_name(input_project_file_name)
+		engine = FortifyStitch.from_existing_project_file_name(input_project_file_name)
 	else:
 		raise Exception('need an algorithm / engine')
 

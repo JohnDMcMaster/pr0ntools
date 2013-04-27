@@ -239,6 +239,7 @@ def center_anchor(pto):
 
 def optimize_xy_only(self):
 	# XXX: move this to earlier if possible
+	from pr0ntools.stitch.pto.variable_line import VariableLine
 	'''
 	NOTE:
 	Hugin uses the line:
@@ -265,8 +266,16 @@ def optimize_xy_only(self):
 	i w2816 h2112 f-2 Eb1 Eev0 Er1 Ra0 Rb0 Rc0 Rd0 Re0 Va1 Vb0 Vc0 Vd0 Vx-0 Vy-0 a0 b0 c0 d-0 e-0 g-0 p0 r0 t-0 v51 y0  Vm5 u10 n"x00000_y00033.jpg"
 	'''
 	print_debug('Fixing up v (optimization variable) lines...')
+	if self.parsed:
+		self.variable_lines = []
+		for i in range(1, len(self.get_file_names())):
+			line = 'v d%d e%d \n' % (i, i)
+			self.variable_lines.append(VariableLine(line, self))
+		return
+		
 	new_project_text = ''
 	new_lines = ''
+		
 	# This gives us "something" but more than likely
 	# code later will run a center rountine to place this better
 	for i in range(1, len(self.get_file_names())):

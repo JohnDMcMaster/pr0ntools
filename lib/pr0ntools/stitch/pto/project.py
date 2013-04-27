@@ -205,6 +205,7 @@ class PTOProject:
 	
 	def get_image_by_fn(self, fn):
 		for i in self.get_image_lines():
+			print fn, i.get_name()
 			if fn == i.get_name():
 				return i
 		return None
@@ -236,6 +237,10 @@ class PTOProject:
 	def add_control_point_line_by_text(self, cl):
 		self.add_control_point_line(ControlPointLine(cl, self))
 		
+	def set_pano_line_by_text(self, line):
+		self.parse()
+		self.panorama_line = PanoramaLine(line, self)
+
 	def add_image_line(self, il):
 		self.parse()
 		if self.image_lines is None:
