@@ -143,6 +143,14 @@ class ControllerThread(QThread, Controller):
                 (units, cb_inc) = args
                 axis.set_pos(units)
                 cb_inc()
+            elif name == 'set_home':
+                (cb_inc,) = args
+                axis.set_home()
+                cb_inc()
+            elif name == 'home':
+                (cb_inc,) = args
+                axis.home()
+                cb_inc()
             else:
                 getattr(axis, name)(*args)
     

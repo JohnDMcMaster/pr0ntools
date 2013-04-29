@@ -263,15 +263,11 @@ class Axis(QWidget):
     
     def home(self):
         #print 'home'
-        self.axis.home()
-        # We moved to 0 position
-        self.axisSet.emit(self.axis.get_um())
+        self.axis.home(self.emit_pos)
     
     def set_home(self):
         #print 'setting new home position'
-        self.axis.set_home()
-        # We made the current position 0
-        self.axisSet.emit(self.axis.get_um())
+        self.axis.set_home(self.emit_pos)
         
     def meas_reset(self):
         dbg('meas reset')
