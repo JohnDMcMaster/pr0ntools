@@ -251,17 +251,15 @@ class Axis(QWidget):
         self.axisSet.emit(self.axis.get_um())
     
     def jog(self, n):
-        self.axis.jog(n)
-        self.axisSet.emit(self.axis.get_um())
+        self.axis.jog(n, self.emit_pos)
     
     def go_abs(self):
         #print 'abs'
-        self.axis.set_pos(float(str(self.abs_pos_le.text())))
-        self.axisSet.emit(self.axis.get_um())
+        self.axis.set_pos(float(str(self.abs_pos_le.text())), self.emit_pos)
     
-    def go_rel(self):
+    def go_rel(self, cb=None):
         #print 'rel'
-        self.jog(float(str(self.rel_pos_le.text())))        
+        self.jog(float(str(self.rel_pos_le.text())))
     
     def home(self):
         #print 'home'
@@ -351,6 +349,9 @@ class CNCGUI(QMainWindow):
         self.cnc_raw.on()
         self.cnc_ipc = ControllerThread(self.cnc_raw)
         self.initUI()
+        
+        for axis in self.axes.values():
+            axis.emit_pos()
         
         # Must not be initialized until after layout is set
         self.gstWindowId = None

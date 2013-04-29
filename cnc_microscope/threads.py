@@ -64,7 +64,7 @@ class ControllerThreadAxis:
     def estop(self):
         '''Stop immediately.  Thread safe'''
         self.axis.estop()
-        
+
     # how 'bout this
     def __getattr__(self, name):
         # Assumption is that non-system attributes are offloaded functions
@@ -135,7 +135,16 @@ class ControllerThread(QThread, Controller):
             #print axis.__dict__
             #weird...only has variables and not functions...I thought there was no distinction in python?
             #axis.__dict__[name](*args)
-            eval('axis.%s(*args)' % name)
+            if name == 'jog':
+                (units, cb_inc) = args
+                axis.jog(units)
+                cb_inc()
+            elif name == 'set_pos':
+                (units, cb_inc) = args
+                axis.set_pos(units)
+                cb_inc()
+            else:
+                getattr(axis, name)(*args)
     
     def stop(self):
         self.running.clear()        
