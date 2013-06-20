@@ -622,39 +622,39 @@ class CNCGUI(QMainWindow):
         Culprit seems to be videocrop
         gst-launch v4l2src device=/dev/video0 ! videocrop top=918 bottom=918 left=1224 right=1224 ! videoscale ! ximagesink
         gst-launch v4l2src device=/dev/video0 ! ffmpegcolorspace ! videocrop top=918 bottom=918 left=1224 right=1224 ! videoscale ! ximagesink
-	        
-	mcmaster@pr0nscope:~/document/external/pr0ntools/cnc_microscope$ gst-launch v4l2src device=/dev/video0 ! videocrop top=918 bottom=918 left=1224 right=1224 ! videoscale ! ximagesink
-		Setting pipeline to PAUSED ...
-		ERROR: Pipeline doesn't want to pause.
-		ERROR: from element /GstPipeline:pipeline0/GstV4l2Src:v4l2src0: Could not negotiate format
-		Additional debug info:
-		gstbasesrc.c(2830): gst_base_src_start (): /GstPipeline:pipeline0/GstV4l2Src:v4l2src0:
-		Check your filtered caps, if any
-		Setting pipeline to NULL ...
-		Freeing pipeline ...
+            
+    mcmaster@pr0nscope:~/document/external/pr0ntools/cnc_microscope$ gst-launch v4l2src device=/dev/video0 ! videocrop top=918 bottom=918 left=1224 right=1224 ! videoscale ! ximagesink
+        Setting pipeline to PAUSED ...
+        ERROR: Pipeline doesn't want to pause.
+        ERROR: from element /GstPipeline:pipeline0/GstV4l2Src:v4l2src0: Could not negotiate format
+        Additional debug info:
+        gstbasesrc.c(2830): gst_base_src_start (): /GstPipeline:pipeline0/GstV4l2Src:v4l2src0:
+        Check your filtered caps, if any
+        Setting pipeline to NULL ...
+        Freeing pipeline ...
         gst-launch v4l2src device=/dev/video0 ! ffmpegcolorspace ! videocrop top=100 left=1 right=4 bottom=0 ! ximagesink
-	        works
-	mcmaster@pr0nscope:~/document/external/pr0ntools/cnc_microscope$ gst-launch v4l2src device=/dev/video0 ! ffmpegcolorspace ! videocrop top=100 left=1 right=4 bottom=0 ! ximagesink
-		Setting pipeline to PAUSED ...
-		Pipeline is live and does not need PREROLL ...
-		Setting pipeline to PLAYING ...
-		New clock: GstSystemClock
-		ERROR: from element /GstPipeline:pipeline0/GstXImageSink:ximagesink0: Output window was closed
-		Additional debug info:
-		ximagesink.c(1119): gst_ximagesink_handle_xevents (): /GstPipeline:pipeline0/GstXImageSink:ximagesink0
-		Execution ended after 4460586853 ns.
-		Setting pipeline to PAUSED ...
-		Setting pipeline to READY ...
-		Setting pipeline to NULL ...
-		Freeing pipeline ...
-	aha: the culprit is that I'm running the full driver which is defaulting to lower res
+            works
+    mcmaster@pr0nscope:~/document/external/pr0ntools/cnc_microscope$ gst-launch v4l2src device=/dev/video0 ! ffmpegcolorspace ! videocrop top=100 left=1 right=4 bottom=0 ! ximagesink
+        Setting pipeline to PAUSED ...
+        Pipeline is live and does not need PREROLL ...
+        Setting pipeline to PLAYING ...
+        New clock: GstSystemClock
+        ERROR: from element /GstPipeline:pipeline0/GstXImageSink:ximagesink0: Output window was closed
+        Additional debug info:
+        ximagesink.c(1119): gst_ximagesink_handle_xevents (): /GstPipeline:pipeline0/GstXImageSink:ximagesink0
+        Execution ended after 4460586853 ns.
+        Setting pipeline to PAUSED ...
+        Setting pipeline to READY ...
+        Setting pipeline to NULL ...
+        Freeing pipeline ...
+    aha: the culprit is that I'm running the full driver which is defaulting to lower res
         '''
         if 0:
-		self.player.add(self.size_queue_focus, self.videocrop)
-		gst.element_link_many(self.size_tee, self.size_queue_focus, self.videocrop)
+            self.player.add(self.size_queue_focus, self.videocrop)
+            gst.element_link_many(self.size_tee, self.size_queue_focus, self.videocrop)
         if 1:
-		self.player.add(self.size_queue_focus, self.videocrop, self.scale2, sinkx_focus)
-		gst.element_link_many(self.size_tee, self.size_queue_focus, self.videocrop, self.scale2, sinkx_focus)
+            self.player.add(self.size_queue_focus, self.videocrop, self.scale2, sinkx_focus)
+            gst.element_link_many(self.size_tee, self.size_queue_focus, self.videocrop, self.scale2, sinkx_focus)
 
         # Frame grabber stream
         # compromise
@@ -688,11 +688,11 @@ class CNCGUI(QMainWindow):
         message_name = message.structure.get_name()
         if message_name == "prepare-xwindow-id":
             if message.src.get_name() == 'sinkx_overview':
-            	print 'sinkx_overview win_id'
+                print 'sinkx_overview win_id'
                 win_id = self.gstWindowId
             elif message.src.get_name() == 'sinkx_focus':
                 win_id = self.gstWindowId2
-            	print 'sinkx_focus win_id'
+                print 'sinkx_focus win_id'
             else:
                 raise Exception('oh noes')
             
@@ -704,7 +704,7 @@ class CNCGUI(QMainWindow):
         dbg('home requested')
         #self.cnc_ipc.home()
         for axis in self.axes.values():
-        	axis.home()
+            axis.home()
             
     def go_rel(self):
         dbg('Go rel all requested')
@@ -732,6 +732,14 @@ class CNCGUI(QMainWindow):
             
     def dry(self):
         return self.dry_cb.isChecked()
+    
+    def pause(self):
+        if self.pause_pb.text() == 'Pause':
+            self.pause_pb.setText('Run')
+            self.cnc_ipc.setRunning(False)
+        else:
+            self.pause_pb.setText('Pause')
+            self.cnc_ipc.setRunning(True)
     
     def run(self):
         if not self.snapshot_pb.isEnabled():
@@ -959,7 +967,7 @@ class CNCGUI(QMainWindow):
     def snapshot_next_serial(self):
         if not self.auto_number_cb.isChecked():
                 return
-	prefix = self.snapshot_fn_le.text().split('.')[0]
+        prefix = self.snapshot_fn_le.text().split('.')[0]
         if prefix == '':
             self.snapshot_serial = 0
             prefix = 'snapshot_'
@@ -1037,6 +1045,10 @@ class CNCGUI(QMainWindow):
         self.dry_cb = QCheckBox()
         self.dry_cb.setChecked(config['cnc']['dry'])
         layout.addWidget(self.dry_cb, 2, 1)
+
+        self.pause_pb = QPushButton("Pause")
+        self.pause_pb.clicked.connect(self.pause)
+        layout.addWidget(self.pause_pb, 3, 0)
         
         gb.setLayout(layout)
         return gb

@@ -86,6 +86,8 @@ class ControllerThread(QThread, Controller):
         self.running = threading.Event()
         self._idle = threading.Event()
         self._idle.set()
+        self.normal_running = threading.Event()
+        self.normal_running.set()
         
         #for axis in self.controller.axes:
         
@@ -106,6 +108,11 @@ class ControllerThread(QThread, Controller):
             
         self.build_axes()
         
+    def setRunning(self, running):
+        if running:
+            self.normal_running.set()
+        else:
+            self.normal_running.clear()
         
     def idle(self):
         '''return true if the thread is idle'''
@@ -124,6 +131,10 @@ class ControllerThread(QThread, Controller):
         self.running.set()
         self._idle.clear()
         while self.running.is_set():
+            if not self.normal_running.isSet():
+                print 'Paused'
+                self.normal_running.wait(0.1)
+                continue
             try:
                 (axis, name, args) = self.queue.get(True, 0.1)
                 self._idle.clear()
