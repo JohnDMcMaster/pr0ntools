@@ -702,18 +702,18 @@ class CNCGUI(QMainWindow):
     
     def home(self):
         dbg('home requested')
-        self.cnc_ipc.home()
+        #self.cnc_ipc.home()
+        for axis in self.axes.values():
+        	axis.home()
             
     def go_rel(self):
         dbg('Go rel all requested')
-        for k in self.axes:
-            axis = self.axes[k]
+        for axis in self.axes.values():
             axis.go_rel()
     
     def go_abs(self):
         dbg('Go abs all requested')
-        for k in self.axes:
-            axis = self.axes[k]
+        for axis in self.axes.values():
             axis.go_abs()
     
     def processCncProgress(self, pictures_to_take, pictures_taken, image, first):
