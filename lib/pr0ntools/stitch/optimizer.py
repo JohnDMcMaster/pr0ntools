@@ -191,7 +191,7 @@ class PTOptimizer:
 		# In practice I tend to get around 25 so anything this big signifies a real problem
 		self.rms_error_threshold = 250.0
 		# If set to true will clear out all old optimizer settings
-		# If PToptimizer gets de values in it will use them as a base
+		# If PToptimizer gets old values in it will use them as a base
 		self.reoptimize = True
 	
 	def verify_images(self):

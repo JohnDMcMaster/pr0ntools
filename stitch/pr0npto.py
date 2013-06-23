@@ -15,6 +15,8 @@ if __name__ == "__main__":
 	parser.add_argument('--anchor', action="store_true", dest="anchor", default=False, help='Re-anchor in the center')
 	parser.add_argument('--set-optimize-xy', action="store_true", dest="set_optimize_xy", default=False, help='Set project to optimize xy')
 	parser.add_argument('--optimize', action="store_true", dest="optimize", default=False, help='Optimize the project and also center by default')
+	parser.add_argument('--reoptimize', action="store_true", dest="reoptimize", default=True, help='When optimizing do not remove all existing optimizations')
+	parser.add_argument('--no-reoptimize', action="store_false", dest="reoptimize", default=True, help='When optimizing do not remove all existing optimizations')
 	parser.add_argument('--lens-model', action="store", type=str, dest="lens_model", default=None, help='Apply lens model file')
 	parser.add_argument('--reset-photometrics', action="store_true", dest="reset_photometrics", default=False, help='Reset photometrics')
 	parser.add_argument('--basename', action="store_true", dest="basename", default=False, help='Strip image file names down to basename')
@@ -90,6 +92,7 @@ if __name__ == "__main__":
 	if args.optimize:
 		print 'Optimizing'
 		opt = PTOptimizer(pto)
+		opt.reoptimize = args.reoptimize
 		opt.run()
 		# Default
 		if not args.center is False:
