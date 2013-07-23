@@ -116,7 +116,7 @@ class ImageTiler:
 		col = 0
 		next_progress = self.progress_inc
 		processed = 0
-		n_images = len(range(range(self.x0, self.x1, self.tw))) * len(range(self.y0, self.y1, self.th))
+		n_images = len(range(self.x0, self.x1, self.tw)) * len(range(self.y0, self.y1, self.th))
 		for x in xrange(self.x0, self.x1, self.tw):
 			row = 0
 			for y in xrange(self.y0, self.y1, self.th):
