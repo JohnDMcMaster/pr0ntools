@@ -202,6 +202,7 @@ class TileTiler:
 						cur_progress = 1.0 * processed / n_images
 						if cur_progress >= next_progress:
 							print 'Progress: %02.2f%%' % (cur_progress * 100,)
+							next_progress += self.progress_inc
 					
 			# Additional levels we take the image coordinate map and shrink
 			else:
