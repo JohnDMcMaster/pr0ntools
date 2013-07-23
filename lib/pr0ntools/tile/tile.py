@@ -46,6 +46,7 @@ class ImageTiler:
 	def __init__(self, image, x0 = None, x1 = None, y0 = None, y1 = None, tw = 250, th = 250):
 		self.verbose = False
 		self.image = image
+		self.progress_inc = 0.10
 		
 		if x0 is None:
 			x0 = 0
@@ -84,7 +85,8 @@ class ImageTiler:
 		ymax = min(ymin + self.th, self.y1)
 		nfn = self.get_name(row, col)
 
-		print '%s: (x %d:%d, y %d:%d)' % (nfn, xmin, xmax, ymin, ymax)
+		if self.verbose:
+			print '%s: (x %d:%d, y %d:%d)' % (nfn, xmin, xmax, ymin, ymax)
 		ip = self.image.subimage(xmin, xmax, ymin, ymax)
 		'''
 		Images must be padded
@@ -112,11 +114,19 @@ class ImageTiler:
 		'''
 
 		col = 0
+		next_progress = self.progress_inc
+		processed = 0
+		n_images = len(range(xrange(self.x0, self.x1, self.tw))) * len(range(self.y0, self.y1, self.th))
 		for x in xrange(self.x0, self.x1, self.tw):
 			row = 0
 			for y in xrange(self.y0, self.y1, self.th):
 				self.make_tile(x, y, row, col)
 				row += 1
+				if self.progress_inc:
+					cur_progress = 1.0 * processed / n_images
+					if cur_progress >= next_progress:
+						print 'Progress: %02.2f%%' % (cur_progress * 100,)
+						next_progress += self.progress_inc
 			col += 1
 
 '''
@@ -172,7 +182,6 @@ class TileTiler:
 			
 			next_progress = self.progress_inc
 			processed = 0
-			
 			# For the first level we copy things over
 			if self.zoom_level == self.max_level:
 				n_images = self.map.n_images()
@@ -256,6 +265,7 @@ class SingleTiler:
 		self.min_level = min_level
 		self.out_dir_base = out_dir_base
 		self.set_out_extension('.jpg')
+		self.progress_inc = 0.10
 
 	def set_out_extension(self, s):
 		self.out_extension = s
@@ -300,6 +310,7 @@ class SingleTiler:
 			os.mkdir(out_dir)
 		
 			tiler = ImageTiler(i)
+			tiler.progress_inc = self.progress_inc
 			tiler.out_dir = out_dir
 			tiler.run()
 		
