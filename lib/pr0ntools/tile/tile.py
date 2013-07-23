@@ -122,6 +122,7 @@ class ImageTiler:
 			for y in xrange(self.y0, self.y1, self.th):
 				self.make_tile(x, y, row, col)
 				row += 1
+				processed += 1
 				if self.progress_inc:
 					cur_progress = 1.0 * processed / n_images
 					if cur_progress >= next_progress:
