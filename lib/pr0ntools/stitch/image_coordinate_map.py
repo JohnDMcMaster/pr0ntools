@@ -115,8 +115,11 @@ class ImageCoordinateMap:
 	
 	def images(self):
 		'''Returns a generator giving (file name, row, col) tuples'''
-		for i in range(0, len(self.layout)):
+		for i in xrange(len(self.layout)):
 			yield (self.layout[i], i / self.cols, i % self.width())
+	
+	def n_images(self):
+		return len(self.layout)
 	
 	def width(self):
 		'''Return number of cols'''

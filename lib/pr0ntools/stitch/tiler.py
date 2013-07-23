@@ -172,7 +172,7 @@ class Tiler:
 		self.y1 = spl.bottom()
 		#print spl
 		
-		self.set_size_heuristic(self.img_width, self.img_height)
+		self.calc_size_heuristic(self.img_width, self.img_height)
 		
 		if stp:
 			if self.stw or self.sth:
@@ -235,7 +235,7 @@ class Tiler:
 					tiler = Tiler(pto = self.pto, out_dir = self.out_dir,
 							tile_width = self.tw, tile_height = self.th,
 							st_scalar_heuristic=self.st_scalar_heuristic, dry=True,
-							stw=check_w, sth=check_h, stp=None, clip_width=None, clip_height=None)
+							stw=check_w, sth=check_h, stp=None, clip_width=self.clip_width, clip_height=self.clip_height)
 					
 					# The area will float around a little due to truncation
 					# Its better to round down than up to avoid running out of memory
@@ -271,6 +271,14 @@ class Tiler:
 		self.recalc_step()		
 		# We build this in run
 		self.map = None
+		print 'Clip width: %d' % self.clip_width
+		print 'Clip height: %d' % self.clip_width
+		print 'ST width: %d' % self.stw
+		print 'ST height: %d' % self.sth
+		if self.stw <= 2 * self.clip_width:
+			raise Exception('Clip width exceeds supertile width: reduce clip or increase ST size')
+		if self.sth <= 2 * self.clip_height:
+			raise Exception('Clip width exceeds supertile width: reduce clip or increase ST size')
 		
 	def msg(self, s, l):
 		'''Print message s at verbosity level l'''
@@ -357,7 +365,7 @@ class Tiler:
 			print self.stw, self.clip_width, self.tw
 			raise
 	
-	def set_size_heuristic(self, image_width, image_height):
+	def calc_size_heuristic(self, image_width, image_height):
 		'''
 		The idea is that we should have enough buffer to have crossed a safe area
 		If you take pictures such that each picture has at least some unique area (presumably in the center)
@@ -367,8 +375,10 @@ class Tiler:
 		
 		However if we do assume its on the center the center of the image should be unique and thus not a stitch boundry
 		'''
-		self.clip_width = int(image_width * 1.5)
-		self.clip_height = int(image_height * 1.5)
+		if self.clip_width is None:
+			self.clip_width = int(image_width * 1.5)
+		if self.clip_height is None:
+			self.clip_height = int(image_height * 1.5)
 	
 	'''
 	def build_spatial_map(self):
@@ -500,7 +510,8 @@ class Tiler:
 				# Did we already do this tile?
 				if self.is_done(row, col):
 					# No use repeating it although it would be good to diff some of these
-					print 'Rejecting tile x%d, y%d / r%d, c%d: already done' % (x, y, row, col)
+					if self.verbose:
+						print 'Rejecting tile x%d, y%d / r%d, c%d: already done' % (x, y, row, col)
 					continue
 			
 				# note that x and y are in whole pano coords
@@ -526,7 +537,8 @@ class Tiler:
 	def make_tile(self, i, x, y, row, col):
 		'''Make a tile given an image, the upper left x and y coordinates in that image, and the global row/col indices'''	
 		if self.dry:
-			print 'Dry: not making tile w/ x%d y%d r%d c%d' % (x, y, row, col)
+			if self.verbose:
+				print 'Dry: not making tile w/ x%d y%d r%d c%d' % (x, y, row, col)
 		else:
 			xmin = x
 			ymin = y
@@ -534,7 +546,8 @@ class Tiler:
 			ymax = min(ymin + self.th, i.height())
 			nfn = self.get_name(row, col)
 
-			print 'Subtile %s: (x %d:%d, y %d:%d)' % (nfn, xmin, xmax, ymin, ymax)
+			if self.verbose:
+				print 'Subtile %s: (x %d:%d, y %d:%d)' % (nfn, xmin, xmax, ymin, ymax)
 			ip = i.subimage(xmin, xmax, ymin, ymax)
 			'''
 			Images must be padded

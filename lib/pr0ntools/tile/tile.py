@@ -122,6 +122,7 @@ Creates smaller tiles from source tiles
 '''
 class TileTiler:
 	def __init__(self, file_names, max_level, min_level = 0, out_dir_base=None):
+		self.verbose = False
 		self.map = ImageCoordinateMap.from_tagged_file_names(file_names)
 		#self.map.debug_print()
 		self.max_level = max_level
@@ -134,6 +135,9 @@ class TileTiler:
 		self.t_height = 250
 		# JPEG quality level, 1-100 or something
 		self.quality = 90
+		# Fraction of 1 to print each progress level at
+		# None to disable
+		self.progress_inc = 0.10
 
 	def set_out_extension(self, s):
 		self.out_extension = s
@@ -164,8 +168,12 @@ class TileTiler:
 				os.system('rm -rf %s' % out_dir)
 			os.mkdir(out_dir)
 			
+			next_progress = self.progress_inc
+			processed = 0
+			
 			# For the first level we copy things over
 			if self.zoom_level == self.max_level:
+				n_images = self.map.n_images()
 				for (img_fn, row, col) in self.map.images():
 					dst = self.get_fn(row, col)
 					if 0:
@@ -174,7 +182,8 @@ class TileTiler:
 					# This allows to do type conversions if needed
 					# Presumably the conversion process for jps should be lossless although I haven't verified
 					else:
-						print 'Basic conversion %s => %s w/ quality %u' % (img_fn, dst, self.quality)
+						if self.verbose:
+							print 'Basic conversion %s => %s w/ quality %u' % (img_fn, dst, self.quality)
 						pi = PImage.from_file(img_fn)
 						# I could actually set with / height here but right now this is
 						# coming up fomr me accidentially using 256 x 256 tiles when the 
@@ -186,6 +195,11 @@ class TileTiler:
 						if pi.width() != self.t_width or pi.height() != self.t_height:
 							raise Exception('Source image incorrect size')
 						pi.save(dst, quality=self.quality)
+					processed += 1
+					if self.progress_inc:
+						cur_progress = 1.0 * processed / n_images
+						if cur_progress >= next_progress:
+							print 'Progress: %02.2f%%' % (cur_progress * 100,)
 					
 			# Additional levels we take the image coordinate map and shrink
 			else:
@@ -206,7 +220,8 @@ class TileTiler:
 						this += 1
 						old_col = new_col * self.zoom_factor
 						#print
-						print 'z%d %d/%d: transforming row %d => %d, col %d => %d w/ quality %u' % (self.zoom_level, this, todo, old_row, new_row, old_col, new_col, self.quality)
+						if self.verbose:
+							print 'z%d %d/%d: transforming row %d => %d, col %d => %d w/ quality %u' % (self.zoom_level, this, todo, old_row, new_row, old_col, new_col, self.quality)
 						# Paste the old (4) images together
 						imgp = PImage.from_filename_array([[self.get_old(old_row + 0, old_col + 0), self.get_old(old_row + 0, old_col + 1)],
 								[self.get_old(old_row + 1, old_col + 0), self.get_old(old_row + 1, old_col + 1)]])
@@ -221,8 +236,9 @@ class TileTiler:
 						#sys.exit(1)
 						new_map.set_image(new_col, new_row, new_fn)
 				# Next shrink will be on the previous tile set, not the original
-				print 'Rotating image map'
-				self.map = new_map
+				if self.verbose:
+					print 'Rotating image map'
+					self.map = new_map
 # replaces from_single
 class SingleTiler:
 	def __init__(self, fn, max_level = None, min_level = None, out_dir_base=None):

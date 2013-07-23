@@ -106,6 +106,7 @@ if __name__ == "__main__":
 	parser.add_argument('--clip-width', action="store", dest="clip_width", type=int, default=None, help='x clip (advanced)')
 	parser.add_argument('--clip-height', action="store", dest="clip_height", type=int, default=None, help='y clip (advanced)')
 	parser.add_argument('--ignore-errors', action="store_true", dest="ignore_errors", default=False, help='skip broken tile stitches (advanced)')
+	parser.add_argument('--verbose', '-v', action="store_true", default=False, help='spew lots of info')
 	parser.add_argument('--st-dir', help='store intermediate supertiles to given dir')
 	
 	args = parser.parse_args()
@@ -129,6 +130,7 @@ if __name__ == "__main__":
 			stp = mem2pix(mksize(stm))
 	
 	t = Tiler(project, 'out', stw=mksize(args.stw), sth=mksize(args.sth), stp=stp, clip_width=args.clip_width, clip_height=args.clip_height)
+	t.verbose = args.verbose
 	if args.st_dir is None:
 		args.st_dir = 'single'
 	t.st_dir = args.st_dir
