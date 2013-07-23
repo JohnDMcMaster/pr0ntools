@@ -44,6 +44,7 @@ Take a single large image and break it into tiles
 '''
 class ImageTiler:
 	def __init__(self, image, x0 = None, x1 = None, y0 = None, y1 = None, tw = 250, th = 250):
+		self.verbose = False
 		self.image = image
 		
 		if x0 is None:
@@ -90,7 +91,8 @@ class ImageTiler:
 		If they aren't they will be stretched in google maps
 		'''
 		if ip.width() != self.tw or ip.height() != self.th:
-			print 'WARNING: %s: expanding partial tile (%d X %d) to full tile size' % (nfn, ip.width(), ip.height())
+			if self.verbose:
+				print 'WARNING: %s: expanding partial tile (%d X %d) to full tile size' % (nfn, ip.width(), ip.height())
 			ip.set_canvas_size(self.tw, self.th)
 		#print 'Saving...' 
 		ip.image.save(nfn)
