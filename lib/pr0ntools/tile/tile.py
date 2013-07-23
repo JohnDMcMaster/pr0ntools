@@ -217,6 +217,7 @@ class TileTiler:
 				new_map = ImageCoordinateMap(new_cols, new_rows)
 				todo = new_rows * new_cols
 				this = 0
+				next_progress = self.progress_inc
 				for new_row in xrange(new_rows):
 					old_row = new_row * self.zoom_factor
 					for new_col in xrange(new_cols):
@@ -238,6 +239,11 @@ class TileTiler:
 						scaled.save(new_fn, quality=self.quality)
 						#sys.exit(1)
 						new_map.set_image(new_col, new_row, new_fn)
+						if self.progress_inc:
+							cur_progress = 1.0 * this / todo
+							if cur_progress >= next_progress:
+								print 'Progress: %02.2f%%' % (cur_progress * 100,)
+								next_progress += self.progress_inc
 				# Next shrink will be on the previous tile set, not the original
 				if self.verbose:
 					print 'Rotating image map'
