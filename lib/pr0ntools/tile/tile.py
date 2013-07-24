@@ -126,7 +126,7 @@ class ImageTiler:
 				if self.progress_inc:
 					cur_progress = 1.0 * processed / n_images
 					if cur_progress >= next_progress:
-						print 'Progress: %02.2f%%' % (cur_progress * 100,)
+						print 'Progress: %02.2f%% %d / %d' % (cur_progress * 100, processed, n_images)
 						next_progress += self.progress_inc
 			col += 1
 
@@ -185,6 +185,7 @@ class TileTiler:
 			processed = 0
 			# For the first level we copy things over
 			if self.zoom_level == self.max_level:
+				print 'Not resizing on first zoom level'
 				n_images = self.map.n_images()
 				for (img_fn, row, col) in self.map.images():
 					dst = self.get_fn(row, col)
@@ -211,7 +212,7 @@ class TileTiler:
 					if self.progress_inc:
 						cur_progress = 1.0 * processed / n_images
 						if cur_progress >= next_progress:
-							print 'Progress: %02.2f%%' % (cur_progress * 100,)
+							print 'Progress: %02.2f%% %d / %d' % (cur_progress * 100, processed, n_images)
 							next_progress += self.progress_inc
 					
 			# Additional levels we take the image coordinate map and shrink
@@ -219,7 +220,7 @@ class TileTiler:
 				# Prepare a new image coordinate map so we can form the next tile set
 				new_cols = int(math.ceil(1.0 * self.map.width() / self.zoom_factor))
 				new_rows = int(math.ceil(1.0 * self.map.height() / self.zoom_factor))
-				#print 'Shrink by %s: cols %s => %s, rows %s => %s' % (str(self.zoom_factor), self.map.width(), new_cols, self.map.height(), new_rows)
+				print 'Shrink by %s: cols %s => %s, rows %s => %s' % (str(self.zoom_factor), self.map.width(), new_cols, self.map.height(), new_rows)
 				if 0:
 					print
 					self.map.debug_print()
@@ -256,7 +257,7 @@ class TileTiler:
 								next_progress += self.progress_inc
 				# Next shrink will be on the previous tile set, not the original
 				if self.verbose:
-					print 'Rotating image map'
+					print 'Shrinking the world for future rounds'
 					self.map = new_map
 # replaces from_single
 class SingleTiler:
