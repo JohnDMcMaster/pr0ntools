@@ -253,12 +253,12 @@ class TileTiler:
 						if self.progress_inc:
 							cur_progress = 1.0 * this / todo
 							if cur_progress >= next_progress:
-								print 'Progress: %02.2f%%' % (cur_progress * 100,)
+								print 'Progress: %02.2f%% %d / %d' % (cur_progress * 100, this, todo)
 								next_progress += self.progress_inc
 				# Next shrink will be on the previous tile set, not the original
 				if self.verbose:
 					print 'Shrinking the world for future rounds'
-					self.map = new_map
+				self.map = new_map
 # replaces from_single
 class SingleTiler:
 	def __init__(self, fn, max_level = None, min_level = None, out_dir_base=None):
