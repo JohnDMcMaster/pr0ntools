@@ -68,11 +68,9 @@ class ImageMapSource(MapSource):
 class TileMapSource(MapSource):
 	def __init__(self, dir_in):
 		print 'TileMapSource()'
-		tw = None
-		th = None
+		self.tw = 250
+		self.th = 250
 		
-		tw = 256
-		th = 256
 		self.file_names = set()
 		for f in os.listdir(dir_in):
 			self.file_names.add(dir_in + "/" + f)
@@ -82,8 +80,6 @@ class TileMapSource(MapSource):
 		
 		self.x_tiles = self.map.width()
 		self.y_tiles = self.map.height()
-		self.tw = tw
-		self.th = th
 		
 		print 'Tile canvas width %d, height %d' % (self.width(), self.height())
 		
@@ -123,6 +119,8 @@ class Map:
 		# don't error on missing tiles in grid
 		self.skip_missing = False
 		self.set_out_extension('.jpg')
+		self.tw = 250
+		self.th = 250
 		
 	def set_out_extension(self, s):
 		self.out_extension = s
@@ -260,7 +258,7 @@ if (firstL) {
 ''' % (self.SI_RANGE_X(), self.SI_RANGE_X(), self.SI_RANGE_Y(), self.SI_RANGE_Y());
 
 	def create_map(self):
-		return '''
+		return ('''
 var siMap = new google.maps.Map(document.getElementById("si_canvas"), options);
 siMap.setCenter(new google.maps.LatLng(1, 1));
 siMap.setZoom(%d);
@@ -279,13 +277,13 @@ var %s = new google.maps.ImageMapType({
     return r;
   },
   format:"%s",
-  tileSize: new google.maps.Size(256, 256),
+  tileSize: new google.maps.Size(''' + str(self.tw) + ', ' + str(self.th) + '''),
   %s
   maxZoom: %d,
   name: "SM",
   alt: "IC map"
 });
-''' % (self.min_level, self.type_obj_name(), self.out_extension, self.out_format, self.is_png_str, self.SI_MAX_ZOOM())
+''') % (self.min_level, self.type_obj_name(), self.out_extension, self.out_format, self.is_png_str, self.SI_MAX_ZOOM())
 
 	def type_obj_name(self):
 		#return 'mos6522NoMetal'
