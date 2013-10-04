@@ -14,12 +14,7 @@ http://uvicrec.blogspot.com/2012/02/tile-stitch.html
 
 import sys 
 import os.path
-from pr0ntools.tile.tile import SingleTiler, TileTiler
 from pr0ntools.stitch.tiler import Tiler
-from pr0ntools.stitch.wander_stitch import WanderStitch
-from pr0ntools.stitch.grid_stitch import GridStitch
-from pr0ntools.stitch.fortify_stitch import FortifyStitch
-from pr0ntools.execute import Execute
 from pr0ntools.stitch.pto.project import PTOProject
 import argparse
 import re
