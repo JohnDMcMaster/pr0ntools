@@ -218,6 +218,10 @@ class Planner:
         rconfig = self.rconfig
         obj_config = rconfig.obj_config
         self.progress_cb = rconfig.progress_cb
+        
+        self.cur_x = 0.0
+        self.cur_y = 0.0
+        self.cur_z = 0.0
     
         if rconfig.scan_config is None:
             rconfig.scan_config = config.get_scan_config()
@@ -246,8 +250,6 @@ class Planner:
         focus.x_view = float(obj_config['x_view'])
         focus.y_view = float(obj_config['y_view'])
     
-        self.even_xy_backlash = True
-        
         '''
         Planar test run
         plane calibration corner ended at 0.0000, 0.2674, -0.0129
@@ -308,12 +310,14 @@ class Planner:
         # Try actually generating the points and see if it matches how many we thought we were going to get
         self.pictures_to_take = self.getNumPoints()
         self.rconfig.scan_config['computed']['pictures_to_take'] = self.pictures_to_take
-        if self.pictures_to_take != expected_n_pictures:
+        if self.rconfig.scan_config.get('exclude', []):
+            print 'Suprressing picture take check on exclusions'
+        elif self.pictures_to_take != expected_n_pictures:
             print 'Going to take %d pictures but thought was going to take %d pictures (x %d X y %d)' % (self.pictures_to_take, expected_n_pictures, self.x.images(), self.y.images())
             print 'Points:'
             for p in self.getPoints():
                 print '    ' + str(p)
-            raise Exception('Fail')
+            raise Exception('See above')
         self.pictures_taken = 0
         self.actual_pictures_taken = 0
         self.notify_progress(None, True)
@@ -758,9 +762,30 @@ class Planner:
                     self.x.start, self.y.start,
                     self.x.end, self.y.end))
     
+    def exclude(self, p):
+        (cur_x, cur_y, cur_z, cur_row, cur_col) = p
+        for exclusion in self.rconfig.scan_config.get('exclude', []):
+            '''
+            If neither limit is specified don't exclude
+            maybe later: if one limit is specified but not the other take it as the single bound
+            '''
+            r0 = exclusion.get('r0', float('inf'))
+            r1 = exclusion.get('r1', float('-inf'))
+            c0 = exclusion.get('c0', float('inf'))
+            c1 = exclusion.get('c1', float('-inf'))
+            if cur_row >= r0 and cur_row <= r1:
+                print 'Excluding r%d, c%d on r0: %s, r1: %s' % (cur_row, cur_col, r0, r1)
+                return True
+            if cur_col >= c0 and cur_col <= c1:
+                print 'Excluding r%d, c%d on c0: %s, r1: %s' % (cur_row, cur_col, c0, c1)
+                return True
+        return False
+    
     def getPointsEx(self):
         for p in self.getPointsExCore():
             self.validate_point(p)
+            if self.exclude(p):
+                continue
             yield p
     
     
@@ -869,42 +894,28 @@ class Planner:
         '''
 
         self.prepare_image_output()
+        '''
+        Backlash compensation
+        0: no compensation
+        -1: compensated for decreasing
+        1: compensated for increasing
+        '''
+        self.x_comp = 0
+        self.y_comp = 0
+        self.z_comp = 0
+        self.last_x = None
+        self.last_y = None
+        self.last_z = None
         
-        if self.even_xy_backlash:
-            # Make sure first backlash compensation works as expected
-            # And prep y for even step
-            self.absolute_move(self.x.start, self.y.start - self.y_backlash())
-        
-        # Because of the backlash on Z, its better to scan in same direction
-        # Additionally, it doesn't matter too much for focus which direction we go, but XY is thrown off
-        # So, need to make sure we are scanning same direction each time
-        # err for now just easier I guess
-        forward = None
         self.cur_col = -1
         # columns
-        last_y = None
         for (cur_x, cur_y, cur_z, self.cur_row, self.cur_col) in self.getPointsEx():
         #for cur_x in self.gen_x_points():
-            self.cur_x = cur_x
+            #self.cur_x = cur_x
             #self.cur_col += 1
             #self.cur_row = -1
             # rows
             #for cur_y in self.gen_y_points():
-            
-            #forward = cur_x > last_x
-            if last_y is None:
-                forward = True
-            elif cur_y != last_y:
-                forward = not forward
-
-            if self.even_xy_backlash and last_y != cur_y:
-                # Make backlash even
-                if forward:
-                    # Going forward means we need to back up
-                    self.relative_move(-self.x_backlash(), None)
-                else:
-                    # And otherwise overshoot the other way
-                    self.relative_move(self.x_backlash(), None)
             
             if True:
                 self.cur_y = cur_y
@@ -934,7 +945,7 @@ class Planner:
                 cur_z = self.calc_z(cur_x, cur_y)
                 # print cur_z
                 # print 'full_z_delta: %f, z_start %f, z_end %f' % (full_z_delta, z_start, z_end)
-                self.comment('forward %d, (%f, %f, %s)' % (forward, cur_x, cur_y, str(cur_z)))
+                self.comment('comp (%d, %d, %d), pos (%f, %f, %s)' % (self.x_comp, self.y_comp, self.z_comp, cur_x, cur_y, str(cur_z)))
 
                 #if cur_z < z_start or cur_z > z_end:
                 #    print 'cur_z: %f, z_start %f, z_end %f' % (cur_z, z_start, z_end)
@@ -950,7 +961,7 @@ class Planner:
                     z_param = z_delta + z_backlash_delta
                 '''
                 #self.relative_move(x_delta, y_delta, z_param)
-                self.absolute_move(cur_x, cur_y, cur_z)
+                self.absolute_backlash_move(cur_x, cur_y, cur_z)
                 if z_backlash_delta:
                     self.relative_move(0.0, 0.0, -z_backlash_delta)
                 self.take_pictures()
@@ -970,10 +981,7 @@ class Planner:
                     inner_loop()
             '''
             #raise Exception('break')
-            last_y = cur_y
 
-        self.cur_x = cur_x
-        self.cur_y = cur_y
         self.home()
         self.end_program()
         self.end_time = time.time()
@@ -984,7 +992,10 @@ class Planner:
         #self.comment('Statistics:')
         #self.comment('Pictures: %d' % pictures_taken)
         if not self.pictures_taken == self.pictures_to_take:
-            raise Exception('pictures taken mismatch (taken: %d, to take: %d)' % (self.pictures_to_take, self.pictures_taken))
+            if self.rconfig.scan_config.get('exclude', []):
+                print 'Suppressing for exclusion: pictures taken mismatch (taken: %d, to take: %d)' % (self.pictures_to_take, self.pictures_taken)
+            else:
+                raise Exception('pictures taken mismatch (taken: %d, to take: %d)' % (self.pictures_to_take, self.pictures_taken))
            
         self.rconfig.scan_config['run_data'] = {
             # In seconds
@@ -1012,8 +1023,95 @@ class Planner:
             z = 0.0
         print 'DRY: relative move to (%f, %f, %f)' % (x, y, z)
 
+    def absolute_backlash_move(self, x, y, z):
+        '''Do an absolute move with backlash compensation'''
+        '''
+        On the very first move we need to compensate in the direction of travel
+        After that we compensate based on the last point
+        For the meantime to keep things simple going to assume very first move
+        is from the upper left which isn't necessarily true
+        Could make a guess based on the scan limits which solves for 95% of cases
+        '''
+        
+        for i in xrange(3):
+            def last():
+                return (self.last_x, self.last_y, self.last_z)[i]
+            def to():
+                return (x, y, z)[i]
+            def backlash():
+                return (self.x_backlash(), self.y_backlash(), self.z_backlash)[i]
+            def comp():
+                return (self.x_comp, self.y_comp, self.z_comp)[i]
+            def absolute_move(n):
+                if i == 0:
+                    self.absolute_move(n, None)
+                elif i == 1:
+                    self.absolute_move(None, n)
+                elif i == 2:
+                    self.absolute_move(None, None, n)
+                else:
+                    raise Exception('bad axis')
+            def compensated(n):
+                if i == 0:
+                    self.x_comp = n
+                elif i == 1:
+                    self.y_comp = n
+                elif i == 2:
+                    self.z_comp = n
+                else:
+                    raise Exception('bad axis')
+            
+            if to() is None:
+                continue
+            # If not going in the same direction as last need to compensate
+            # If no history force compensation
+            if last() is None:
+                # hack: y is always increasing
+                # with boundries messes things up
+                if i == 1:
+                    # Compensate for moving right
+                    print 'Axis %d: initial compensate for moving increasing (FIXME: hack)' % i
+                    absolute_move(to() - backlash())
+                    compensated(1)
+                # Starting from the left?
+                elif to() == self.x.start:
+                    # Compensate for moving right
+                    print 'Axis %d: initial compensate for moving increasing' % i
+                    absolute_move(to() - backlash())
+                    compensated(1)
+                else:
+                    # Compensate for moving left
+                    print 'Axis %d: initial compensate for moving decreasing' % i
+                    absolute_move(to() + backlash())
+                    compensated(-1)
+            else:
+                # Going right but was not compensating right?
+                if (to() - last() > 0) and (comp() <= 0):
+                    print 'Axis %d: compensate for changing to increasing' % i
+                    absolute_move(to() - backlash())
+                    compensated(1)
+                # Going left but was not compensating left?
+                elif (to() - last() < 0) and (comp() >= 0):
+                    print 'Axis %d: compensate for changing to decreasing' % i
+                    absolute_move(to() + backlash())
+                    compensated(-1)
+            
+        self.absolute_move(x, y, z)
+        if x is not None:
+            self.last_x = x
+        if y is not None:
+            self.last_y = y
+        if z is not None:
+            self.last_z = z
+
     def absolute_move(self, x, y, z = None):
         print 'DRY: absolute move to (%s, %s, %s)' % (str(x), str(y), str(z))
+        if x is not None:
+            self.x_pos = x
+        if y is not None:
+            self.y_pos = y
+        if z is not None:
+            self.z_pos = z
     
     @staticmethod
     def get(rconfig):
@@ -1049,6 +1147,12 @@ class GCodePlanner(Planner):
     
     def absolute_move(self, x, y, z = None):
         self.do_move('G90', x, y, z)
+        if x is not None:
+            self.x_pos = x
+        if y is not None:
+            self.y_pos = y
+        if z is not None:
+            self.z_pos = z
 
     def relative_move(self, x, y, z = None):
         if not x and not y and not z:
@@ -1135,11 +1239,14 @@ class ControllerPlanner(Planner):
     def absolute_move(self, x, y, z = None):
         if not x is None:
             self.controller.x.set_pos(x)
+            self.x_pos = x
         if not y is None:
             self.controller.y.set_pos(y)
+            self.y_pos = y
         if not z is None:
             self.controller.z.set_pos(z)
-    
+            self.z_pos = z
+
     def relative_move(self, x, y, z = None):
         if not x and not y and not z:
             print 'Omitting 0 move'

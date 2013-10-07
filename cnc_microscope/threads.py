@@ -132,7 +132,6 @@ class ControllerThread(QThread, Controller):
         self._idle.clear()
         while self.running.is_set():
             if not self.normal_running.isSet():
-                print 'Paused'
                 self.normal_running.wait(0.1)
                 continue
             try:
