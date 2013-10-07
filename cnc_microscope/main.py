@@ -351,13 +351,24 @@ class CNCGUI(QMainWindow):
         
         # Must not be initialized until after layout is set
         self.gstWindowId = None
-        if config['imager']['engine'] == 'gstreamer':
+        engine_config = config['imager']['engine']
+        if engine_config == 'auto':
+            if os.path.exists("/dev/video0"):
+                engine_config = 'gstreamer'
+            else:
+                engine_config = 'gstreamer-testsrc'
+            print 'Auto image engine: selected %s' % engine_config
+        if engine_config == 'gstreamer':
             self.source = gst.element_factory_make("v4l2src", "vsource")
             self.source.set_property("device", "/dev/video0")
             self.setupGst()
-        elif config['imager']['engine'] == 'gstreamer-testsrc':
+        elif engine_config == 'gstreamer-testsrc':
             self.source = gst.element_factory_make("videotestsrc", "video-source")
-            self.setupGst()    
+            self.setupGst()
+        elif engine_config == 'mock':
+            pass
+        else:
+            raise Exception('Unknown engine %s' % (engine_config,))
         
         self.cnc_ipc.start()
         
