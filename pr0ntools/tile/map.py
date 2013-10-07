@@ -193,7 +193,8 @@ var options = {
   scrollwheel: true,
   //FIXME: look into
   //scaleControl: true,
-  mapTypeControlOptions: {style: google.maps.MapTypeControlStyle.DROPDOWN_MENU}
+  mapTypeControlOptions: {style: google.maps.MapTypeControlStyle.DROPDOWN_MENU},
+  streetViewControl: false
 }
 ''';
 
@@ -291,7 +292,7 @@ var %s = new google.maps.ImageMapType({
 
 	def map_type(self):
 		#return 'mos6522'
-		return 'ic'
+		return 'ICImageMapType'
 
 	def script_footer(self):
 		ret = '''
@@ -322,8 +323,9 @@ siMap.setOptions({
     mapTypeIds: [
       '%s'
     ],
-    style: google.maps.MapTypeControlStyle.DROPDOWN_MENU
-  }
+    style: google.maps.MapTypeControlStyle.DROPDOWN_MENU,
+  },
+  streetViewControl: false
 });
 
 
