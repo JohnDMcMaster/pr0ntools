@@ -50,8 +50,9 @@ except ImportError:
         print 'Failed to import a gstreamer package when gstreamer is required'
         raise
 
+debug = True
 def dbg(*args):
-    if 0:
+    if not debug:
         return
     if len(args) == 0:
         print
@@ -63,19 +64,19 @@ def dbg(*args):
 def get_cnc():
     engine = config['cnc']['engine']
     if engine == 'mock':
-        return MockController()
+        return MockController(debug=debug)
     elif engine == 'MC':
         try:
-            return MC()
+            return MC(debug=debug)
         except IOError:
             print 'Failed to open MC device'
             raise
     elif engine == 'auto':
         try:
-            return MC()
+            return MC(debug=debug)
         except IOError:
             print 'Failed to open MC device, falling back to mock'
-            return MockController()
+            return MockController(debug=debug)
     else:
         raise Exception("Unknown CNC engine %s" % engine)
 
@@ -728,14 +729,14 @@ class CNCGUI(QMainWindow):
             axis.go_abs()
     
     def processCncProgress(self, pictures_to_take, pictures_taken, image, first):
-        print 'Processing CNC progress'
+        dbg('Processing CNC progress')
         if first:
-            print 'First CB with %d items' % pictures_to_take
+            dbg('First CB with %d items' % pictures_to_take)
             self.pb.setMinimum(0)
             self.pb.setMaximum(pictures_to_take)
             self.bench = Benchmark(pictures_to_take)
         else:
-            print 'took %s at %d / %d' % (image, pictures_taken, pictures_to_take)
+            dbg('took %s at %d / %d' % (image, pictures_taken, pictures_to_take))
             self.bench.set_cur_items(pictures_taken)
             print self.bench
             
