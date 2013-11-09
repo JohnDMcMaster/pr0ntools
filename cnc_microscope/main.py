@@ -12,6 +12,7 @@ Question: why on Ubuntu 12.04 w/ custom kernel can I take pictures but not strea
 
 from imager import *
 from usbio.mc import MC
+from pr0ndexer_controller import PDC
 from pr0ntools.benchmark import Benchmark
 from config import *
 from threads import *
@@ -65,15 +66,26 @@ def get_cnc():
     engine = config['cnc']['engine']
     if engine == 'mock':
         return MockController(debug=debug)
+    # USBIO MicroControle
     elif engine == 'MC':
         try:
             return MC(debug=debug)
         except IOError:
             print 'Failed to open MC device'
             raise
+    # pr0ndexer (still on MicroControle hardware though)
+    elif engine == 'PDC':
+        try:
+            return PDC(debug=debug)
+        except IOError:
+            print 'Failed to open PD device'
+            raise
     elif engine == 'auto':
         try:
-            return MC(debug=debug)
+            mc = MC(debug=debug)
+            if mc.version():
+                return mc
+            raise IOError('Couldnt find dev')
         except IOError:
             print 'Failed to open MC device, falling back to mock'
             return MockController(debug=debug)
@@ -766,6 +778,13 @@ class CNCGUI(QMainWindow):
         if not dry:
             print 'Loading imager...'
             itype = config['imager']['engine']
+            
+            if itype == 'auto':
+                if os.path.exists('/dev/video0'):
+                    itype = 'gstreamer'
+                else:
+                    itype = 'gstreamer-testsrc'
+            
             if itype == 'mock':
                 imager = MockImager()
             elif itype == "VC":
