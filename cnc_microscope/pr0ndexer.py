@@ -59,6 +59,10 @@ class Indexer:
     def __init__(self, device=None, debug=False):
         self.serial = None
         self.debug = debug
+        
+        # Turns out both go in opposite direction I need
+        self.invert_step = True
+        
         self.seq = 0
         if device is None:
             for s in ("/dev/ttyUSB0",):
@@ -151,6 +155,9 @@ class Indexer:
                 time.sleep(0.015)
         
     def step(self, axis, n, wait=True):
+        if self.invert_step:
+            n = -n
+            
         if self.debug:
             print 'pr0ndexer DEBUG: stepping %d' % (n,)
         
@@ -170,10 +177,13 @@ class Indexer:
         return 370
     
     def step_rel(self, axis, n, wait=True):
+        if self.invert_step:
+            n = -n
+        
         self.reg_write(XYZ_BASE[axis] + XYZ_STEP_ADD, n)
         if wait:
             # some margin to make sure its done
-            time.sleep(n / 371.0 + 0.2)
+            time.sleep(abs(n) / 371.0 + 0.2)
 
 def str2bool(arg_value):
     arg_value = arg_value.lower()
