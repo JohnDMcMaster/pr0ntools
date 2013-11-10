@@ -257,6 +257,8 @@ class Axis(QWidget):
         # controller axis object
         # Note that its wrapped in IPC layer
         self.axis = axis
+        self.axis.movement_notify = lambda: self.emit_pos()
+        
         self.initUI()
         self.jog_done = None
     

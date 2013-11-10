@@ -38,6 +38,7 @@ class PDCAxis(Axis):
         self.indexer = indexer
         if self.indexer.serial is None:
             raise Exception("Indexer missing serial")
+        self.movement_notify = lambda: None
         
         # Ensure stopped
         self.indexer.step(self.name, 0)
@@ -47,51 +48,42 @@ class PDCAxis(Axis):
         
     def forever_pos(self, done, progress_notify=None):
         '''Go forever in the positive direction until stopped'''
-        # Because we are free-wheeling we need to know how many were completed to maintain position
-        steps_orig = self.indexer.net_tostep(self.name)
-        
-        while not done.is_set():
-            if self._estop.is_set():
-                self.indexer.step(self.name, 0)
-                return
-            # Step for half second at a time
-            # last value overwrites though
-            self.indexer.step(self.name, 1*self.indexer.steps_a_second(), wait=False)
-            time.sleep(0.05)
-        self._stop.clear()
-        # make a clean stop
-        self.indexer.step(self.name, 30, wait=False)
-        # Fib a little by reporting where we will end up, should be good enough
-        # as we will end there shortly
-        # if we change plan before then its in charge of updating position
-        # XXX: wraparound issue?  should not be issue in practice since stage would crash first
-        self.net += self.indexer.net_tostep(self.name) - steps_orig
-        if progress_notify:
-            progress_notify()
-        
+        self.forever_dir(done, progress_notify, 1)
+    
     def forever_neg(self, done, progress_notify):
         '''Go forever in the negative direction until stopped'''
+        self.forever_dir(done, progress_notify, -1)
+    
+    def forever_dir(self, done, progress_notify, sign):
         # Because we are free-wheeling we need to know how many were completed to maintain position
         steps_orig = self.indexer.net_tostep(self.name)
+        net_orig = self.net
         
+        i = 0
         while not done.is_set():
             if self._estop.is_set():
                 self.indexer.step(self.name, 0)
                 return
             # Step for half second at a time
             # last value overwrites though
-            self.indexer.step(self.name, -1*self.indexer.steps_a_second(), wait=False)
+            self.indexer.step(self.name, sign * self.indexer.steps_a_second(), wait=False)
             time.sleep(0.05)
+            # Update position occasionally as we go
+            if i % 5 == 0:
+                self.net = net_orig + self.indexer.net_tostep(self.name) - steps_orig
+                self.movement_notify()
+            i += 1
         self._stop.clear()
         # make a clean stop
-        self.indexer.step(self.name, -30, wait=False)
+        self.indexer.step(self.name, sign * 30, wait=True)
         # Fib a little by reporting where we will end up, should be good enough
         # as we will end there shortly
         # if we change plan before then its in charge of updating position
         # XXX: wraparound issue?  should not be issue in practice since stage would crash first
-        self.net += self.indexer.net_tostep(self.name) - steps_orig
+        self.net = net_orig + self.indexer.net_tostep(self.name) - steps_orig
         if progress_notify:
             progress_notify()
+        self.movement_notify()
     
     def stop(self):
         self.indexer.step(self.name, 0)
@@ -108,6 +100,7 @@ class PDCAxis(Axis):
     def step(self, steps):
         self.indexer.step(self.name, steps)
         self.net += steps
+        self.movement_notify()
 
     # pretend we are at 0
     def set_home(self):
