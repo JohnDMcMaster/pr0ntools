@@ -57,10 +57,6 @@ class ControllerThreadAxis:
     def get_um(self):
         return self.axis.get_um()
         
-    def stop(self):
-        '''Stop as soon as convenient.  Thread safe'''
-        self.axis.stop()
-    
     def estop(self):
         '''Stop immediately.  Thread safe'''
         self.axis.estop()
@@ -140,6 +136,7 @@ class ControllerThread(QThread, Controller):
             except Queue.Empty:
                 self._idle.set()
                 continue
+            print 'Queue has something, ~size: %d' % (self.queue.qsize(),)
             #print type(axis)
             #print dir(axis)
             #print axis.__dict__

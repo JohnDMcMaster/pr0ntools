@@ -76,7 +76,7 @@ def get_cnc():
     # pr0ndexer (still on MicroControle hardware though)
     elif engine == 'PDC':
         try:
-            return PDC(debug=debug)
+            return PDC(debug=False)
         except IOError:
             print 'Failed to open PD device'
             raise
@@ -258,7 +258,7 @@ class Axis(QWidget):
         # Note that its wrapped in IPC layer
         self.axis = axis
         self.initUI()
-        self.jogging = False
+        self.jog_done = None
     
     def emit_pos(self):
         self.axisSet.emit(self.axis.get_um())
@@ -1122,41 +1122,42 @@ class CNCGUI(QMainWindow):
         # Ignore duplicates, want only real presses
         if event.isAutoRepeat():
             return
+            
         #inc = 5
         if k == Qt.Key_Left:
             dbg('left')
-            if self.axes['X'].jogging:
+            if self.axes['X'].jog_done:
                 return
-            self.axes['X'].jogging = True
-            self.axes['X'].axis.forever_neg()
+            self.axes['X'].jog_done = threading.Event()
+            self.axes['X'].axis.forever_neg(self.axes['X'].jog_done)
         elif k == Qt.Key_Right:
             dbg('right')
-            if self.axes['X'].jogging:
+            if self.axes['X'].jog_done:
                 return
-            self.axes['X'].jogging = True
-            self.axes['X'].axis.forever_pos()
+            self.axes['X'].jog_done = threading.Event()
+            self.axes['X'].axis.forever_pos(self.axes['X'].jog_done)
         elif k == Qt.Key_Up:
-            if self.axes['Y'].jogging:
+            if self.axes['Y'].jog_done:
                 return
-            self.axes['Y'].jogging = True
-            self.axes['Y'].axis.forever_neg()
+            self.axes['Y'].jog_done = threading.Event()
+            self.axes['Y'].axis.forever_neg(self.axes['Y'].jog_done)
         elif k == Qt.Key_Down:
-            if self.axes['Y'].jogging:
+            if self.axes['Y'].jog_done:
                 return
-            self.axes['Y'].jogging = True
-            self.axes['Y'].axis.forever_pos()
+            self.axes['Y'].jog_done = threading.Event()
+            self.axes['Y'].axis.forever_pos(self.axes['Y'].jog_done)
         # Focus is sensitive...should step slower?
         # worry sonce focus gets re-integrated
         elif k == Qt.Key_PageDown:
-            if self.axes['Z'].jogging:
+            if self.axes['Z'].jog_done:
                 return
-            self.axes['Z'].jogging = True
-            self.axes['Z'].axis.forever_neg()
+            self.axes['Z'].jog_done = threading.Event()
+            self.axes['Z'].axis.forever_neg(self.axes['Z'].jog_done)
         elif k == Qt.Key_PageUp:
-            if self.axes['Z'].jogging:
+            if self.axes['Z'].jog_done:
                 return
-            self.axes['Z'].jogging = True
-            self.axes['Z'].axis.forever_pos()
+            self.axes['Z'].jog_done = threading.Event()
+            self.axes['Z'].axis.forever_pos(self.axes['Z'].jog_done)
         elif k == Qt.Key_Escape:
             self.stop()
 
@@ -1170,29 +1171,29 @@ class CNCGUI(QMainWindow):
         #inc = 5
         if k == Qt.Key_Left:
             dbg('left release')
-            self.axes['X'].axis.stop()
-            self.axes['X'].jogging = False
+            self.axes['X'].jog_done.set()
+            self.axes['X'].jog_done = None
             self.axes['X'].emit_pos()
         elif k == Qt.Key_Right:
             dbg('right release')
-            self.axes['X'].axis.stop()
-            self.axes['X'].jogging = False
+            self.axes['X'].jog_done.set()
+            self.axes['X'].jog_done = None
             self.axes['X'].emit_pos()
         elif k == Qt.Key_Up:
-            self.axes['Y'].axis.stop()
-            self.axes['Y'].jogging = False
+            self.axes['Y'].jog_done.set()
+            self.axes['Y'].jog_done = None
             self.axes['Y'].emit_pos()
         elif k == Qt.Key_Down:
-            self.axes['Y'].axis.stop()
-            self.axes['Y'].jogging = False
+            self.axes['Y'].jog_done.set()
+            self.axes['Y'].jog_done = None
             self.axes['Y'].emit_pos()
         elif k == Qt.Key_PageDown:
-            self.axes['Z'].axis.stop()
-            self.axes['Z'].jogging = False
+            self.axes['Z'].jog_done.set()
+            self.axes['Z'].jog_done = None
             self.axes['Z'].emit_pos()
         elif k == Qt.Key_PageUp:
-            self.axes['Z'].axis.stop()
-            self.axes['Z'].jogging = False
+            self.axes['Z'].jog_done.set()
+            self.axes['Z'].jog_done = None
             self.axes['Z'].emit_pos()
         
 def excepthook(excType, excValue, tracebackobj):

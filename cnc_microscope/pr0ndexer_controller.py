@@ -17,7 +17,6 @@ class PDC(Controller):
         Controller.__init__(self, debug=False)
         
         self.indexer = Indexer(debug=debug)
-        print 'opened some USBIO okay'
         if self.indexer.serial is None:
             raise Exception("USBIO missing serial")
         
@@ -29,7 +28,6 @@ class PDC(Controller):
         # enforce some initial state?
         
         self.um()
-        print 'Controller ready'
     
     def __del__(self):
         self.off()
@@ -47,36 +45,36 @@ class PDCAxis(Axis):
         self._stop = threading.Event()
         self._estop = threading.Event()
         
-    def forever_pos(self):
+    def forever_pos(self, done):
         '''Go forever in the positive direction until stopped'''
-        while not self._stop.is_set():
+        while not done.is_set():
             if self._estop.is_set():
+                self.indexer.step(self.name, 0)
                 return
             # Step for half second at a time
             # last value overwrites though
-            self.indexer.step(self.name, 5*self.indexer.steps_a_second(), wait=False)
-            print 'Sleeping'
-            time.sleep(0.1)
-            print 'Woke up'
+            self.indexer.step(self.name, 1*self.indexer.steps_a_second(), wait=False)
+            time.sleep(0.05)
         self._stop.clear()
-        self.indexer.step(self.name, 0)
+        # make a clean stop
+        self.indexer.step(self.name, 30)
         
-    def forever_neg(self):
+    def forever_neg(self, done):
         '''Go forever in the negative direction until stopped'''
-        while not self._stop.is_set():
+        while not done.is_set():
             if self._estop.is_set():
+                self.indexer.step(self.name, 0)
                 return
             # Step for half second at a time
             # last value overwrites though
-            self.indexer.step(self.name, -5*self.indexer.steps_a_second(), wait=False)
-            print 'Sleeping'
-            time.sleep(0.1)
-            print 'Woke up'
+            self.indexer.step(self.name, -1*self.indexer.steps_a_second(), wait=False)
+            time.sleep(0.05)
         self._stop.clear()
-        self.indexer.step(self.name, 0)
+        # make a clean stop
+        self.indexer.step(self.name, -30)
     
     def stop(self):
-        self._stop.set()
+        self.indexer.step(self.name, 0)
 
     def estop(self):
         self._estop.set()
