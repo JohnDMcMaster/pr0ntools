@@ -45,7 +45,7 @@ class PDCAxis(Axis):
         self._stop = threading.Event()
         self._estop = threading.Event()
         
-    def forever_pos(self, done):
+    def forever_pos(self, done, progress_notify=None):
         '''Go forever in the positive direction until stopped'''
         while not done.is_set():
             if self._estop.is_set():
@@ -55,11 +55,13 @@ class PDCAxis(Axis):
             # last value overwrites though
             self.indexer.step(self.name, 1*self.indexer.steps_a_second(), wait=False)
             time.sleep(0.05)
+        if progress_notify:
+            progress_notify()
         self._stop.clear()
         # make a clean stop
-        self.indexer.step(self.name, 25 * 30)
+        self.indexer.step(self.name, 30, wait=False)
         
-    def forever_neg(self, done):
+    def forever_neg(self, done, progress_notify):
         '''Go forever in the negative direction until stopped'''
         while not done.is_set():
             if self._estop.is_set():
@@ -69,9 +71,11 @@ class PDCAxis(Axis):
             # last value overwrites though
             self.indexer.step(self.name, -1*self.indexer.steps_a_second(), wait=False)
             time.sleep(0.05)
+        if progress_notify:
+            progress_notify()
         self._stop.clear()
         # make a clean stop
-        self.indexer.step(self.name, -25 * 30)
+        self.indexer.step(self.name, -30, wait=False)
     
     def stop(self):
         self.indexer.step(self.name, 0)

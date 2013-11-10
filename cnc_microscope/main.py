@@ -1124,41 +1124,39 @@ class CNCGUI(QMainWindow):
             return
             
         #inc = 5
-        if k == Qt.Key_Left:
-            dbg('left')
-            if self.axes['X'].jog_done:
-                return
-            self.axes['X'].jog_done = threading.Event()
-            self.axes['X'].axis.forever_neg(self.axes['X'].jog_done)
-        elif k == Qt.Key_Right:
-            dbg('right')
-            if self.axes['X'].jog_done:
-                return
-            self.axes['X'].jog_done = threading.Event()
-            self.axes['X'].axis.forever_pos(self.axes['X'].jog_done)
-        elif k == Qt.Key_Up:
-            if self.axes['Y'].jog_done:
-                return
-            self.axes['Y'].jog_done = threading.Event()
-            self.axes['Y'].axis.forever_neg(self.axes['Y'].jog_done)
-        elif k == Qt.Key_Down:
-            if self.axes['Y'].jog_done:
-                return
-            self.axes['Y'].jog_done = threading.Event()
-            self.axes['Y'].axis.forever_pos(self.axes['Y'].jog_done)
+        
         # Focus is sensitive...should step slower?
         # worry sonce focus gets re-integrated
-        elif k == Qt.Key_PageDown:
-            if self.axes['Z'].jog_done:
+        
+        neg_map = { Qt.Key_Left:    'X',
+                    Qt.Key_Up:      'Y',
+                    Qt.Key_PageDown:'Z', 
+                    }        
+        axis = neg_map.get(k, None)
+        if axis:
+            dbg('Key %s+' % axis)
+            axis = self.axes[axis]
+            if axis.jog_done:
                 return
-            self.axes['Z'].jog_done = threading.Event()
-            self.axes['Z'].axis.forever_neg(self.axes['Z'].jog_done)
-        elif k == Qt.Key_PageUp:
-            if self.axes['Z'].jog_done:
+            axis.jog_done = threading.Event()
+            axis.axis.forever_neg(axis.jog_done, lambda: axis.emit_pos())
+            return
+
+        pos_map = { Qt.Key_Right:   'X',
+                    Qt.Key_Down:    'Y',
+                    Qt.Key_PageUp:  'Z', 
+                    }        
+        axis = pos_map.get(k, None)
+        if axis:
+            dbg('Key %s-' % axis)
+            axis = self.axes[axis]
+            if axis.jog_done:
                 return
-            self.axes['Z'].jog_done = threading.Event()
-            self.axes['Z'].axis.forever_pos(self.axes['Z'].jog_done)
-        elif k == Qt.Key_Escape:
+            axis.jog_done = threading.Event()
+            axis.axis.forever_pos(axis.jog_done, lambda: axis.emit_pos())
+            return
+            
+        if k == Qt.Key_Escape:
             self.stop()
 
     def keyReleaseEvent(self, event):
