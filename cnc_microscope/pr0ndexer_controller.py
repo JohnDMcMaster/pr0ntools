@@ -57,7 +57,7 @@ class PDCAxis(Axis):
             time.sleep(0.05)
         self._stop.clear()
         # make a clean stop
-        self.indexer.step(self.name, 30)
+        self.indexer.step(self.name, 25 * 30)
         
     def forever_neg(self, done):
         '''Go forever in the negative direction until stopped'''
@@ -71,7 +71,7 @@ class PDCAxis(Axis):
             time.sleep(0.05)
         self._stop.clear()
         # make a clean stop
-        self.indexer.step(self.name, -30)
+        self.indexer.step(self.name, -25 * 30)
     
     def stop(self):
         self.indexer.step(self.name, 0)
