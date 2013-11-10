@@ -51,7 +51,7 @@ except ImportError:
         print 'Failed to import a gstreamer package when gstreamer is required'
         raise
 
-debug = True
+debug = False
 def dbg(*args):
     if not debug:
         return
@@ -261,6 +261,7 @@ class Axis(QWidget):
         self.jog_done = None
     
     def emit_pos(self):
+        #print 'emitting distance %d' % self.axis.get_um()
         self.axisSet.emit(self.axis.get_um())
     
     def jog(self, n):
@@ -945,12 +946,12 @@ class CNCGUI(QMainWindow):
         layout.addLayout(get_general_layout())
 
         self.axes = dict()
-        print 'Axes: %u' % len(self.cnc_ipc.axes)
+        dbg('Axes: %u' % len(self.cnc_ipc.axes))
         for axis in self.cnc_ipc.axes:
             if axis.name == 'Z':
                 continue
             axisw = Axis(axis)
-            print 'Creating axis GUI %s' % axis.name
+            dbg('Creating axis GUI %s' % axis.name)
             self.axes[axis.name] = axisw
             layout.addWidget(axisw)
         
@@ -1003,11 +1004,11 @@ class CNCGUI(QMainWindow):
             self.snapshot_serial = 0
             prefix = 'snapshot_'
         else:
-            print prefix
+            dbg('Image prefix: %s' % prefix)
             m = re.search('([a-zA-z0-9_\-]*_)([0-9]+)', prefix)
             if m:
-                print 'Group 1: ' + m.group(1)
-                print 'Group 2: ' + m.group(2)
+                dbg('Group 1: ' + m.group(1))
+                dbg('Group 2: ' + m.group(2))
                 prefix = m.group(1)
                 self.snapshot_serial = int(m.group(2))
 
@@ -1016,7 +1017,7 @@ class CNCGUI(QMainWindow):
             fn_base = '%s00%u.jpg' % (prefix, self.snapshot_serial)
             fn_full = os.path.join(config['imager']['snapshot_dir'], fn_base)
             if os.path.exists(fn_full):
-                print 'Snapshot %s already exists, skipping' % fn_full
+                dbg('Snapshot %s already exists, skipping' % fn_full)
                 continue
             # Omit base to make GUI easier to read
             self.snapshot_fn_le.setText(fn_base)

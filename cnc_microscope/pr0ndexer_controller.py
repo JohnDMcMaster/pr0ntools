@@ -47,6 +47,9 @@ class PDCAxis(Axis):
         
     def forever_pos(self, done, progress_notify=None):
         '''Go forever in the positive direction until stopped'''
+        # Because we are free-wheeling we need to know how many were completed to maintain position
+        steps_orig = self.indexer.net_tostep(self.name)
+        
         while not done.is_set():
             if self._estop.is_set():
                 self.indexer.step(self.name, 0)
@@ -55,14 +58,22 @@ class PDCAxis(Axis):
             # last value overwrites though
             self.indexer.step(self.name, 1*self.indexer.steps_a_second(), wait=False)
             time.sleep(0.05)
-        if progress_notify:
-            progress_notify()
         self._stop.clear()
         # make a clean stop
         self.indexer.step(self.name, 30, wait=False)
+        # Fib a little by reporting where we will end up, should be good enough
+        # as we will end there shortly
+        # if we change plan before then its in charge of updating position
+        # XXX: wraparound issue?  should not be issue in practice since stage would crash first
+        self.net += self.indexer.net_tostep(self.name) - steps_orig
+        if progress_notify:
+            progress_notify()
         
     def forever_neg(self, done, progress_notify):
         '''Go forever in the negative direction until stopped'''
+        # Because we are free-wheeling we need to know how many were completed to maintain position
+        steps_orig = self.indexer.net_tostep(self.name)
+        
         while not done.is_set():
             if self._estop.is_set():
                 self.indexer.step(self.name, 0)
@@ -71,11 +82,16 @@ class PDCAxis(Axis):
             # last value overwrites though
             self.indexer.step(self.name, -1*self.indexer.steps_a_second(), wait=False)
             time.sleep(0.05)
-        if progress_notify:
-            progress_notify()
         self._stop.clear()
         # make a clean stop
         self.indexer.step(self.name, -30, wait=False)
+        # Fib a little by reporting where we will end up, should be good enough
+        # as we will end there shortly
+        # if we change plan before then its in charge of updating position
+        # XXX: wraparound issue?  should not be issue in practice since stage would crash first
+        self.net += self.indexer.net_tostep(self.name) - steps_orig
+        if progress_notify:
+            progress_notify()
     
     def stop(self):
         self.indexer.step(self.name, 0)

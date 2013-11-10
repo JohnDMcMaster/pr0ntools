@@ -29,8 +29,17 @@ XYZ_VELMAX =        0x06
 # Acceleration/decceleration in steps/second**2 
 XYZ_ACL =        0x07
 XYZ_HSTEP_DLY =  0x08
+XYZ_NET_STEP =   0x09
 XYZ_BASE = {'X':0x20, 'Y':0x40, 'Z':0x60}
 
+'''
+uint8_t checksum;
+uint8_t seq;
+uint8_t opcode;
+uint32_t value;
+'''
+PACKET_FORMAT = '<BBBi'
+PACKET_SIZE = struct.calcsize(PACKET_FORMAT)
 
 def checksum(data):
     return (~(sum([ord(c) for c in data]) % 0x100)) & 0xFF
@@ -51,6 +60,59 @@ def slip(bytes):
     # When the last byte in the packet has been
     # sent, an END character is then transmitted
     return ret + SLIP_END
+
+def deslip(bytes):
+    '''Returns None if slip decoding failed'''
+    escape = False
+    rx = ''
+    i = 0
+    
+    def slip_dbg(s):
+        #print s
+        pass
+
+    while i < len(bytes):
+        c = chr(bytes[i])
+        i += 1
+        slip_dbg('')
+        slip_dbg('Processing: %02X' % ord(c))
+
+        if escape:
+            slip_dbg('Escape followed')
+            escape = False
+            
+            # If a data byte is the same code as END character, a two byte sequence of
+            # ESC and octal 334 (decimal 220) is sent instead.  
+            if c == chr(220):
+                rx += SLIP_END
+            # If it the same as an ESC character, an two byte sequence of ESC and octal 335 (decimal
+            # 221) is sent instead
+            elif c == chr(221):
+                rx += SLIP_ESC
+            else:
+                slip_dbg('Escape invalid')
+                del bytes[0:i]
+                rx = ''
+                i = 0
+                continue
+        elif c == SLIP_END:
+            del bytes[0:i]
+            # Not the right size? drop it
+            if len(rx) == PACKET_SIZE:
+                slip_dbg('Good packet')
+                return rx
+            slip_dbg('Dropping packet: bad size')
+            rx = ''
+            i = 0
+            continue
+        elif c == SLIP_ESC:
+            slip_dbg('Escape detected')
+            escape = True
+        # Ordinary character
+        else:
+            slip_dbg('Normal char')
+            rx += c
+    return None
 
 #def deslip(bytes):
 
@@ -121,12 +183,6 @@ class Indexer:
     '''
         
     def reg_write(self, reg, value):
-        '''
-        uint8_t checksum;
-        uint8_t seq;
-        uint8_t opcode;
-        uint32_t value;
-        '''
         #print self.seq, reg, value
         packet = struct.pack('<BBi', self.seq, 0x80 | reg, value)
         packet = chr(checksum(packet)) + packet
@@ -139,20 +195,44 @@ class Indexer:
             #if self.serial.inWaiting():
             #    raise Exception('At send %d chars waiting' % self.serial.inWaiting())
         
-        '''
-        FIXME: its dropping chars at line speed
-        need to move to higher performance serial I/O...ISR based
-        '''
-        if 1:
-            self.serial.write(out)
-            self.serial.flush()
-        else:
-            for c in out:
-                self.serial.write(c)
-                # if it doesn't get written we will not get a reply
-                self.serial.flush()
-                # drops below about .01, add some margin
-                time.sleep(0.015)
+        self.serial.write(out)
+        self.serial.flush()
+        
+    def reg_read(self, reg):
+        '''Return 32 bit register value'''
+        packet = struct.pack('<BBi', self.seq, reg, 0)
+        packet = chr(checksum(packet)) + packet
+        out = slip(packet)
+        self.seq = (self.seq + 1) % 0x100
+        
+        if self.debug:
+            print 'pr0ndexer DEBUG: packet: %s' % (binascii.hexlify(packet),)
+            print 'pr0ndexer DEBUG: sending: %s' % (binascii.hexlify(out),)
+            #if self.serial.inWaiting():
+            #    raise Exception('At send %d chars waiting' % self.serial.inWaiting())
+        
+        self.serial.write(out)
+        self.serial.flush()
+        
+        # Now read response
+        # Go until we either get a packet or serial port times out
+        rx = bytearray()
+        while True:
+            c = self.serial.read(1)
+            if not c:
+                raise Exception('Failed to read serial port')
+            rx += c
+            #print 'Read %s' % binascii.hexlify(rx)
+            packet = deslip(rx)
+            if packet:
+                break
+        (checksum_packet, _seq, reg_read, value) = struct.unpack(PACKET_FORMAT, packet)
+        checksum_computed = checksum(packet[1:])
+        if checksum_packet != checksum_computed:
+            raise Exception("Bad checksum.  Expected 0x%02X but got 0x%02X", checksum_packet, checksum_computed)
+        if reg_read != reg:
+            raise Exception("Replied wrong reg.  Expected 0x%02X but got 0x%02X", reg, reg_read)
+        return value
         
     def step(self, axis, n, wait=True):
         if self.invert_step:
@@ -185,6 +265,14 @@ class Indexer:
             # some margin to make sure its done
             time.sleep(abs(n) / 371.0 + 0.2)
 
+    def net_tostep(self, axis):
+        '''Returns number of steps executed + to execute'''
+        ret = self.reg_read(XYZ_BASE[axis] + XYZ_NET_STEP)
+        if self.invert_step:
+            return -ret
+        else:
+            return ret
+
 def str2bool(arg_value):
     arg_value = arg_value.lower()
     if arg_value == "false" or arg_value == "0" or arg_value == "no" or arg_value == "off":
@@ -192,7 +280,17 @@ def str2bool(arg_value):
     else:
         return True
 
+
 if __name__ == "__main__":
+    if 0:
+        inp = bytearray(binascii.unhexlify('c071032978ecffffc0'))
+        ds = deslip(inp)
+        if ds is None:
+            print 'Failed to decode'
+        outp = binascii.hexlify(ds)
+        print outp
+        sys.exit(1)
+    
     parser = argparse.ArgumentParser(description="Test utility to drive serial port")
     parser.add_argument('--debug', action="store_true", default=False, help='Debug')
     parser.add_argument('port', nargs='?', default=None, help='Serial port to open. Default: snoop around')
@@ -210,7 +308,27 @@ if __name__ == "__main__":
     # 48 => 15 = 27
     # 10000 / 27 = 370 steps/second
     # 
-    indexer.step('X', -10000)
+    print 'X+'
+    indexer.step('X', 1000, wait=False)
+    print 'net step: %d' % indexer.net_tostep('X')
+    time.sleep(3)
+    print 'net step: %d' % indexer.net_tostep('X')
+    
+    print
+    
+    print 'X-'
+    indexer.step('X', -1000, wait=False)
+    print 'net step: %d' % indexer.net_tostep('X')
+    time.sleep(3)
+    print 'net step: %d' % indexer.net_tostep('X')
+    
+    print
+    
+    indexer.step('Y', 1000)
+    time.sleep(3)
+    indexer.step('Y', -1000)
+    time.sleep(3)
+    
     if 0:
         for dly in (1800, 2000, 2200):
             print 'Delay %d' % dly
@@ -237,4 +355,5 @@ if __name__ == "__main__":
             break
         print r
         print binascii.hexlify(r)
+
 
