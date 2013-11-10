@@ -127,7 +127,7 @@ class Indexer:
         packet = struct.pack('<BBi', self.seq, 0x80 | reg, value)
         packet = chr(checksum(packet)) + packet
         out = slip(packet)
-        self.seq += 1
+        self.seq = (self.seq + 1) % 0x100
         
         if self.debug:
             print 'pr0ndexer DEBUG: packet: %s' % (binascii.hexlify(packet),)
