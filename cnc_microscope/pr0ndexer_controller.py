@@ -67,7 +67,7 @@ class PDCAxis(Axis):
             # Step for half second at a time
             # last value overwrites though
             self.indexer.step(self.name, sign * self.indexer.steps_a_second(), wait=False)
-            time.sleep(0.05)
+            done.wait(0.05)
             # Update position occasionally as we go
             if i % 5 == 0:
                 self.net = net_orig + self.indexer.net_tostep(self.name) - steps_orig
