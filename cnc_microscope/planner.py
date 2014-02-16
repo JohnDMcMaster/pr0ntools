@@ -728,8 +728,8 @@ class Planner:
         #print 'xh: %g vs cur %g, yh: %g vs cur %g' % (xh, cur_x, yh, cur_y)
         #do = False
         #do = cur_x > 3048 and cur_y > 3143
-        x_tol = 1.0
-        y_tol = 1.0
+        x_tol = 3.0
+        y_tol = 3.0
         xmax = cur_x + self.focus.x_view
         ymax = cur_y + self.focus.y_view
         
@@ -1225,7 +1225,11 @@ class ControllerPlanner(Planner):
             #time.sleep(4.5)
             # allows for better cooling, motor is getting hot
             #time.sleep(15)
-            time.sleep(6)
+            # Originally at 6 but changed to 3 after microstepping
+            # vibration is pretty minimal now but camera still takes a while to settle
+            # raised a little
+            # TODO: consider using image processing to detect settling
+            time.sleep(4)
             self.imager.take_picture(file_name)
         else:
             time.sleep(0.5)
