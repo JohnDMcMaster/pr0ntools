@@ -183,7 +183,7 @@ class CommonStitch:
             print '***PTO project baseline final (%s / %s) data length %d***' % (self.project.file_name, self.output_project_file_name, len(self.project.get_text()))
             print
             
-            if self.failures:
+            if 1:
                 print 'Writing failure JSON'
                 cc = self.failures.critical_count()
                 print '%d pairs failed to make %d images critical' % (self.failures.pair_count(), cc)
@@ -191,7 +191,11 @@ class CommonStitch:
                     print '******WARNING WARNING WARING******'
                     print '%d images are not connected' % cc
                     print '******WARNING WARNING WARING******'
-                open('stitch_failures.json', 'w').write(str(self.failures))
+                failure_json = {
+                        'critical_images': cc,
+                        'failures': self.failures.json,}
+                        
+                open('stitch_failures.json', 'w').write(json.dumps(failure_json, sort_keys=True, indent=4, separators=(',', ': ')))
                 print
             
             # Make dead sure its saved up to date
@@ -364,11 +368,12 @@ class CommonStitch:
 
         soften_image_file_0_managed = ManagedTempFile.from_same_extension(image_fn_pair[0])
         soften_image_file_1_managed = ManagedTempFile.from_same_extension(image_fn_pair[1])
+        print 'Soften fn0: %s' % soften_image_file_0_managed.file_name
+        print 'Soften fn1: %s' % soften_image_file_1_managed.file_name
 
         softener = Softener()
-        first_run = True
 
-        for i in range(0, soften_iterations):
+        for i in xrange(soften_iterations):
             # And then start screwing with it
             # Wonder if we can combine features from multiple soften passes?
             # Or at least take the maximum
@@ -376,7 +381,7 @@ class CommonStitch:
         
             print 'Attempting soften %d / %d' % (i + 1, soften_iterations)
 
-            if first_run:            
+            if i == 0:
                 softener.run(image_fn_pair[0], soften_image_file_0_managed.file_name)
                 softener.run(image_fn_pair[1], soften_image_file_1_managed.file_name)
             else:
@@ -411,8 +416,6 @@ class CommonStitch:
                 print
                 #sys.exit(1)
                 return ret_project
-                
-            first_run = False
 
         print 'WARNING: gave up on generating control points!' 
         return None

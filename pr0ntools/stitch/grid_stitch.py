@@ -85,6 +85,10 @@ class GridStitch(CommonStitch):
 		pair_index = 0
 		for pair in self.coordinate_map.gen_pairs(1, 1):				
 			pair_index += 1
+			print
+			print
+			print
+			print '*' * 80
 			print 'pair raw: %s (%d / %d)' % (repr(pair), pair_index, n_pairs)
 			# Image file names as list
 			pair_images = self.coordinate_map.get_images_from_pair(pair)

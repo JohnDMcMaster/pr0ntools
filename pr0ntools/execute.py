@@ -20,40 +20,54 @@ I think that processes are lingering around due to me teeing output
 and waiting on either not all of the processes or the wrong one
 '''
 
-def with_output(args):
+'''
+Good idea but doesn't work...
+http://stackoverflow.com/questions/2996887/how-to-replicate-tee-behavior-in-python-when-using-subprocess
+suggests just reading from stdout
+'''
+class IOTee:
+    def __init__(self):
+        self.stdout = ''
+        self.stderr = ''
+
+    def write(self, data):
+        self.stdout += data
+        sys.stdout.write(data)
+
+    def write_error(self, data):
+        self.stderr += data
+        sys.stderr.write(data)
+
+def with_output(args, print_output=False):
     '''
     Return (rc, stdout+stderr))
     Echos stdout/stderr to screen as it 
     '''
     print 'going to execute: %s' % (args,)
-    ret = ''
-    subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False)
-    while subp.returncode is None:
-        #print dir(subp.stdout)
-        #print subp.stdout.fileno()
-        (rready, _wready, _xready) = select.select([subp.stdout.fileno(), subp.stderr.fileno()], [], [], 0.05)
-        #print 'loop, ready', rready
-        
-        if subp.stdout.fileno() in rready:
-            r = subp.stdout.read(1)
-            ret += r
-            sys.stdout.write(r)
-            #sys.stdout.flush()
-        if subp.stderr.fileno() in rready:
-            r = subp.stderr.read(1)
-            ret += r
-            sys.stderr.write(r)
-            #sys.stderr.flush()
-        subp.poll()
-    return (subp.returncode, ret)
+    if print_output:
+        # Specifying pipe will cause communicate to read to it
+        print 'tst'
+        tee = IOTee()
+        subp = subprocess.Popen(args, stdout=tee, stderr=tee, shell=False)
+    else:
+        # Specifying nothing completely throws away the output
+        subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False)
+    (stdout, stderr) = subp.communicate()
+    
+    return (subp.returncode, stdout, stderr)
 
-def without_output(args):
+def without_output(args, print_output=True):
     '''
     Return rc
     Echos stdout/stderr to screen
     '''
     print 'going to execute: %s' % (args,)
-    subp = subprocess.Popen(args, shell=False)
+    if print_output:
+        subp = subprocess.Popen(args, shell=False)
+    else:
+        # Specifying nothing completely throws away the output
+        subp = subprocess.Popen(args, stdout=None, stderr=None, shell=False)
+    
     subp.communicate()
     return subp.returncode
 

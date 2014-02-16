@@ -79,12 +79,15 @@ class Softener:
         # We're done! (nothing to return)
         
         # XXX: expierment to see if wait helps...probalby just need check
-        for i in xrange(30):
-            if os.path.exists(dest_file_name):
-                break
-            if i == 0:
-                print 'WARNING: soften missing dest file name %s, waiting a bit...' % (dest_file_name,)
-            time.sleep(0.1)
-        else:
-            raise Exception('Missing output file name %s' % dest_file_name)
-
+        
+        '''
+        if dest_filE_name:
+            for i in xrange(30):
+                if os.path.exists(dest_file_name):
+                    break
+                if i == 0:
+                    print 'WARNING: soften missing dest file name %s, waiting a bit...' % (dest_file_name,)
+                time.sleep(0.1)
+            else:
+                raise Exception('Missing output file name %s' % dest_file_name)
+        '''

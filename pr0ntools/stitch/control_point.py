@@ -5,7 +5,7 @@ Licensed under a 2 clause BSD license, see COPYING for details
 '''
 from pr0ntools.temp_file import ManagedTempFile
 from pr0ntools.temp_file import ManagedTempDir
-from pr0ntools.execute import Execute
+from pr0ntools.execute import Execute, without_output
 from pr0ntools.stitch.pto.project import PTOProject
 from pr0ntools.stitch.pto.util import *
 from pr0ntools.stitch.pto.panorama_line import PanoramaLine
@@ -77,10 +77,11 @@ class AutopanoSiftC:
         
         # Images
         for image_file_name in image_file_names:
-             args.append(image_file_name)
+            args.append(image_file_name)
 
         # go go go
-        (rc, output) = Execute.with_output(command, args)
+        #(rc, output) = Execute.with_output(command, args)
+        (rc, output) = (without_output(command, args), '')
         if not rc == 0:
             print
             print

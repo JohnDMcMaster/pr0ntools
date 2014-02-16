@@ -13,6 +13,9 @@ g_default_prefix_dir = None
 g_default_prefix = None
 PREFIX_BASE = "/tmp/pr0ntools_"
 
+def verbose(s):
+	pass
+
 class TempFile:
 	@staticmethod
 	def default_prefix():
@@ -69,12 +72,12 @@ class ManagedTempFile:
 		try:
 			if os.path.exists(self.file_name):
 				if config.keep_temp_files():			
-					print 'KEEP: Deleted temp file %s' % self.file_name
+					verbose('KEEP: Deleted temp file %s' % self.file_name)
 				else:
 					os.remove(self.file_name)
-					print 'Deleted temp file %s' % self.file_name
+					verbose('Deleted temp file %s' % self.file_name)
 			else:
-				print "Didn't delete inexistant temp file %s" % self.file_name
+				verbose("Didn't delete inexistant temp file %s" % self.file_name)
 		# Ignore if it was never created
 		except:
 			print 'WARNING: failed to delete temp file: %s' % self.file_name
