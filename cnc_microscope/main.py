@@ -1016,7 +1016,7 @@ class CNCGUI(QMainWindow):
 
         while True:
             self.snapshot_serial += 1
-            fn_base = '%s00%u.jpg' % (prefix, self.snapshot_serial)
+            fn_base = '%s00%u' % (prefix, self.snapshot_serial)
             fn_full = os.path.join(config['imager']['snapshot_dir'], fn_base)
             if os.path.exists(fn_full):
                 dbg('Snapshot %s already exists, skipping' % fn_full)
@@ -1051,11 +1051,22 @@ class CNCGUI(QMainWindow):
         
     def captureSnapshot(self, image_id):
         print 'RX image for saving'
-        image = PImage.from_image(self.capture_sink.pop_image(image_id))
-        fn_full = os.path.join(config['imager']['snapshot_dir'], str(self.snapshot_fn_le.text()))
-        factor = float(config['imager']['scalar'])
-        # Use a reasonably high quality filter
-        image.get_scaled(factor, Image.ANTIALIAS).save(fn_full)
+        def try_save():
+            image = PImage.from_image(self.capture_sink.pop_image(image_id))
+            txt = str(self.snapshot_fn_le.text())
+            if '.' not in txt:
+                txt = txt + '.jpg'
+            elif '.jpg' not in txt:
+                print 'WARNING: refusing to take bad image file name %s' % txt
+                return
+            fn_full = os.path.join(config['imager']['snapshot_dir'], txt)
+            if os.path.exists(fn_full):
+                print 'WARNING: refusing to overwrite %s' % fn_full
+                return
+            factor = float(config['imager']['scalar'])
+            # Use a reasonably high quality filter
+            image.get_scaled(factor, Image.ANTIALIAS).save(fn_full)
+        try_save()
         
         # That image is done, get read for the next
         self.snapshot_next_serial()
