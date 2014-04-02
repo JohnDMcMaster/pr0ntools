@@ -87,65 +87,90 @@ Report bugs at <http://sourceforge.net/projects/enblend/>.
 
 from pr0ntools.execute import Execute, CommandFailed
 from pr0ntools.config import config
+import fcntl
+import time
+import sys
 
 class BlenderFailed(CommandFailed):
-	pass
-	
+    pass
+    
 class Blender:
-	def __init__(self, input_files, output_file):
-		self.input_files = input_files
-		self.output_file = output_file
-		self.compression = None
-		self.gpu = False
-		self.additional_args = []
-		
-	def old_merge(self):
-		'''
-		[mcmaster@gespenst 2X2-ordered]$ enblend -o my_prefix.tif my_prefix_000*
-		enblend: info: loading next image: my_prefix_0000.tif 1/1
-		enblend: info: loading next image: my_prefix_0001.tif 1/1
+    def __init__(self, input_files, output_file, lock=False):
+        self.input_files = input_files
+        self.output_file = output_file
+        self.compression = None
+        self.gpu = False
+        self.additional_args = []
+        self._lock = lock
+        
+    def lock(self):
+        if not self._lock:
+            return
+        pid_file = '/tmp/pr0ntools-enblend.pid'
+        fp = open(pid_file, 'w')
+        i = 0
+        print 'Acquiring enblend lock'
+        while True:
+            try:
+                fcntl.lockf(fp, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except IOError:
+                # Can take a while, print every 10 min or so and once at failure
+                if i % (10 * 60 * 10) == 0:
+                    print 'Failed to acquire enblend lock, retrying (print every 10 min)'
+                time.sleep(0.1)
+            i += 1
+        print 'Acquired enblend lock'
+        
+    def old_merge(self):
+        '''
+        [mcmaster@gespenst 2X2-ordered]$ enblend -o my_prefix.tif my_prefix_000*
+        enblend: info: loading next image: my_prefix_0000.tif 1/1
+        enblend: info: loading next image: my_prefix_0001.tif 1/1
 
-		enblend: excessive overlap detected; remove one of the images
-		enblend: info: remove invalid output image "my_prefix.tif"
-		'''
-		args = list()
-		args.append("-m")
-		args.append("TIFF_m")
-		args.append("-z")
-		args.append("LZW")
-		#args.append("-g")
-		args.append("-o")
-		args.append(self.pto_project.get_a_file_name())
-		args.append(self.pto_project.get_a_file_name())
-		(rc, output) = Execute.with_output("enblend", args)
-		if not rc == 0:
-			raise BlenderFailed('failed to blend')
-		self.project.reopen()
+        enblend: excessive overlap detected; remove one of the images
+        enblend: info: remove invalid output image "my_prefix.tif"
+        '''
+        args = list()
+        args.append("-m")
+        args.append("TIFF_m")
+        args.append("-z")
+        args.append("LZW")
+        #args.append("-g")
+        args.append("-o")
+        args.append(self.pto_project.get_a_file_name())
+        args.append(self.pto_project.get_a_file_name())
+        self.lock()
+        (rc, output) = Execute.with_output("enblend", args)
+        if not rc == 0:
+            raise BlenderFailed('failed to blend')
+        self.project.reopen()
 
-		
-	def run(self):
-		args = list()
-		args.append("-o")
-		args.append(self.output_file)
-		if self.compression:
-			args.append('--compression=%s' % str(self.compression))
-		if self.gpu:
-			args.append('--gpu')
-		for arg in self.additional_args:
-			args.append(arg)
-		for f in self.input_files:
-			args.append(f)
-		
-		for opt in config.enblend_opts().split():
-			args.append(opt)
-		
-		rc = Execute.show_output("enblend", args)
-		if not rc == 0:
-			print
-			print
-			print
-			print 'Failed to blend'
-			print 'rc: %d' % rc
-			print args
-			raise BlenderFailed('failed to remap')
+        
+    def run(self):
+        args = list()
+        args.append("-o")
+        args.append(self.output_file)
+        if self.compression:
+            args.append('--compression=%s' % str(self.compression))
+        if self.gpu:
+            args.append('--gpu')
+        for arg in self.additional_args:
+            args.append(arg)
+        for f in self.input_files:
+            args.append(f)
+        
+        for opt in config.enblend_opts().split():
+            args.append(opt)
+        
+        self.lock()
+        rc = Execute.show_output("enblend", args)
+        if not rc == 0:
+            print
+            print
+            print
+            print 'Failed to blend'
+            print 'rc: %d' % rc
+            print args
+            raise BlenderFailed('failed to remap')
 

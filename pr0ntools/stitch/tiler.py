@@ -109,7 +109,7 @@ class PartialStitcher:
 		'''
 		print
 		print 'Supertile phase 2: blending (enblend)'
-		blender = Blender(remapper.get_output_files(), self.out)
+		blender = Blender(remapper.get_output_files(), self.out, lock=self.enblend_lock)
 		blender.run()
 		# We are done with these files, they should be nuked
 		if not config.keep_temp_files():
@@ -140,6 +140,7 @@ class Tiler:
 		self.clip_width = clip_width
 		self.clip_height = clip_height
 		self.st_dir = None
+		self.enblend_lock = False
 		
 		# TODO: this is a heuristic just for this, uniform input images aren't actually required
 		for i in pto.get_image_lines():

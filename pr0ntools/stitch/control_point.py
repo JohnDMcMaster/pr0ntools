@@ -250,6 +250,8 @@ def ajpto2pto_text_generic(pto_str, sub_image_files, x_delta, y_delta, sub_to_re
             if x_delta or y_delta:
                 # Parse
                 parts = line.split()
+                if len(parts) < 7:
+                    raise Exception('bad line: %s' % line)
                 if not parts[1] == 'n0':
                     print line
                     print parts[1]

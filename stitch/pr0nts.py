@@ -103,6 +103,7 @@ if __name__ == "__main__":
 	parser.add_argument('--ignore-errors', action="store_true", dest="ignore_errors", default=False, help='skip broken tile stitches (advanced)')
 	parser.add_argument('--verbose', '-v', action="store_true", default=False, help='spew lots of info')
 	parser.add_argument('--st-dir', help='store intermediate supertiles to given dir')
+	parser.add_argument('--enblend-lock', action='store_true', help='use lock file to only enblend (memory intensive part) one at a time')
 	
 	args = parser.parse_args()
 	fn = args.pto[0]
@@ -148,6 +149,7 @@ if __name__ == "__main__":
 
 	if args.full:
 		t.make_full()
+	t.enblend_lock = args.enblend_lock
 		
 	print 'Running tiler'
 	t.run()
