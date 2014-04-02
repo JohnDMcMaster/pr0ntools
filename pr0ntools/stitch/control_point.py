@@ -167,12 +167,17 @@ class ControlPointGenerator:
         This happens occassionally, not sure why
         Seems for some reason there is a delay getting the file written out
         '''
-        for i in xrange(30):
+        tstart = time.time()
+        i = 0
+        while time.time() - tstart < 10.0:
             if os.path.exists(output_file_name):
+                if i > 0:
+                    print 'Yay!  Found output file after %0.2f sec' % (time.time() - tstart,)
                 break
             if i == 0:
                 print 'WARNING: missing output pto file: %s' % output_file_name
             time.sleep(0.05)
+            i += 1
         else:
             print 'WARNING: gave up looking for pto file: %s' % output_file_name
             return None
