@@ -95,6 +95,7 @@ class BlenderFailed(CommandFailed):
     pass
     
 class Blender:
+<<<<<<< HEAD
     def __init__(self, input_files, output_file, lock=False):
         self.input_files = input_files
         self.output_file = output_file
@@ -173,4 +174,39 @@ class Blender:
             print 'rc: %d' % rc
             print args
             raise BlenderFailed('failed to remap')
+=======
+	def __init__(self, input_files, output_file):
+		self.input_files = input_files
+		self.output_file = output_file
+		self.compression = None
+		self.gpu = False
+		# Additional args
+		self.args = []
+		
+	def run(self):
+		args = list()
+		args.append("-o")
+		args.append(self.output_file)
+		if self.compression:
+			args.append('--compression=%s' % str(self.compression))
+		if self.gpu:
+			args.append('--gpu')
+		for f in self.input_files:
+			args.append(f)
+		
+		for opt in config.enblend_opts().split():
+			args.append(opt)
+		for arg in self.args:
+			args.append(arg)
+		
+		rc = Execute.show_output("enblend", args)
+		if not rc == 0:
+			print
+			print
+			print
+			print 'Failed to blend'
+			print 'rc: %d' % rc
+			print args
+			raise BlenderFailed('failed to remap')
+>>>>>>> huge change I should have comitted a while ago
 

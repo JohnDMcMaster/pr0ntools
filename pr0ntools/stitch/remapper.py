@@ -105,6 +105,7 @@ class Remapper:
 		self.output_cropped = True
 		self.compression_opt = "c:LZW"
 		self.output_prefix = output_prefix
+		self.args = None
 		
 	def run(self):
 		project_name = self.pto_project.get_a_file_name()
@@ -147,6 +148,9 @@ class Remapper:
 		#args.append("-g")
 		args.append("-o")
 		args.append(self.output_prefix)
+		for arg in self.args:
+			args.append(arg)
+		
 		args.append(project.get_a_file_name())
 		#(rc, output) = Execute.with_output("nona", args)
 		rc = Execute.show_output("nona", args)
