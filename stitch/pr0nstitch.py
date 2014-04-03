@@ -121,6 +121,8 @@ if __name__ == "__main__":
 			input_image_file_names.append(arg)
 		else:
 			arg_fatal('unrecognized arg: %s' % arg)
+	if len(input_image_file_names) == 0:
+		raise Exception('Requires image file names')
 
 	print 'post arg'
 	print 'output image: %s' % output_image_file_name
