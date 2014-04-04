@@ -857,6 +857,9 @@ class CNCGUI(QMainWindow):
         self.cnc_ipc.wait_idle()
         
         self.pt = PlannerThread(self, rconfig)
+        def log(msg):
+            print msg
+        self.connect(self.pt, SIGNAL('log'), log)
         self.pt.plannerDone.connect(self.plannerDone)
         self.setControlsEnabled(False)
         #eeeee not working as well as I hoped

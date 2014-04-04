@@ -131,7 +131,7 @@ class PlannerAxis:
         # How many the pixels the imager sees after scaling
         # XXX: is this global scalar playing correctly with the objective scalar?
         self.view_pixels = imager_width * imager_scalar
-        
+        #self.pos = 0.0
         self.name = name
         '''
         The naming is somewhat bad on this as it has an anti-intuitive meaning
@@ -211,7 +211,10 @@ class PlannerAxis:
     #    '''Actual percentage of each image that is unique when linearly stepping'''
             
 class Planner:
-    def __init__(self, rconfig_in):
+    def __init__(self, rconfig_in, log):
+        def log(msg):
+            print msg
+        self.log = log
         # FIXME: this is better than before but CTypes pickle error from deepcopy
         #self.rconfig = copy.deepcopy(rconfig)
         self.rconfig = copy.copy(rconfig_in)
@@ -1015,13 +1018,7 @@ class Planner:
         self.relative_move(-self.cur_x, -self.cur_y)
 
     def relative_move(self, x, y, z = None):
-        if x is None:
-            x = 0.0
-        if y is None:
-            y = 0.0
-        if z is None:
-            z = 0.0
-        print 'DRY: relative move to (%f, %f, %f)' % (x, y, z)
+        raise Exception('required')
 
     def absolute_backlash_move(self, x, y, z):
         '''Do an absolute move with backlash compensation'''
@@ -1105,26 +1102,15 @@ class Planner:
             self.last_z = z
 
     def absolute_move(self, x, y, z = None):
-        print 'DRY: absolute move to (%s, %s, %s)' % (str(x), str(y), str(z))
-        if x is not None:
-            self.x_pos = x
-        if y is not None:
-            self.y_pos = y
-        if z is not None:
-            self.z_pos = z
+        raise Exception('required')
     
     @staticmethod
-    def get(rconfig):
+    def get(rconfig, log):
         if not rconfig.dry:
-            return ControllerPlanner(rconfig)
+            return ControllerPlanner(rconfig, log)
         else:
             print "***DRY RUN***"
-            #return DryPlanner(rconfig)
-            return Planner(rconfig)
-    
-class DryPlanner(Planner):
-    def __init__(self, **args):
-        Planner.__init__(self, **args)
+            return DryControllerPlanner(rconfig, log)
     
 class GCodePlanner(Planner):
     '''
@@ -1206,10 +1192,12 @@ class GCodePlanner(Planner):
 Live control using an active Controller object
 '''
 class ControllerPlanner(Planner):
-    def __init__(self, rconfig):
-        Planner.__init__(self, rconfig)
+    def __init__(self, rconfig, log):
+        Planner.__init__(self, rconfig, log)
         self.controller = rconfig.controller
         self.imager = rconfig.imager
+        # seconds to wait before snapping picture
+        self.t_settle = 4.0
 
     def do_take_picture(self, file_name):
         #self.line('M8')
@@ -1229,7 +1217,7 @@ class ControllerPlanner(Planner):
             # vibration is pretty minimal now but camera still takes a while to settle
             # raised a little
             # TODO: consider using image processing to detect settling
-            time.sleep(4)
+            time.sleep(self.t_settle)
             self.imager.take_picture(file_name)
         else:
             time.sleep(0.5)
@@ -1271,4 +1259,62 @@ class ControllerPlanner(Planner):
 
     def home(self):
         self.controller.home()
+
+class DryControllerPlanner(ControllerPlanner):
+    def __init__(self, *args, **kwargs):
+        ControllerPlanner.__init__(self, *args, **kwargs)
+        '''
+        Took 100 seconds to move 10 mm
+        self.steps_per_unit = 8.510
+        um / s * step / um
+        '''
+        self.steps_per_sec = 10000 / 100 * 8.510
+        self.x_pos = 0.0
+        self.y_pos = 0.0
+        self.z_pos = 0.0
         
+        # Make sure bugs don't cause accidental movement and instead crash us
+        self.controller = None
+    
+    def absolute_move(self, x, y, z = None):
+        if x is not None:
+            self.t_tot += abs(x - self.x_pos) / self.steps_per_sec
+            self.x_pos = x
+        if y is not None:
+            self.t_tot += abs(y - self.y_pos) / self.steps_per_sec
+            self.y_pos = y
+        if z is not None:
+            self.t_tot += abs(z - self.z_pos) / self.steps_per_sec
+            self.z_pos = z
+        self.log('DRY: absolute move to (%s, %s, %s)' % (str(x), str(y), str(z)))
+
+    def relative_move(self, x, y, z = None):
+        if x is None:
+            x = 0.0
+        self.t_tot += abs(x) / self.steps_per_sec
+        if y is None:
+            y = 0.0
+        self.t_tot += abs(y) / self.steps_per_sec
+        if z is None:
+            z = 0.0
+        self.t_tot += abs(z) / self.steps_per_sec
+        self.log('DRY: relative move to (%f, %f, %f)' % (x, y, z))
+
+    def take_picture(self, img_fn):
+        self.log('DRY: taking picture to %s' % img_fn)
+        self.actual_pictures_taken += 1
+        self.t_tot += self.t_settle
+    
+    def run(self):
+        self.t_tot = 0
+        ControllerPlanner.run(self)
+        s = self.t_tot % 60
+        m = int(self.t_tot / 60 % 60)
+        hr = int(self.t_tot / 60 / 60)
+        # yield hack to get print at end
+        time.sleep(0.1)
+        self.log('DRY: estimated %02d:%02d:%2.1f (%0.1f sec)' % (hr, m, s, self.t_tot))
+
+    def home(self):
+        self.log('DRY: home all')
+

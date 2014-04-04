@@ -172,10 +172,13 @@ class PlannerThread(QThread):
         QThread.__init__(self, parent)
         self.rconfig = rconfig
         
+    def log(self, msg):
+        self.emit(SIGNAL('log'), msg)
+    
     def run(self):
         print 'Initializing planner!'
 
-        self.planner = Planner.get(self.rconfig)
+        self.planner = Planner.get(self.rconfig, self.log)
         print 'Running planner'
         b = Benchmark()
         self.planner.run()
