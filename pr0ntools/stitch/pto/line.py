@@ -8,7 +8,7 @@ import shutil
 import os
 from pr0ntools.temp_file import ManagedTempFile
 from pr0ntools.execute import Execute
-from util import print_debug
+from pr0ntools.stitch.pto.util import dbg
 
 class Line:
 	def __init__(self, text, project):
@@ -121,9 +121,9 @@ class Line:
 		
 		self.update()
 	
-		print_debug()
-		print_debug('original: %s' % self.text)
-		print_debug('variables: %s' % self.variables)
+		dbg()
+		dbg('original: %s' % self.text)
+		dbg('variables: %s' % self.variables)
 	
 		ret = self.prefix()
 		
@@ -133,7 +133,7 @@ class Line:
 				continue
 			if k in self.variables:
 				v = self.variables[k]
-				print_debug('k: %s, v: %s' % (repr(k), repr(v)))
+				dbg('k: %s, v: %s' % (repr(k), repr(v)))
 				printed.add(k)
 				ret += ' %s' % self.print_variable(k)
 		
@@ -144,7 +144,7 @@ class Line:
 				continue
 			ret += ' %s' % self.print_variable(k)
 		
-		print_debug('final: %s' % ret)
+		dbg('final: %s' % ret)
 		
 		return ret
 
@@ -221,7 +221,7 @@ class Line:
 			# Discard extra spaces and some other corner cases
 			if len(k) > 0 :
 				tokens.append((k, v))
-		print_debug(tokens)
+		dbg(tokens)
 		return tokens
 		
 	def reparse(self):
@@ -232,7 +232,7 @@ class Line:
 			#print 'token: "%s"' % token
 			#k = token[0]
 			#v = token[1:]
-			print_debug('k: %s, v: %s' % (repr(k), repr(v)))
+			dbg('k: %s, v: %s' % (repr(k), repr(v)))
 			
 			# We can still have empty string
 			if not v is None and len(v) == 0:

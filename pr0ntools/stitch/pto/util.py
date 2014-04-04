@@ -7,11 +7,11 @@ Licensed under a 2 clause BSD license, see COPYING for details
 import math
 from pr0ntools.stitch.image_coordinate_map import ImageCoordinateMap
 import os
-import sys
 from pr0ntools.pimage import PImage
 
-def print_debug(s = None):
-    if False:
+debugging = 0
+def dbg(s = ''):
+    if debugging:
         print 'DEBUG: %s' % s
 
 def calc_center(pto):
@@ -25,7 +25,7 @@ def calc_center(pto):
         y = i.y()
         # first check that we have coordinates for all of the images
         if x is None or y is None:
-            raise Exception('Require positions to center panorama, missing on %s', pt.get_image())
+            raise Exception('Require positions to center panorama, missing on %s', pto.get_image())
         xbar += x
         ybar += y
     xbar /= n
@@ -50,7 +50,7 @@ def image_fl(img):
     FocalLength = (size / 2) / tan(FoV / 2)
     '''
     # images can have flexible fov but pano is fixed to int
-    print 'Width: %d, fov: %s' % (img.width(), str(img.fov()))
+    dbg('Width: %d, fov: %s' % (img.width(), str(img.fov())))
     if img.fov() is None or not (img.fov() > 0 and img.fov() < 180):
         raise Exception('Require valid fov, got %s' % (img.fov()))
     return (img.width() / 2) / math.tan(img.fov() / 2)
@@ -63,9 +63,7 @@ def center(pto):
     -i lines determinte the image position
     -an i line coordinate is from the center of an image
     '''
-    dbg = False
-    
-    print 'Centering pto'
+    dbg('Centering pto')
     try:
         pto.assert_uniform_images()
     except Exception:
@@ -74,7 +72,7 @@ def center(pto):
     # We require the high level representation
     pto.parse()
     
-    if dbg:
+    if debugging:
         print 'lines old:'
         for i in range(3):
             il = pto.get_image_lines()[i]
@@ -82,13 +80,13 @@ def center(pto):
         
         
     (ybar, xbar) = calc_center(pto)    
-    print 'Center adjustment by x %f, y %f' % (xbar, ybar)
+    dbg('Center adjustment by x %f, y %f' % (xbar, ybar))
     # If they were already centered this should be 0
     for i in pto.get_image_lines():
         i.set_x(i.x() - xbar)
         i.set_y(i.y() - ybar)
     
-    if dbg:
+    if debugging:
         print 'lines new:'
         for i in range(3):
             il = pto.get_image_lines()[i]
@@ -100,9 +98,9 @@ def center(pto):
     pl = pto.get_panorama_line()
     if pl.get_crop():
         # FIXME: this math isn't right although it does seem to generally improve things...
-        print 'Adjusting crop'
+        dbg('Adjusting crop')
         refi = pto.get_image_lines()[0]
-        print refi
+        dbg(refi)
         #iw = refi.width()
         #ih = refi.height()
         # Take the ratio of the focal distances
@@ -110,7 +108,7 @@ def center(pto):
         ifl = image_fl(refi)
         scalar = pfl / ifl
         
-        print 'Crop scalar: %f' % scalar
+        dbg('Crop scalar: %f' % scalar)
         
         pxbar = xbar * scalar
         l = pl.left() - pxbar
@@ -125,7 +123,7 @@ def center(pto):
         pl.set_bottom(b)
         
     else:
-        print 'No crop to adjust'
+        dbg('No crop to adjust')
     
 def anchor(pto, i_in):
     from pr0ntools.stitch.pto.variable_line import VariableLine
@@ -144,17 +142,17 @@ def anchor(pto, i_in):
         # The line we want to optimize?
         #print '%d vs %d' % (lindex, iindex)
         if lindex == iindex:
-            print 'Removing old anchor'
+            dbg('Removing old anchor')
             l.remove_variable('d')
             l.remove_variable('e')
-            print 'new line: %s' % l
+            dbg('new line: %s' % l)
         else:
             # more than likely they are already equal to this
             l.set_variable('d', lindex)
             l.set_variable('e', lindex)
     
     iindex = i.get_index()
-    print 'Anchoring to %s (%d)' % (i.get_name(), iindex)
+    dbg('Anchoring to %s (%d)' % (i.get_name(), iindex))
     closed_set = set()
     # Try to modify other parameters as little as possible
     # Modify only d and e parmaeters so as to not disturb lens parameters
@@ -174,7 +172,7 @@ def anchor(pto, i_in):
     '''
     for i in xrange(pto.nimages()):
         if not i in closed_set and i != iindex:
-            print 'Index %d not in closed set' % i
+            dbg('Index %d not in closed set' % i)
             '''
             Expect this to be the old anchor, if we had one at all
             As a heuristic put it in its index
@@ -194,7 +192,7 @@ def center_anchor_by_de(pto):
     pto.parse()
     (ybar, xbar) = calc_center(pto)
 
-    print 'xbar: %f, ybar: %f, images: %d' % (xbar, ybar, len(pto.get_image_lines()))
+    dbg('xbar: %f, ybar: %f, images: %d' % (xbar, ybar, len(pto.get_image_lines())))
 
     for i in pto.get_image_lines():
         x = i.x()
@@ -219,12 +217,11 @@ def center_anchor_by_fn(pto):
     m = ImageCoordinateMap.from_tagged_file_names(pto.get_file_names())
     # Chose a decent center image
     fn = m.get_image(int(m.width() / 2), int(m.height() / 2))
-    print 'Selected %s as anchor' % fn
+    dbg('Selected %s as anchor' % fn)
     anchor(pto, pto.get_image_by_fn(fn))
 
 def center_anchor(pto):
     '''Chose an anchor in the center of the pto'''
-    from pr0ntools.stitch.pto.variable_line import VariableLine
 
     '''
     There is a "chicken and the egg" type problem
@@ -234,7 +231,7 @@ def center_anchor(pto):
     If it is already optimized we can 
     '''
     
-    print 'Centering anchor'
+    dbg('Centering anchor')
 
     if 0:
         return center_anchor_by_de(pto)
@@ -269,7 +266,7 @@ def optimize_xy_only(self):
     #-hugin  cropFactor=1
     i w2816 h2112 f-2 Eb1 Eev0 Er1 Ra0 Rb0 Rc0 Rd0 Re0 Va1 Vb0 Vc0 Vd0 Vx-0 Vy-0 a0 b0 c0 d-0 e-0 g-0 p0 r0 t-0 v51 y0  Vm5 u10 n"x00000_y00033.jpg"
     '''
-    print_debug('Fixing up v (optimization variable) lines...')
+    dbg('Fixing up v (optimization variable) lines...')
     if self.parsed:
         self.variable_lines = []
         for i in range(1, len(self.get_file_names())):
@@ -299,7 +296,7 @@ def optimize_xy_only(self):
     if 0:
         print
         print
-        print_debug(self.text)
+        dbg(self.text)
         print
         print
 
@@ -336,7 +333,7 @@ def fixup_p_lines(self):
         else:
             new_project_text += line + '\n'
     self.set_text(new_project_text)
-    if 0:
+    if debugging:
         print
         print
         print self.text
@@ -346,7 +343,6 @@ def fixup_p_lines(self):
 def fixup_i_lines(self):
     print 'Fixing up i (image attributes) lines...'
     new_project_text = ''
-    new_lines = ''
     for line in self.get_text().split('\n'):
         if line == '':
             new_project_text += '\n'                
@@ -368,7 +364,7 @@ def fixup_i_lines(self):
                     new_line += ' %s' % part
                 # Script is getting angry, try to slim it up
                 else:
-                    print 'Skipping unknown garbage: %s' % part
+                    dbg('Skipping unknown garbage: %s' % part)
             new_project_text += new_line + '\n'
         else:
             new_project_text += line + '\n'
@@ -386,7 +382,7 @@ def make_basename(pto):
         orig = il.get_name()
         new = os.path.basename(orig)
         if orig != new:
-            print '%s => %s' % (orig, new)
+            dbg('basename: %s => %s' % (orig, new))
         il.set_name(new)
 
 def resave_hugin(pto):
@@ -400,7 +396,7 @@ def resave_hugin(pto):
     new = m.run(to_pto=True)
     if new != pto:
         raise Exception('Expected self merge')
-    print 'Merge into self'
+    dbg('Merge into self')
 
 def calc_il_dim(il):
     name = il.get_name()
@@ -411,6 +407,6 @@ def calc_il_dim(il):
 def fixup_image_dim(pto):
     for il in pto.get_image_lines():
         calc_il_dim(il)
-        print 'With size info: %s' % il
+        dbg('With size info: %s' % il)
 
 

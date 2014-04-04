@@ -12,6 +12,7 @@ from image_coordinate_map import ImageCoordinateMap
 import os
 from common_stitch import *
 import sys
+from pr0ntools.stitch.pto.util import dbg
 
 class GridStitch(CommonStitch):
 	def __init__(self):
@@ -26,7 +27,7 @@ class GridStitch(CommonStitch):
 			alt_rows = False, alt_cols = False, rows = None, cols = None):
 		engine = GridStitch()
 		engine.image_file_names = image_file_names
-		print 'Orig file names: %s' % str(image_file_names)
+		dbg('Orig file names: %s' % str(image_file_names))
 		
 		'''
 		Certain program take file names relative to the project file, others to working dir
@@ -48,7 +49,7 @@ class GridStitch(CommonStitch):
 	def from_tagged_file_names(image_file_names):
 		engine = GridStitch()
 		engine.image_file_names = image_file_names
-		print 'Orig file names: %s' % str(image_file_names)
+		dbg('Orig file names: %s' % str(image_file_names))
 		
 		file_names_canonical = list()
 		for file_name in image_file_names:
@@ -88,8 +89,11 @@ class GridStitch(CommonStitch):
 			print
 			print
 			print
+			print
+			print
 			print '*' * 80
 			print 'pair raw: %s (%d / %d)' % (repr(pair), pair_index, n_pairs)
+			print '*' * 80
 			# Image file names as list
 			pair_images = self.coordinate_map.get_images_from_pair(pair)
 			print 'pair images: ' + repr(pair_images)
@@ -140,10 +144,12 @@ class GridStitch(CommonStitch):
 
 				
 		self.project.save()
-		print 'Sub projects (full image):'
-		for project in temp_projects:
-			# prefix so I can grep it for debugging
-			print '\tSUB: ' + project.file_name
+		
+		if 0:
+			print 'Sub projects (full image):'
+			for project in temp_projects:
+				# prefix so I can grep it for debugging
+				print '\tSUB: ' + project.file_name
 		if 0:
 			print
 			print

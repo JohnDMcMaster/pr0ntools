@@ -7,10 +7,7 @@ Licensed under a 2 clause BSD license, see COPYING for details
 from pr0ntools import execute
 from pr0ntools.temp_file import ManagedTempFile
 import os.path
-import os
-
-def print_debug(s = ''):
-    pass
+from pr0ntools.stitch.pto.util import dbg
 
 class Merger:
     def __init__(self, files):
@@ -36,9 +33,9 @@ class Merger:
         if pto.file_name and os.path.exists(pto.file_name):
             args.append(pto.file_name)
         for other in others:
-             args.append(other.get_a_file_name())
+            args.append(other.get_a_file_name())
     
-        print_debug(args)
+        dbg(args)
 
         rc = execute.without_output(args)
         # go go go

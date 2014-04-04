@@ -20,21 +20,17 @@ p w8000 h1200 f2 v250 n"PSD_mask"
 o f0 y+0.000000 r+0.000000 p+0.000000 u20 d0.000000 e0.000000 v70.000000 a0.000000 b0.000000 c0.000000
 '''
 
-import shutil
-import os
-from pr0ntools.temp_file import ManagedTempFile
-from pr0ntools.execute import Execute
 from pr0ntools.stitch.merger import Merger
-from pr0ntools.pimage import PImage
-from pr0ntools.stitch.pto.util import *
+#from pr0ntools.stitch.pto.util import *
 from control_point_line import ControlPointLine, AbsoluteControlPointLine
-from image_line import *
+from image_line import ImageLine
 from variable_line import VariableLine
 from mode_line import ModeLine
 from panorama_line import PanoramaLine
 from optimizer_line import OptimizerLine
-from util import print_debug
-import pr0ntools.stitch.optimizer
+from util import dbg, calc_il_dim
+from pr0ntools.temp_file import ManagedTempFile
+from pr0ntools.execute import Execute
 		
 '''
 class ControlPointLineImage:
@@ -205,7 +201,6 @@ class PTOProject:
 	
 	def get_image_by_fn(self, fn):
 		for i in self.get_image_lines():
-			print fn, i.get_name()
 			if fn == i.get_name():
 				return i
 		return None
@@ -292,7 +287,7 @@ class PTOProject:
 	def from_text(text):
 		ret = PTOProject()
 		if text is None:
-			raise Excetpion('No text is invalid')
+			raise Exception('No text is invalid')
 		ret.text = text
 		#ret.reparse()
 		return ret
@@ -340,9 +335,9 @@ m g1.0 i0 f0 m2
 		self.optimizer_lines = list()
 
 		#print self.text
-		print_debug('Beginning split on text of len %d' % (len(self.get_text())))
+		dbg('Beginning split on text of len %d' % (len(self.get_text())))
 		for line in self.get_text().split('\n'):
-			print_debug('Processing line: %s' % line)
+			dbg('Processing line: %s' % line)
 			# Single * is end of file
 			# Any comments / garbage is allowed to follow
 			#if line.strip() == '*':
@@ -350,7 +345,7 @@ m g1.0 i0 f0 m2
 			# In practice this is PTOptimizer output I want
 			# Add an option later if needed to override
 			self.parse_line(line)
-			print_debug()
+			dbg()
 
 		print 'Finished reparse'
 		self.parsed = True
