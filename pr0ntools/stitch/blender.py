@@ -93,7 +93,7 @@ import sys
 
 class BlenderFailed(CommandFailed):
     pass
-    
+
 class Blender:
     def __init__(self, input_files, output_file, lock=False):
         self.input_files = input_files
@@ -102,17 +102,19 @@ class Blender:
         self.gpu = False
         self.additional_args = []
         self._lock = lock
+        self._lock_fp
         
     def lock(self):
         if not self._lock:
+            print 'Skipping enblend lock'
             return
         pid_file = '/tmp/pr0ntools-enblend.pid'
-        fp = open(pid_file, 'w')
+        self._lock_fp = open(pid_file, 'w')
         i = 0
         print 'Acquiring enblend lock'
         while True:
             try:
-                fcntl.lockf(fp, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                fcntl.lockf(self._lock_fp, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 break
             except IOError:
                 # Can take a while, print every 10 min or so and once at failure
@@ -121,6 +123,14 @@ class Blender:
                 time.sleep(0.1)
             i += 1
         print 'Acquired enblend lock'
+        
+    def unlock(self):
+        if self._lock_fp is None:
+            print 'Skipping enblend unlock'
+            return
+        print 'Releasing enblend lock'
+        self._lock_fp.close()
+        self._lock_fp = None
         
     def old_merge(self):
         '''
@@ -141,10 +151,13 @@ class Blender:
         args.append(self.pto_project.get_a_file_name())
         args.append(self.pto_project.get_a_file_name())
         self.lock()
-        (rc, output) = Execute.with_output("enblend", args)
-        if not rc == 0:
-            raise BlenderFailed('failed to blend')
-        self.project.reopen()
+        try:
+            (rc, output) = Execute.with_output("enblend", args)
+            if not rc == 0:
+                raise BlenderFailed('failed to blend')
+            self.project.reopen()
+        finally:
+            self.unlock()
 
         
     def run(self):
