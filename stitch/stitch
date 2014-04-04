@@ -1,0 +1,34 @@
+#!/bin/bash
+#microdown *.jpg ||exit 1
+time (
+
+# CNC always outputs good images now
+#microdown *
+
+echo
+echo
+echo '**********************************'
+pr0nstitch out.pto *.jpg ||exit 1
+
+#if [ $(md5sum stitch_failures.json |cut -c1-32) != 63e4be57043380c84996254fe8120e04 ]
+if cat stitch_failures.json |grep '"critical_images": 0'
+then
+    echo 'No stitch failures'
+else
+	echo 'Failures, autopilot done'
+	exit 1
+fi
+
+echo
+echo
+echo '**********************************'
+echo 'No failures, optimizing'
+pr0npto --optimize out.pto ||exit 1
+
+echo
+echo
+echo 'Done!  Open with Hugin to adjust size and rotate'
+) || exit 1
+
+hugin out.pto &
+
