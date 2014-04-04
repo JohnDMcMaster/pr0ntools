@@ -85,6 +85,12 @@ def mem2pix(mem):
     #return mem * 33 / 1000
     return mem * 15 / 1000
 
+def parser_add_bool_arg(yes_arg, default=False, **kwargs):
+    dashed = yes_arg.replace('--', '')
+    dest = dashed.replace('-', '_')
+    parser.add_argument(yes_arg, dest=dest, action='store_true', default=default, **kwargs)
+    parser.add_argument('--no-' + dashed, dest=dest, action='store_false', **kwargs)
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='create tiles from unstitched images')
     parser.add_argument('pto', metavar='pto project', type=str, nargs=1, help='pto project')
@@ -105,7 +111,7 @@ if __name__ == "__main__":
     parser.add_argument('--ignore-errors', action="store_true", dest="ignore_errors", default=False, help='skip broken tile stitches (advanced)')
     parser.add_argument('--verbose', '-v', action="store_true", default=False, help='spew lots of info')
     parser.add_argument('--st-dir', help='store intermediate supertiles to given dir')
-    parser.add_argument('--enblend-lock', action='store_true', help='use lock file to only enblend (memory intensive part) one at a time')
+    parser_add_bool_arg('--enblend-lock', default=True, help='use lock file to only enblend (memory intensive part) one at a time')
     
     args = parser.parse_args()
     fn = args.pto[0]
