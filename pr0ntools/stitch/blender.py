@@ -102,16 +102,16 @@ class Blender:
         self.gpu = False
         self.additional_args = []
         self._lock = lock
-        self._lock_fp
+        self._lock_fp = None
         
     def lock(self):
         if not self._lock:
-            print 'Skipping enblend lock'
+            print 'note: Skipping enblend lock'
             return
         pid_file = '/tmp/pr0ntools-enblend.pid'
         self._lock_fp = open(pid_file, 'w')
         i = 0
-        print 'Acquiring enblend lock'
+        print 'note: Acquiring enblend lock'
         while True:
             try:
                 fcntl.lockf(self._lock_fp, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -156,8 +156,10 @@ class Blender:
             if not rc == 0:
                 raise BlenderFailed('failed to blend')
             self.project.reopen()
+            print 'enblend finished OK'
         finally:
             self.unlock()
+        print 'Blender complete'
 
         
     def run(self):

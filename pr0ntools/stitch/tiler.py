@@ -58,6 +58,7 @@ import shutil
 import sys
 from pr0ntools.execute import CommandFailed
 import traceback
+from pr0ntools.stitch.pto.util import dbg
 
 
 class PartialStitcher:
@@ -229,7 +230,7 @@ class Tiler:
                 print 'Sweeping tile size optimizer'
                 best_w = None
                 best_h = None
-                best_n = None
+                self.best_n = None
                 # Get the lowest perimeter among n
                 # Errors occur around edges
                 best_p = None
@@ -251,14 +252,14 @@ class Tiler:
                     print 'Would generated %d supertiles each with perimeter %d' % (n_expected, p)
                     # TODO: there might be some optimizations within this for trimming...
                     # Add a check for minimum total mapped area
-                    if best_n is None or best_n > n_expected and best_p > p:
+                    if self.best_n is None or self.best_n > n_expected and best_p > p:
                         print 'Better'
-                        best_n = n_expected
+                        self.best_n = n_expected
                         best_w = check_w
                         best_h = check_h
                         best_p = p
                     print
-            print 'Best n %d w/ %dw X %dh' % (best_n, best_w, best_h)
+            print 'Best n %d w/ %dw X %dh' % (self.best_n, best_w, best_h)
             if 0:
                 print
                 print 'Debug break'
@@ -282,9 +283,13 @@ class Tiler:
         print 'Clip height: %d' % self.clip_width
         print 'ST width: %d' % self.stw
         print 'ST height: %d' % self.sth
-        if self.stw <= 2 * self.clip_width:
+        if self.stw <= 2 * self.clip_width and not self.stw < w:
+            print 'Failed'
+            print '  STW: %d' % self.stw
+            print '  Clip W: %d' % self.clip_width
+            print '  W: %d (%d - %d)' % (w, self.right(), self.left())
             raise Exception('Clip width exceeds supertile width: reduce clip or increase ST size')
-        if self.sth <= 2 * self.clip_height:
+        if self.sth <= 2 * self.clip_height and not self.stw < h:
             raise Exception('Clip width exceeds supertile width: reduce clip or increase ST size')
         
     def msg(self, s, l):
@@ -310,6 +315,12 @@ class Tiler:
         orig_net_area = self.expected_sts() * orig_st_area
         orig_stw = self.stw
         orig_sth = self.sth
+
+        # eliminate corner cases by only trimming when it can do any good
+        print 'Trimming %d supertiles' % self.best_n
+        if self.best_n <= 1:
+            print 'Only one ST: not trimming'
+            return
         
         if 0:
             # First one is normal but each additional takes a clip
@@ -470,6 +481,7 @@ class Tiler:
             #out_name_base = "%s/r%03d_c%03d" % (self.out_dir, row, col)
             #print 'Working on %s' % out_name_base
             stitcher = PartialStitcher(self.pto, bounds, temp_file.file_name)
+            stitcher.enblend_lock = self.enblend_lock
             stitcher.nona_args = self.nona_args
             stitcher.enblend_args = self.enblend_args
 
@@ -564,7 +576,7 @@ class Tiler:
             If they aren't they will be stretched in google maps
             '''
             if ip.width() != self.tw or ip.height() != self.th:
-                print 'WARNING: %s: expanding partial tile (%d X %d) to full tile size' % (nfn, ip.width(), ip.height())
+                dbg('WARNING: %s: expanding partial tile (%d X %d) to full tile size' % (nfn, ip.width(), ip.height()))
                 ip.set_canvas_size(self.tw, self.th)
             # http://www.pythonware.com/library/pil/handbook/format-jpeg.htm
             # JPEG is a good quality vs disk space compromise but beware:
