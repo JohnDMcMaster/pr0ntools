@@ -11,10 +11,7 @@ from pr0ntools.stitch.control_point import ControlPointGenerator, ajpto2pto_text
 from pr0ntools.stitch.pto.project import PTOProject
 from pr0ntools.stitch.pto.util import *
 from pr0ntools.stitch.remapper import Remapper
-import os
-from pr0ntools.pimage import PImage
 from pr0ntools.temp_file import ManagedTempFile
-from pr0ntools.temp_file import ManagedTempDir
 import sys
 import json
 import traceback
@@ -84,8 +81,6 @@ class CommonStitch:
         self.project = None
         self.remapper = None
         self.photometric_optimizer = None
-        self.optimize = True
-        self.optimizer = None
         self.cleaner = None
         # Used before init, later ignore for project.file_name
         self.output_project_file_name = None
@@ -162,15 +157,6 @@ class CommonStitch:
             '''
             self.generate_control_points()
     
-            if False:
-                self.photometric_optimizer = PhotometricOptimizer(self.project)
-                self.photometric_optimizer.run()
-    
-            # Remove statistically unpleasant points
-            if False:
-                self.cleaner = PTOClean(self.project)
-                self.cleaner.run()
-            
             print 'Post stitch fixup...'
             optimize_xy_only(self.project)
             fixup_i_lines(self.project)
@@ -204,12 +190,6 @@ class CommonStitch:
             if self.output_project_file_name and not self.project.file_name == self.output_project_file_name:
                 raise Exception('project file name changed %s %s', self.project.file_name, self.output_project_file_name)
             
-            self.optimize = False
-            if self.optimize:
-                self.optimizer = optimizer.PTOptimizer(self.project)
-                self.optimizer.run()
-                center(self.project)
-    
             # TODO: missing calc opt size/width/height/fov and crop
             
             # Did we request an actual stitch?

@@ -104,6 +104,7 @@ if __name__ == "__main__":
 	parser_add_bool_arg('--dry', default=False, help='')
 	parser_add_bool_arg('--skip-missing', default=False, help='')
 	parser.add_argument('fns', nargs='+', help='File names')
+	parser_add_bool_arg('--stampout', default=True, help='timestamp output')
 	args = parser.parse_args()
 	
 	if args.stampout:
