@@ -118,20 +118,36 @@ class Execute:
     @staticmethod
     def show_output(program, args, working_dir = None):
         '''Return (rc, output)'''
-        to_exec = program
+        cmd = program
         for arg in args:
-            to_exec += ' "' + arg + '"'
-        return Execute.show_output_simple(to_exec, working_dir)
+            cmd += ' "' + arg + '"'
+            
+        if working_dir:
+            cmd = 'cd %s && ' % working_dir + cmd
+
+        print 'cmd in: %s' % cmd
+        # Streams output to screen but may be causing synchronization issues
+        #print 'Executing'
+        os.sys.stdout.flush()
+        ret = os.system(cmd)
+        os.sys.stdout.flush()
+        #print 'Execute done'
+        return ret
         
     @staticmethod
-    def show_output_simple(cmd, print_output=False, working_dir = None):    
+    def show_output_simple(cmd, print_output=False, working_dir=None):
         '''Return rc'''
-        working_dir_str = ''
         if working_dir:
-            working_dir_str = 'cd %s && ' % working_dir
-            output = None
-        rc = Execute.simple(working_dir_str + cmd)
-        return rc
+            cmd = 'cd %s && ' % working_dir + cmd
+
+        print 'cmd in: %s' % cmd
+        # Streams output to screen but may be causing synchronization issues
+        #print 'Executing'
+        os.sys.stdout.flush()
+        ret = os.system(cmd)
+        os.sys.stdout.flush()
+        #print 'Execute done'
+        return ret
 
     @staticmethod
     def with_output(program, args, working_dir = None, print_output = False):
