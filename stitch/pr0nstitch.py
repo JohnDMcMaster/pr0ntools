@@ -19,6 +19,7 @@ from pr0ntools.stitch.all_stitch import AllStitch
 from pr0ntools.stitch.grid_stitch import GridStitch
 from pr0ntools.stitch.fortify_stitch import FortifyStitch
 import argparse
+from pr0ntools.util import IOTimestamp, IOLog
 
 project_file = 'panorama0.pto'
 temp_project_file = '/tmp/pr0nstitch.pto'
@@ -104,6 +105,12 @@ if __name__ == "__main__":
 	parser_add_bool_arg('--skip-missing', default=False, help='')
 	parser.add_argument('fns', nargs='+', help='File names')
 	args = parser.parse_args()
+	
+	if args.stampout:
+		_outdate = IOTimestamp(sys, 'stdout')
+		_errdate = IOTimestamp(sys, 'stderr')
+	_outlog = IOLog(obj=sys, name='stdout', out_fn='pr0nstitch.log')
+	_errlog = IOLog(obj=sys, name='stderr', out_fd=_outlog.out_fd)
 
 	depth = 1
 	# CNC like precision?

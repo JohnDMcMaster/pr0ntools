@@ -13,13 +13,12 @@ http://uvicrec.blogspot.com/2012/02/tile-stitch.html
 '''
 
 import sys 
-import os.path
 from pr0ntools.stitch.tiler import Tiler
 from pr0ntools.stitch.pto.project import PTOProject
 import argparse
 import re
 from pr0ntools.config import config
-from pr0ntools.util import IOTimestamp
+from pr0ntools.util import IOTimestamp, IOLog
 
 VERSION = '0.1'
 
@@ -114,11 +113,13 @@ if __name__ == "__main__":
     parser.add_argument('--st-dir', help='store intermediate supertiles to given dir')
     parser_add_bool_arg('--enblend-lock', default=True, help='use lock file to only enblend (memory intensive part) one at a time')
     parser_add_bool_arg('--stampout', default=True, help='timestamp output')
-    
     args = parser.parse_args()
+    
     if args.stampout:
         _outdate = IOTimestamp(sys, 'stdout')
         _errdate = IOTimestamp(sys, 'stderr')
+    _outlog = IOLog(obj=sys, name='stdout', out_fn='pr0nts.log')
+    _errlog = IOLog(obj=sys, name='stderr', out_fd=_outlog.out_fd)
 
     fn = args.pto[0]
     

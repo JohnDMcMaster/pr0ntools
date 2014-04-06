@@ -56,3 +56,29 @@ class IOTimestamp(object):
             # Newline results in n + 1 list elements
             # The last element has no newline
             self.nl = i != (len(parts) - 1)
+
+# Log file descriptor to file
+class IOLog(object):
+    def __init__(self, obj=sys, name='stdout', out_fn=None, out_fd=None):
+        if out_fd:
+            self.out_fd = out_fd
+        else:
+            self.out_fd = open(out_fn, 'w')
+        
+        self.obj = obj
+        self.name = name
+        
+        self.fd = obj.__dict__[name]
+        obj.__dict__[name] = self
+        self.nl = True
+
+    def __del__(self):
+        if self.obj:
+            self.obj.__dict__[self.name] = self.fd
+
+    def flush(self):
+        self.fd.flush()
+       
+    def write(self, data):
+        self.fd.write(data)
+        self.out_fd.write(data)
