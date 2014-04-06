@@ -9,8 +9,8 @@ import sys
 import datetime
 
 def rjust_str(s, nchars):
-	'''right justify string, space padded to nchars spaces'''
-	return ('%% %ds' % nchars) % s
+    '''right justify string, space padded to nchars spaces'''
+    return ('%% %ds' % nchars) % s
 
 def mean_stddev(data):
     '''mean and standard deviation'''
@@ -40,19 +40,19 @@ class IOTimestamp(object):
             self.obj.__dict__[self.name] = self.fd
 
     def flush(self):
-        self.stdout.flush()
+        self.fd.flush()
        
     def write(self, data):
         parts = data.split('\n')
         for i, part in enumerate(parts):
             if i != 0:
-                self.stdout.write('\n')
+                self.fd.write('\n')
             # If last bit of text is just an empty line don't append date until text is actually written
             if i == len(parts) - 1 and len(part) == 0:
                 break
             if self.nl:
-                self.stdout.write('%s: ' % now())
-            self.stdout.write(part)
+                self.fd.write('%s: ' % now())
+            self.fd.write(part)
             # Newline results in n + 1 list elements
             # The last element has no newline
             self.nl = i != (len(parts) - 1)

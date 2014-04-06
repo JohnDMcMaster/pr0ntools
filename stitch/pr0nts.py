@@ -19,6 +19,7 @@ from pr0ntools.stitch.pto.project import PTOProject
 import argparse
 import re
 from pr0ntools.config import config
+from pr0ntools.util import IOTimestamp
 
 VERSION = '0.1'
 
@@ -92,6 +93,8 @@ def parser_add_bool_arg(yes_arg, default=False, **kwargs):
     parser.add_argument('--no-' + dashed, dest=dest, action='store_false', **kwargs)
 
 if __name__ == "__main__":
+    _outdate = IOTimestamp(sys, 'stdout')
+    _errdate = IOTimestamp(sys, 'stderr')
     parser = argparse.ArgumentParser(description='create tiles from unstitched images')
     parser.add_argument('pto', metavar='pto project', type=str, nargs=1, help='pto project')
     parser.add_argument('--stw', action="store", dest="stw", type=str, default=None, help='Supertile width')
