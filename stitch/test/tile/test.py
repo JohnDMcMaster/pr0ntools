@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from pr0ntools.util.geometry import floor_mult, ceil_mult
+from pr0ntools.geometry import floor_mult, ceil_mult
 from pr0ntools.stitch.tiler import Tiler
 from pr0ntools.stitch.optimizer import PTOptimizer
 from pr0ntools.stitch.pto.project import PTOProject

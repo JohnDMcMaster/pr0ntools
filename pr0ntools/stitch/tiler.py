@@ -51,7 +51,7 @@ from pr0ntools.temp_file import ManagedTempDir
 #from pr0ntiles.tile import Tiler as TilerCore
 from pr0ntools.pimage import PImage
 from pr0ntools.benchmark import Benchmark
-from pr0ntools.util.geometry import ceil_mult
+from pr0ntools.geometry import ceil_mult
 import os
 import math
 import shutil

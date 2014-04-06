@@ -8,11 +8,10 @@ try:
 except ImportError as e:
 	using_tkinter = False
 
-from pr0ntools.benchmark import Benchmark
-from pr0ntools.util.geometry import PolygonQuadTree as PolygonQuadTreeBase
-
 from pr0ntools.jssim.util import get_debug_width, get_debug_height
-from pr0ntools.layer.point import *
+from pr0ntools.layer.point import Point
+from pr0ntools.layer.layer import Layer
+
 
 g_no_cache = True
 #g_no_cache = False

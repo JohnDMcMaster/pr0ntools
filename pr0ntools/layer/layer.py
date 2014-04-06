@@ -3,12 +3,10 @@ XXX
 Use multipolygon + envolope to make some of the more stubborn polygons?
 '''
 
-from pr0ntools.jssim.options import Options
-import xml.parsers.expat
 from shapely.geometry import Polygon, MultiPolygon
 from shapely.geos import TopologicalError
 from pr0ntools.benchmark import Benchmark
-from pr0ntools.util.geometry import PolygonQuadTree as PolygonQuadTreeBase
+from pr0ntools.geometry import PolygonQuadTree as PolygonQuadTreeBase
 from pr0ntools.layer.polygon import *
 from pr0ntools.layer.point import *
 
