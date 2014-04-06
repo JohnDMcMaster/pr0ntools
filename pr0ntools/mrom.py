@@ -2,7 +2,7 @@
 This file is part of pr0ntools
 mask ROM utilities
 Copyright 2010 John McMaster
-Licensed under GPL V3+
+Licensed under a 2 clause BSD license, see COPYING for details
 '''
 
 import common_driver

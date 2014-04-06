@@ -2,7 +2,7 @@
 This file is part of pr0ntools
 Projection profile utility class
 Copyright 2010 John McMaster <JohnDMcMaster@gmail.com>
-Licensed under GPL V3+
+Licensed under a 2 clause BSD license, see COPYING for details
 '''
 
 '''
