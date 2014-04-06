@@ -93,8 +93,6 @@ def parser_add_bool_arg(yes_arg, default=False, **kwargs):
     parser.add_argument('--no-' + dashed, dest=dest, action='store_false', **kwargs)
 
 if __name__ == "__main__":
-    _outdate = IOTimestamp(sys, 'stdout')
-    _errdate = IOTimestamp(sys, 'stderr')
     parser = argparse.ArgumentParser(description='create tiles from unstitched images')
     parser.add_argument('pto', metavar='pto project', type=str, nargs=1, help='pto project')
     parser.add_argument('--stw', action="store", dest="stw", type=str, default=None, help='Supertile width')
@@ -115,8 +113,13 @@ if __name__ == "__main__":
     parser.add_argument('--verbose', '-v', action="store_true", default=False, help='spew lots of info')
     parser.add_argument('--st-dir', help='store intermediate supertiles to given dir')
     parser_add_bool_arg('--enblend-lock', default=True, help='use lock file to only enblend (memory intensive part) one at a time')
+    parser_add_bool_arg('--stampout', default=True, help='timestamp output')
     
     args = parser.parse_args()
+    if args.stampout:
+        _outdate = IOTimestamp(sys, 'stdout')
+        _errdate = IOTimestamp(sys, 'stderr')
+
     fn = args.pto[0]
     
     auto_size = not (args.stp or args.stm or args.stw or args.sth)
