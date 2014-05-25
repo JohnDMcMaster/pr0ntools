@@ -12,6 +12,7 @@ Question: why on Ubuntu 12.04 w/ custom kernel can I take pictures but not strea
 
 from imager import *
 from usbio.mc import MC
+from usbio.mock_controller import MockController
 from pr0ndexer_controller import PDC
 from pr0ntools.benchmark import Benchmark
 from config import *
