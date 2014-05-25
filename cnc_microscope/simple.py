@@ -1,109 +1,124 @@
 #!/usr/bin/env python
 
-'''
-TODO: version 1 was platform independent without video feed
-Consider making video feed optional to make it continue to work on windows
-or maybe look into Phonon some more for rendering
-'''
-
-from pr0ntools.benchmark import Benchmark
-from config import *
-from threads import *
-
 from PyQt4 import Qt
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
-from pr0ntools.pimage import PImage
-
-import StringIO
-
 import sys
 import traceback
-import os.path
 import os
 import signal
 
-import Image
+import gobject, pygst
+pygst.require('0.10')
+import gst
 
-gobject = None
-pygst = None
-gst = None
-try:
-    import gobject, pygst
-    pygst.require('0.10')
-    import gst
-except ImportError:
-    if config['imager']['engine'] == 'gstreamer' or config['imager']['engine'] == 'gstreamer-testrc':
-        print 'Failed to import a gstreamer package when gstreamer is required'
-        raise
-
-def dbg(*args):
-    if len(args) == 0:
-        print
-    elif len(args) == 1:
-        print 'main: %s' % (args[0], )
-    else:
-        print 'main: ' + (args[0] % args[1:])
-
-g_test = True
-        
 class CNCGUI(QMainWindow):
-    cncProgress = pyqtSignal(int, int, str, int)
-    snapshotCaptured = pyqtSignal(int)
-        
     def __init__(self):
         QMainWindow.__init__(self)
-        
-        self.setGeometry(300, 300, 250, 150)
-        self.setWindowTitle('pr0ncnc')    
-        
-        # top layout
-        layout = QGridLayout()
-        col = 0
 
-        self.l1 = QLabel('Widget 1')
-        self.l1.setSizePolicy(QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed))
-        layout.addWidget(self.l1, 0, col)
-        col += 1
+        self.initUI()
         
-        if 0:
-            self.l2 = QLabel('Widget 2')
-            self.l2.setSizePolicy(QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed))
-            layout.addWidget(self.l2, 0, col)
-            col += 1
-
-        self.video_container = QWidget()
-        self.video_container.setSizePolicy(QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed))
-        w, h = 800, 600
-        if 1:
-            pal = QPalette(self.video_container.palette())
-            self.video_container.setAutoFillBackground(True)
-            pal.setColor(QPalette.Window, QColor('black'))
-            self.video_container.setPalette(pal)            
-            #self.video_container.setBackgroundRole(Qt.black)
-        self.video_container.setMinimumSize(w, h)
-        self.video_container.resize(w, h)
-        layout.addWidget(self.video_container, 0, col)
-        col += 1
+        # Must not be initialized until after layout is set
+        self.gstWindowId = None
+        engine_config = 'gstreamer'
+        if engine_config == 'gstreamer':
+            self.source = gst.element_factory_make("v4l2src", "vsource")
+            self.source.set_property("device", "/dev/video0")
+            self.setupGst()
+        elif engine_config == 'gstreamer-testsrc':
+            self.source = gst.element_factory_make("videotestsrc", "video-source")
+            self.setupGst()
+        else:
+            raise Exception('Unknown engine %s' % (engine_config,))
         
-        def fire(*args):
-            print 'Resize'
-            w, h = 400, 300
+        if self.gstWindowId:
+            print "Starting gstreamer pipeline"
+            self.player.set_state(gst.STATE_PLAYING)
+        
+    def get_video_layout(self):
+        # Overview
+        def low_res_layout():
+            layout = QVBoxLayout()
+            layout.addWidget(QLabel("Overview"))
+            
+            # Raw X-windows canvas
+            self.video_container = QWidget()
+            # Allows for convenient keyboard control by clicking on the video
+            self.video_container.setFocusPolicy(Qt.ClickFocus)
+            w, h = 3264/4, 2448/4
             self.video_container.setMinimumSize(w, h)
             self.video_container.resize(w, h)
-            self.resize(0, 0)
-        self.t = QTimer(self)
-        self.t.timeout.connect(fire)
-        self.t.setSingleShot(True)
-        self.t.start(500)
+            policy = QSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+            self.video_container.setSizePolicy(policy)
+            
+            layout.addWidget(self.video_container)
+            
+            return layout
+        
+        layout = QHBoxLayout()
+        layout.addLayout(low_res_layout())
+        return layout
     
-        self.widget = QWidget()
-        self.widget.setLayout(layout)
-        #self.widget.setSizePolicy(QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum))
-        self.setCentralWidget(self.widget)
-        self.setSizePolicy(QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum))
-        self.updateGeometry()
+    def setupGst(self):
+        print "Setting up gstreamer pipeline"
+        self.gstWindowId = self.video_container.winId()
+
+        self.player = gst.Pipeline("player")
+        sinkx = gst.element_factory_make("ximagesink", 'sinkx_overview')
+        fcs = gst.element_factory_make('ffmpegcolorspace')
+        caps = gst.caps_from_string('video/x-raw-yuv')
+
+        self.resizer =  gst.element_factory_make("videoscale")
+
+        # Video render stream
+        self.player.add(self.source, fcs, self.resizer, sinkx)
+        gst.element_link_many(self.source, fcs, self.resizer, sinkx)
+
+        bus = self.player.get_bus()
+        bus.add_signal_watch()
+        bus.enable_sync_message_emission()
+        bus.connect("message", self.on_message)
+        bus.connect("sync-message::element", self.on_sync_message)
+    
+    def on_message(self, bus, message):
+        t = message.type
+        if t == gst.MESSAGE_EOS:
+            self.player.set_state(gst.STATE_NULL)
+            print "End of stream"
+        elif t == gst.MESSAGE_ERROR:
+            err, debug = message.parse_error()
+            print "Error: %s" % err, debug
+            self.player.set_state(gst.STATE_NULL)
+            ''
+
+    def on_sync_message(self, bus, message):
+        if message.structure is None:
+            return
+        message_name = message.structure.get_name()
+        if message_name == "prepare-xwindow-id":
+            if message.src.get_name() == 'sinkx_overview':
+                print 'sinkx_overview win_id'
+                win_id = self.gstWindowId
+            else:
+                raise Exception('oh noes')
+            
+            assert win_id
+            imagesink = message.src
+            imagesink.set_xwindow_id(win_id)
+    
+    def initUI(self):
+        self.setGeometry(300, 300, 250, 150)
+        self.setWindowTitle('pyv4l test')    
+        
+        # top layout
+        layout = QVBoxLayout()
+        
+        layout.addLayout(self.get_video_layout())
+        
+        w = QWidget()
+        w.setLayout(layout)
+        self.setCentralWidget(w)
         self.show()
         
 def excepthook(excType, excValue, tracebackobj):
