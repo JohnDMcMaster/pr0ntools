@@ -9,7 +9,7 @@ import os
 import argparse		
 from pr0ntools.tile.map import Map, ImageMapSource, TileMapSource
 
-std_copyright = '&copy;2013 John McMaster, CC BY-NC-SA'
+std_copyright = '&copy;2014 John McMaster, CC BY-SA'
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description='Generate Google Maps code from image file(s)')
@@ -25,7 +25,7 @@ if __name__ == "__main__":
 	parser.add_argument('--name', dest="title_name", help='SiMap: <name> title')
 	parser.add_argument('--title', dest="title", help='Set title.  Default: SiMap: <project name>')
 	parser.add_argument('--copyright', '-c', help='Set copyright message (default: none)')
-	parser.add_argument('--std-copyright', '-C', action='store_true', help='Set copyright to "%s"' % std_copyright)
+	parser.add_argument('--std-copyright', '-C', action='store_true', help='Set copyright "%s"' % std_copyright)
 	args = parser.parse_args()
 	
 	if args.std_copyright:
