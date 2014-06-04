@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 import os
-import argparse		
+import argparse        
 import sys
 import glob
 import shutil
@@ -21,97 +21,97 @@ chmod +x "${appdir}/jre/bin/java"
 '''
 
 def zs(in_xml,  out_dir, args):
-	args.append("-batchScript")
-	args.append(in_xml)
+    args.append("-batchScript")
+    args.append(in_xml)
 
-	args.append(out_dir)
-	
-	args = ['zs'] + args
-	
-	print 'Calling: %s' % (args,)
-	
-	subprocess.check_call(args, shell=False)
+    args.append(out_dir)
+    
+    args = ['zs'] + args
+    
+    print 'Calling: %s' % (args,)
+    
+    subprocess.check_call(args, shell=False)
 
 
 #  '%(a)d' % {'a':1}
 
 if __name__ == "__main__":
-	parser = argparse.ArgumentParser(description='Stack CNC output dirs into output dir')
-	parser.add_argument('img_dirs_in', nargs='+', help='join images in input directories to form stacked output dir')
-	parser.add_argument('img_dir_out', help='join images in input directories to form stacked output dir')
-	parser.add_argument('--force', action='store_true')
-	args = parser.parse_args()
-	
-	if len(args.img_dirs_in) < 2:
-		raise Exception('Require at leaste two dirs')
-	
-	out_fn = 'out.jpg'
-	in_dirs = []
-	fns = None
-	# Verify all dirs have the same named files
-	for d in args.img_dirs_in:
-		if not os.path.isdir(d):
-			raise Exception('Not a dir: %s' % (d,))
-		dfns = glob.glob(os.path.join(d, '*.jpg'))
-		dfns_base = [os.path.basename(fn) for fn in dfns]
-		if fns is None:
-			fns = dfns_base
-		else:
-			if fns != dfns_base:
-				print fns
-				print dfns_base
-				raise Exception('Dirs not equal')
-	print 'Found %d image sets to stack w/ %d images in each stack' % (len(fns), len(args.img_dirs_in))
+    parser = argparse.ArgumentParser(description='Stack CNC output dirs into output dir')
+    parser.add_argument('img_dirs_in', nargs='+', help='join images in input directories to form stacked output dir')
+    parser.add_argument('img_dir_out', help='join images in input directories to form stacked output dir')
+    parser.add_argument('--force', action='store_true')
+    args = parser.parse_args()
+    
+    if len(args.img_dirs_in) < 2:
+        raise Exception('Require at leaste two dirs')
+    
+    out_fn = 'out.jpg'
+    in_dirs = []
+    fns = None
+    # Verify all dirs have the same named files
+    for d in args.img_dirs_in:
+        if not os.path.isdir(d):
+            raise Exception('Not a dir: %s' % (d,))
+        dfns = glob.glob(os.path.join(d, '*.jpg'))
+        dfns_base = [os.path.basename(fn) for fn in dfns]
+        if fns is None:
+            fns = dfns_base
+        else:
+            if fns != dfns_base:
+                print fns
+                print dfns_base
+                raise Exception('Dirs not equal')
+    print 'Found %d image sets to stack w/ %d images in each stack' % (len(fns), len(args.img_dirs_in))
 
-	tmp_dir = '/tmp/pr0nstack.tmp'
-	print 'Temp dir: %s' % tmp_dir
-	# can't be in an image input dir or it will be tried to process as an image
-	in_xml_fn = tmp_dir + '_in.xml'
-	print 'in XML: %s' % in_xml_fn
+    tmp_dir = '/tmp/pr0nstack.tmp'
+    print 'Temp dir: %s' % tmp_dir
+    # can't be in an image input dir or it will be tried to process as an image
+    in_xml_fn = tmp_dir + '_in.xml'
+    print 'in XML: %s' % in_xml_fn
 
-	if os.path.exists(args.img_dir_out):
-		if not args.force:
-			raise Exception("Must set force to override output")
-		shutil.rmtree(args.img_dir_out)
-	os.mkdir(args.img_dir_out)
+    if os.path.exists(args.img_dir_out):
+        if not args.force:
+            raise Exception("Must set force to override output")
+        shutil.rmtree(args.img_dir_out)
+    os.mkdir(args.img_dir_out)
 
-	for fn in fns:
-		print
-		print
-		print
-		
-		srcs = [os.path.join(d, fn) for d in args.img_dirs_in]
-		dst = os.path.join(args.img_dir_out, fn)
-		print 'srcs: %s' % (srcs,)
-		print 'dst: %s' % (dst,)
+    for fn in fns:
+        print
+        print
+        print
+        
+        srcs = [os.path.join(d, fn) for d in args.img_dirs_in]
+        dst = os.path.join(args.img_dir_out, fn)
+        print 'srcs: %s' % (srcs,)
+        print 'dst: %s' % (dst,)
 
-		srcs = [os.path.realpath(src) for src in srcs]
+        srcs = [os.path.realpath(src) for src in srcs]
 
-		if os.path.exists(tmp_dir):
-			shutil.rmtree(tmp_dir)
-		os.mkdir(tmp_dir)
+        if os.path.exists(tmp_dir):
+            shutil.rmtree(tmp_dir)
+        os.mkdir(tmp_dir)
 
-		'''
-		There seems to be a bug where if the input folder contains a symbolic link it will successfully stack the image but fail to save it
-		so instead we copy them now
-		'''
-		'''
-		for i, src in enumerate(srcs):
-			srcl = '%02d_%s.jpg' % (i, os.path.basename(os.path.dirname(src)))
-			link = os.path.join(tmp_dir, srcl)
-			print 'Linking %s => %s' % (link, src)
-			os.symlink(src, link)
-		'''
+        '''
+        There seems to be a bug where if the input folder contains a symbolic link it will successfully stack the image but fail to save it
+        so instead we copy them now
+        '''
+        '''
+        for i, src in enumerate(srcs):
+            srcl = '%02d_%s.jpg' % (i, os.path.basename(os.path.dirname(src)))
+            link = os.path.join(tmp_dir, srcl)
+            print 'Linking %s => %s' % (link, src)
+            os.symlink(src, link)
+        '''
 
-		for i, src in enumerate(srcs):
-			srcl = '%02d_%s.jpg' % (i, os.path.basename(os.path.dirname(src)))
-			link = os.path.join(tmp_dir, srcl)
-			print 'Copying %s => %s' % (link, src)
-			shutil.copy(src, link)
-		
-		#<OutputImagesDesignatedFolder value="%(out_dir)s" />
-		# <BatchFileChooser.LastDirectory value="%(in_dir)s" />
-		xml = '''<?xml version="1.0" encoding="UTF-8"?>
+        for i, src in enumerate(srcs):
+            srcl = '%02d_%s.jpg' % (i, os.path.basename(os.path.dirname(src)))
+            link = os.path.join(tmp_dir, srcl)
+            print 'Copying %s => %s' % (link, src)
+            shutil.copy(src, link)
+        
+        #<OutputImagesDesignatedFolder value="%(out_dir)s" />
+        # <BatchFileChooser.LastDirectory value="%(in_dir)s" />
+        xml = '''<?xml version="1.0" encoding="UTF-8"?>
 <ZereneStackerBatchScript>
   <BatchQueue>
     <Batches length="1">
@@ -217,16 +217,16 @@ if __name__ == "__main__":
     </Batches>
   </BatchQueue>
 </ZereneStackerBatchScript>''' % {'out_dir':tmp_dir, 'in_dir':tmp_dir}
-		open(in_xml_fn, 'w').write(xml + '\n\n')
-		zs(in_xml_fn,  tmp_dir, ["-noSplashScreen", "-exitOnBatchScriptCompletion", "-runMinimized", "-showProgressWhenMinimized=false"])
-		
-		outfns = glob.glob(os.path.join(tmp_dir, 'ZS-OutputImage*.jpg'))
-		if len(outfns) != 1:
-			print outfns
-			raise Exception('Missing output image')
-		stacked_src = outfns[0]
-		stacked_dst = os.path.join(args.img_dir_out, fn)
-		print 'Moving stacked image %s => %s' % (stacked_src, stacked_dst)
-		shutil.move(stacked_src, stacked_dst)
-		shutil.rmtree(tmp_dir)
-		print '%s complete' % (fn,)
+        open(in_xml_fn, 'w').write(xml + '\n\n')
+        zs(in_xml_fn,  tmp_dir, ["-noSplashScreen", "-exitOnBatchScriptCompletion", "-runMinimized", "-showProgressWhenMinimized=false"])
+        
+        outfns = glob.glob(os.path.join(tmp_dir, 'ZS-OutputImage*.jpg'))
+        if len(outfns) != 1:
+            print outfns
+            raise Exception('Missing output image')
+        stacked_src = outfns[0]
+        stacked_dst = os.path.join(args.img_dir_out, fn)
+        print 'Moving stacked image %s => %s' % (stacked_src, stacked_dst)
+        shutil.move(stacked_src, stacked_dst)
+        shutil.rmtree(tmp_dir)
+        print '%s complete' % (fn,)
