@@ -9,7 +9,7 @@ import os
 import argparse		
 from pr0ntools.tile.map import Map, ImageMapSource, TileMapSource
 
-std_copyright = '&copy;2014 John McMaster, CC BY-SA'
+std_copyright = '&copy;2014 John McMaster, CC BY'
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description='Generate Google Maps code from image file(s)')
