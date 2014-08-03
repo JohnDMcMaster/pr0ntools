@@ -93,23 +93,23 @@ def parser_add_bool_arg(yes_arg, default=False, **kwargs):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='create tiles from unstitched images')
-    parser.add_argument('pto', metavar='pto project', type=str, nargs=1, help='pto project')
-    parser.add_argument('--stw', action="store", dest="stw", type=str, default=None, help='Supertile width')
-    parser.add_argument('--sth', action="store", dest="sth", type=str, default=None, help='Supertile height')
-    parser.add_argument('--stp', action="store", dest="stp", type=str, default=None, help='Supertile pixels')
-    parser.add_argument('--stm', action="store", dest="stm", type=str, default=None, help='Supertile memory')
-    parser.add_argument('--force', action="store_true", dest="force", default=False, help='Force by replacing old files')
-    parser.add_argument('--merge', action="store_true", dest="merge", default=False, help="Don't delete anything and only generate things missing")
-    parser.add_argument('--out-ext', action="store", dest="out_extension", type=str, default='.jpg', help='Select output image extension (and type), .jpg, .png, .tif, etc')
-    parser.add_argument('--full', action="store_true", dest="full", default=False, help='use only 1 supertile')
-    parser.add_argument('--st-xstep', action="store", dest="super_t_xstep", type=int, default=None, help='Supertile x step (advanced)')
-    parser.add_argument('--st-ystep', action="store", dest="super_t_ystep", type=int, default=None, help='Supertile y step (advanced)')
-    parser.add_argument('--clip-width', action="store", dest="clip_width", type=int, default=None, help='x clip (advanced)')
-    parser.add_argument('--clip-height', action="store", dest="clip_height", type=int, default=None, help='y clip (advanced)')
-    parser.add_argument('--nona-args', default=None)
-    parser.add_argument('--enblend-args', default=None)
-    parser.add_argument('--ignore-errors', action="store_true", dest="ignore_errors", default=False, help='skip broken tile stitches (advanced)')
-    parser.add_argument('--verbose', '-v', action="store_true", default=False, help='spew lots of info')
+    parser.add_argument('pto', default='out.pto', nargs='?', help='pto project')
+    parser.add_argument('--stw', help='Supertile width')
+    parser.add_argument('--sth', help='Supertile height')
+    parser.add_argument('--stp', help='Supertile pixels')
+    parser.add_argument('--stm', help='Supertile memory')
+    parser.add_argument('--force', action="store_true", help='Force by replacing old files')
+    parser.add_argument('--merge', action="store_true", help="Don't delete anything and only generate things missing")
+    parser.add_argument('--out-ext', default='.jpg', help='Select output image extension (and type), .jpg, .png, .tif, etc')
+    parser.add_argument('--full', action="store_true", help='use only 1 supertile')
+    parser.add_argument('--st-xstep', action="store", dest="super_t_xstep", type=int, help='Supertile x step (advanced)')
+    parser.add_argument('--st-ystep', action="store", dest="super_t_ystep", type=int, help='Supertile y step (advanced)')
+    parser.add_argument('--clip-width', action="store", dest="clip_width", type=int, help='x clip (advanced)')
+    parser.add_argument('--clip-height', action="store", dest="clip_height", type=int, help='y clip (advanced)')
+    parser.add_argument('--nona-args')
+    parser.add_argument('--enblend-args')
+    parser.add_argument('--ignore-errors', action="store_true", dest="ignore_errors", help='skip broken tile stitches (advanced)')
+    parser.add_argument('--verbose', '-v', action="store_true", help='spew lots of info')
     parser.add_argument('--st-dir', help='store intermediate supertiles to given dir')
     parser_add_bool_arg('--enblend-lock', default=True, help='use lock file to only enblend (memory intensive part) one at a time')
     parser_add_bool_arg('--stampout', default=True, help='timestamp output')
@@ -126,8 +126,8 @@ if __name__ == "__main__":
     auto_size = not (args.stp or args.stm or args.stw or args.sth)
     print auto_size
     
-    print 'Assuming input %s is pto project to be stitched' % fn
-    project = PTOProject.parse_from_file_name(fn)
+    print 'Assuming input %s is pto project to be stitched' % args.pto
+    project = PTOProject.parse_from_file_name(args.pto)
     print 'Creating tiler'
     stp = None
     if args.stp:
@@ -147,7 +147,7 @@ if __name__ == "__main__":
     t.st_dir = args.st_dir
     t.force = args.force
     t.merge = args.merge
-    t.out_extension = args.out_extension
+    t.out_extension = args.out_ext
     t.ignore_errors = args.ignore_errors
 
     # TODO: make this more proper?
