@@ -160,6 +160,7 @@ if __name__ == "__main__":
             engine.threads = args.threads
         else:
             engine = GridStitch.from_tagged_file_names(input_image_file_names)
+            engine.threads = args.threads
         engine.skip_missing = args.skip_missing
         if grid_only:
             print 'Grid only, exiting'

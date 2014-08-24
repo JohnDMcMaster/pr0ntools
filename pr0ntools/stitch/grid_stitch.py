@@ -25,8 +25,9 @@ def msg(s=''):
     print s
 
 class Worker(threading.Thread):
-    def __init__(self):
+    def __init__(self, i):
         threading.Thread.__init__(self)
+        self.i = i
         self.qi = Queue.Queue()
         self.qo = Queue.Queue()
         self.running = threading.Event()
@@ -49,6 +50,7 @@ class Worker(threading.Thread):
                 msg()
                 msg()
                 msg('*' * 80)
+                msg('w%d: task rx' % self.i)
             
                 final_pair_project = self.generate_control_points_by_pair(pair, pair_images)
                 
@@ -70,6 +72,7 @@ class Worker(threading.Thread):
                         raise Exception('Generated empty pair project')
                 
                 self.qo.put(('done', (task, final_pair_project)))
+                msg('w%d: task done' % self.i)
                 
             except Exception as e:
                 traceback.print_exc()
@@ -146,8 +149,8 @@ class GridStitch(CommonStitch):
         
             
         msg('Initializing %d workers' % self.threads)
-        for _ti in xrange(self.threads):
-            w = Worker()
+        for ti in xrange(self.threads):
+            w = Worker(ti)
             w.generate_control_points_by_pair = self.generate_control_points_by_pair
             self.workers.append(w)
             w.start()
@@ -158,7 +161,7 @@ class GridStitch(CommonStitch):
 
         while not (all_allocated and pair_complete == pair_submit):
             # Check for completed jobs
-            for worker in self.workers:
+            for wi, worker in enumerate(self.workers):
                 try:
                     out = worker.qo.get(False)
                 except Queue.Empty:
@@ -168,14 +171,14 @@ class GridStitch(CommonStitch):
                 
                 if what == 'done':
                     (_task, final_pair_project) = out[1]
-                    
+                    msg('W%d: done' % wi)
                     # May have failed
                     if final_pair_project:
                         # See if we got everything back
                         temp_projects.append(final_pair_project)
                 elif what == 'exception':
                     #(_task, e) = out[1]
-                    msg('WARNING: task failed w/ exception')
+                    msg('WARNING: W%d failed w/ exception' % wi)
                 else:
                     msg('%s' % (out,))
                     raise Exception('Internal error: bad task type %s' % what)
@@ -183,7 +186,7 @@ class GridStitch(CommonStitch):
                 
             
             # Any workers need more work?
-            for worker in self.workers:
+            for wi, worker in enumerate(self.workers):
                 if all_allocated:
                     break
                 if worker.qi.empty():
@@ -198,7 +201,7 @@ class GridStitch(CommonStitch):
                         pair_submit += 1
             
                         msg('*' * 80)
-                        msg('submitting: %s (%d / %d)' % (repr(pair), pair_submit, n_pairs))
+                        msg('W%d: submit %s (%d / %d)' % (wi, repr(pair), pair_submit, n_pairs))
             
                         # Image file names as list
                         pair_images = self.coordinate_map.get_images_from_pair(pair)
@@ -210,6 +213,7 @@ class GridStitch(CommonStitch):
                             continue
                             
                         worker.qi.put((pair, pair_images))
+                        break
                     
             time.sleep(0.1)
             
