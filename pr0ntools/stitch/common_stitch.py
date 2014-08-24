@@ -118,6 +118,20 @@ class CommonStitch:
     def init_failures(self):
         pass
 
+    def failure_json_w(self):
+        print 'Writing failure JSON'
+        cc = self.failures.critical_count()
+        print '%d pairs failed to make %d images critical' % (self.failures.pair_count(), cc)
+        if cc:
+            print '******WARNING WARNING WARING******'
+            print '%d images are not connected' % cc
+            print '******WARNING WARNING WARING******'
+        failure_json = {
+                'critical_images': cc,
+                'failures': self.failures.json,}
+                
+        open('stitch_failures.json', 'w').write(json.dumps(failure_json, sort_keys=True, indent=4, separators=(',', ': ')))
+
     def run(self):
         if self.dry:
             print 'Dry run abort'
@@ -169,20 +183,8 @@ class CommonStitch:
             print '***PTO project baseline final (%s / %s) data length %d***' % (self.project.file_name, self.output_project_file_name, len(self.project.get_text()))
             print
             
-            if 1:
-                print 'Writing failure JSON'
-                cc = self.failures.critical_count()
-                print '%d pairs failed to make %d images critical' % (self.failures.pair_count(), cc)
-                if cc:
-                    print '******WARNING WARNING WARING******'
-                    print '%d images are not connected' % cc
-                    print '******WARNING WARNING WARING******'
-                failure_json = {
-                        'critical_images': cc,
-                        'failures': self.failures.json,}
-                        
-                open('stitch_failures.json', 'w').write(json.dumps(failure_json, sort_keys=True, indent=4, separators=(',', ': ')))
-                print
+            self.failure_json_w()
+            print
             
             # Make dead sure its saved up to date
             self.project.save()
