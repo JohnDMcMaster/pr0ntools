@@ -174,11 +174,19 @@ class PTOProject:
         '''Return an unsaved but identical project'''
         return PTOProject.from_text(self.get_text())
     
-    def index_to_image(self, index):
+    def i2img(self, index):
+        '''Given index return image object'''
         lines = self.get_image_lines()
         if index >= len(lines):
             raise IndexError('index: %d, items: %d' % (index, len(lines)))
         return lines[index]
+
+    def img_fn2i(self, fn):
+        '''Given image file name return image index'''
+        for i, il in enumerate(self.get_image_lines()):
+            if fn == il.get_name():
+                return i
+        return None
     
     def assert_uniform_images(self):
         '''All images have same width and height'''
@@ -460,6 +468,7 @@ m g1.0 i0 f0 m2
 
     def get_text(self):
         # If parsed then convert the intermediate repr since we may have modified from the saved value
+        print self.parsed
         if self.parsed:
             #print 'get_text: constructed version'
             return self.to_str_core(False)

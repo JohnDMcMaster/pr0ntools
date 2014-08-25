@@ -46,7 +46,7 @@ class ControlPointLine(line.Line):
 		if not self.lower_image:
 			#print 'Control point missing lower image, querying from index'
 			# Then get/create one
-			self.lower_image = self.project.index_to_image(self.get_variable('n'))
+			self.lower_image = self.project.i2img(self.get_variable('n'))
 		else:
 			self.set_variable('n', self.lower_image.get_index())
 			# whats with these lines?
@@ -54,7 +54,7 @@ class ControlPointLine(line.Line):
 			#self.set_variable('y', self.lower_image.y())
 
 		if not self.upper_image:
-			self.upper_image = self.project.index_to_image(self.get_variable('N'))
+			self.upper_image = self.project.i2img(self.get_variable('N'))
 		else:
 			self.set_variable('N', self.upper_image.get_index())
 			#self.set_variable('X', self.upper_image.x())

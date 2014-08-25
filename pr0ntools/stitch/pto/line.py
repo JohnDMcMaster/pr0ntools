@@ -10,6 +10,9 @@ from pr0ntools.temp_file import ManagedTempFile
 from pr0ntools.execute import Execute
 from pr0ntools.stitch.pto.util import dbg
 
+#def dbg(s=''):
+#	print s
+
 class Line:
 	def __init__(self, text, project):
 		# Variables for the line as dict
