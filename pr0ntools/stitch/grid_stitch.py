@@ -128,7 +128,7 @@ class GridStitch(CommonStitch):
 
     def init_failures(self):
         open_list = set()
-        for (file_name, row, col) in self.coordinate_map.images():
+        for (file_name, _row, _col) in self.coordinate_map.images():
             open_list.add(file_name)
         self.failures = FailedImages(open_list)
         
@@ -138,7 +138,7 @@ class GridStitch(CommonStitch):
         Generate control points
         Generate to all neighbors to start with
         '''
-        temp_projects = list()
+        #temp_projects = list()
 
         msg()
         n_pairs = len(list(self.coordinate_map.gen_pairs(1, 1)))
@@ -159,6 +159,13 @@ class GridStitch(CommonStitch):
         
         all_allocated = False
 
+        # Seed project with all images in order
+        # note we used the filename that will get used below
+        # not the final output file name
+        for can_fn in sorted(self.canon2orig.keys()):
+            self.project.add_image(can_fn)
+        self.project.save()
+
         while not (all_allocated and pair_complete == pair_submit):
             # Check for completed jobs
             for wi, worker in enumerate(self.workers):
@@ -174,16 +181,33 @@ class GridStitch(CommonStitch):
                     msg('W%d: done' % wi)
                     # May have failed
                     if final_pair_project:
+                        '''
+                        # Fixup the canonical hack
+                        # do it here instead of later so that a halfway abort yields a usable project
+                        # FIXME: this could be performance hit for large projects
+                        # do just the two file names we actually care about
+                        for can_fn in self.canon2orig:
+                            # FIXME: if we have issues with images missing from the project due to bad stitch
+                            # we should add them (here?) instead of throwing an error
+                            orig = self.canon2orig[can_fn]
+                            il = final_pair_project.get_image_by_fn(can_fn)
+                            if il:
+                                il.set_name(orig)
+                        '''
+                        
                         # See if we got everything back
-                        temp_projects.append(final_pair_project)
+                        self.project.merge_into([final_pair_project])
+                        if pair_complete % 10 == 0:
+                            print 'Saving intermediate result to %s' % self.project.file_name
+                            self.project.save()
+                            print 'Saved'
+
                 elif what == 'exception':
                     #(_task, e) = out[1]
                     msg('WARNING: W%d failed w/ exception' % wi)
                 else:
                     msg('%s' % (out,))
                     raise Exception('Internal error: bad task type %s' % what)
-            
-                
             
             # Any workers need more work?
             for wi, worker in enumerate(self.workers):
@@ -217,12 +241,11 @@ class GridStitch(CommonStitch):
                     
             time.sleep(0.1)
             
-        msg('pairs done, found %d' % len(temp_projects))
+        msg('pairs done')
         
         for worker in self.workers:
             worker.running.clear()
         
-        self.project.merge_into(temp_projects)
         msg('Reverting canonical file names to original input...')
         # Fixup the canonical hack
         for can_fn in self.canon2orig:
@@ -238,11 +261,14 @@ class GridStitch(CommonStitch):
 
         self.project.save()
         
+        '''
         if 0:
             msg('Sub projects (full image):')
             for project in temp_projects:
                 # prefix so I can grep it for debugging
                 msg('\tSUB: ' + project.file_name)
+        '''
+        '''
         if 0:
             msg()
             msg()
@@ -252,6 +278,7 @@ class GridStitch(CommonStitch):
             msg(self.project.text)
             msg()
             msg()
+        '''
             
     def do_generate_control_points_by_pair(self, pair, image_fn_pair):
         ret = CommonStitch.do_generate_control_points_by_pair(self, pair, image_fn_pair)

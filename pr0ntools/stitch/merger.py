@@ -10,32 +10,22 @@ import os.path
 from pr0ntools.stitch.pto.util import dbg
 
 class Merger:
-    def __init__(self, files):
-        self.files = files
-        self.pto = None
+    def __init__(self, ptos):
+        self.ptos = ptos
         
-    def run(self, to_pto = False):
+    def run(self):
         from pr0ntools.stitch.pto.project import PTOProject
         
-        others = self.files
-        pto = self.pto
-
         '''Take in a list of pto files and merge them into pto'''
-        if to_pto:
-            pto_temp_file = self.pto.get_a_file_name()
-        else:
-            pto_temp_file = ManagedTempFile.get(None, ".pto")
+        pto_temp_file = ManagedTempFile.get(None, ".pto")
 
         args = ["pto_merge"]
         args.append("--output=%s" % pto_temp_file)
 
-        # Possible this is still empty
-        if pto.file_name and os.path.exists(pto.file_name):
-            args.append(pto.file_name)
-        for other in others:
-            args.append(other.get_a_file_name())
+        for pto in self.ptos:
+            args.append(pto.get_a_file_name())
     
-        dbg(args)
+        print 'MERGING: %s' % (args,)
 
         rc = execute.without_output(args)
         # go go go
@@ -54,10 +44,4 @@ class Merger:
         if not os.path.exists(str(pto_temp_file)):
             raise Exception('Output file missing: %s' % (pto_temp_file,))
 
-        if to_pto:
-            self.pto.reopen()
-            return self.pto
-        else:
-            return PTOProject.from_temp_file(pto_temp_file)
-
-
+        return PTOProject.from_temp_file(pto_temp_file)

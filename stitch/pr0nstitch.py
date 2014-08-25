@@ -83,6 +83,7 @@ def t_or_f(arg):
 def excepthook(excType, excValue, tracebackobj):
     print '%s: %s' % (excType, excValue)
     traceback.print_tb(tracebackobj)
+    print 'Exiting on exception'
     os._exit(1)
 
 def parser_add_bool_arg(yes_arg, default=False, **kwargs):
@@ -129,7 +130,6 @@ if __name__ == "__main__":
     input_image_file_names = list()
     input_project_file_name = None
     output_project_file_name = None
-    output_image_file_name = None
     for arg in args.fns:
         if arg.find('.pto') > 0:
             output_project_file_name = arg
@@ -141,7 +141,6 @@ if __name__ == "__main__":
         raise Exception('Requires image file names')
 
     print 'post arg'
-    print 'output image: %s' % output_image_file_name
     print 'output project: %s' % output_project_file_name
     
     args.threads = int(args.threads)
@@ -179,7 +178,6 @@ if __name__ == "__main__":
         raise Exception('need an algorithm / engine')
 
     engine.set_output_project_file_name(output_project_file_name)
-    engine.set_output_image_file_name(output_image_file_name)
     engine.set_regular(regular)
     engine.set_dry(args.dry)
     
@@ -192,9 +190,6 @@ if __name__ == "__main__":
         if output_project_file_name and os.path.exists(output_project_file_name):
             print 'ERROR: cannot overwrite existing project file: %s' % output_project_file_name
             sys.exit(1)
-        if output_image_file_name and os.path.exists(output_image_file_name):
-            print 'ERROR: cannot overwrite existing image file: %s' % output_image_file_name
-            sys.exit(1)    
 
     sys.excepthook = excepthook
     # Exit on ^C instead of ignoring

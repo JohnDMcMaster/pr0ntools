@@ -77,7 +77,6 @@ class FailedImages:
 
 class CommonStitch:
     def __init__(self):
-        self.output_image_file_name = None
         self.project = None
         self.remapper = None
         self.photometric_optimizer = None
@@ -112,9 +111,6 @@ class CommonStitch:
     def set_output_project_file_name(self, file_name):
         self.output_project_file_name = file_name
 
-    def set_output_image_file_name(self, file_name):
-        self.output_image_file_name = file_name
-
     def init_failures(self):
         pass
 
@@ -137,14 +133,13 @@ class CommonStitch:
             print 'Dry run abort'
             return
     
-        if not self.output_project_file_name and not self.output_image_file_name:
-            raise Exception("need either project or image file")
+        if not self.output_project_file_name:
+            raise Exception("need project file")
         #if not self.output_project_file_name:
             #self.project_temp_file = ManagedTempFile.get()
             #self.output_project_file_name = self.project_temp_file.file_name
         print 'Beginning stitch'
         print 'output project file name: %s' % self.output_project_file_name
-        print 'output image file name: %s' % self.output_image_file_name
         
         #sys.exit(1)
         self.init_failures()
@@ -194,13 +189,6 @@ class CommonStitch:
             
             # TODO: missing calc opt size/width/height/fov and crop
             
-            # Did we request an actual stitch?
-            if self.output_image_file_name:
-                print 'Stitching...'
-                self.remapper = Remapper(self.project)
-                self.remapper.remap(self.output_image_file_name)
-            else:
-                print 'NOT stitching (common stitch)'
         except Exception as e:
             sys.stdout.flush()
             sys.stderr.flush()
