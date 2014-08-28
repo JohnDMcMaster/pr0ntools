@@ -408,3 +408,17 @@ class ImageCoordinateMap:
 				ret += '(col/x=%d, row/y=%d) = %s\n' % (col, row, self.get_image(col, row))
 		return ret
 
+	def active_box(self):
+		'''Return ((x0, x1), (y0, y1)) actually occupied bounding box'''
+		x0 = self.width()
+		x1 = -1
+		y0 = self.height()
+		y1 = -1
+		for (fn, row, col) in self.images():
+			if fn is None:
+				continue
+			x0 = min(x0, col)
+			x1 = max(x1, col)
+			y0 = min(y0, row)
+			y1 = max(y1, row)
+		return ((x0, x1), (y0, y1))

@@ -181,11 +181,22 @@ class PTOProject:
             raise IndexError('index: %d, items: %d' % (index, len(lines)))
         return lines[index]
 
+    def i2i(self, project, i):
+        '''Return index in this project given i in other project'''
+        return self.img_fn2i(project.i2img(i).get_name())
+
     def img_fn2i(self, fn):
         '''Given image file name return image index'''
         for i, il in enumerate(self.get_image_lines()):
             if fn == il.get_name():
                 return i
+        return None
+
+    def img_fn2l(self, fn):
+        '''Given image file name return image line'''
+        for il in self.get_image_lines():
+            if fn == il.get_name():
+                return il
         return None
     
     def assert_uniform_images(self):
@@ -246,6 +257,10 @@ class PTOProject:
     def set_pano_line_by_text(self, line):
         self.parse()
         self.panorama_line = PanoramaLine(line, self)
+
+    def set_mode_line_by_text(self, line):
+        self.parse()
+        self.mode_line = ModeLine(line, self)
 
     def add_image_line(self, il):
         self.parse()
