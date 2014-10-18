@@ -10,35 +10,35 @@ or maybe look into Phonon some more for rendering
 Question: why on Ubuntu 12.04 w/ custom kernel can I take pictures but not stream to screen?
 '''
 
-from imager import *
-from usbio.mc import MC
-from usbio.mock_controller import MockController
+#from imager import *
+
+from config import config, RunConfig
+from mc import MC
+from mock_controller import MockController
 from pr0ndexer_controller import PDC
-from pr0ntools.benchmark import Benchmark
-from config import *
-from threads import *
-import re
+from threads import ControllerThread, PlannerThread
+
 VCImager = None
 try:
     from vcimager import *
 except ImportError:
     print 'Note: failed to import VCImager'
 
+from pr0ntools.benchmark import Benchmark
+from pr0ntools.pimage import PImage
+
 from PyQt4 import Qt
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
-from pr0ntools.pimage import PImage
-
-import StringIO
-
+import os.path
+import re
+import signal
 import sys
 import traceback
-import os.path
-import os
-import signal
-
+import threading
 import Image
+import StringIO
 
 gobject = None
 pygst = None
@@ -954,8 +954,8 @@ class CNCGUI(QMainWindow):
         self.axes = dict()
         dbg('Axes: %u' % len(self.cnc_ipc.axes))
         for axis in self.cnc_ipc.axes:
-            if axis.name == 'Z':
-                continue
+            #if axis.name == 'Z':
+            #    continue
             axisw = Axis(axis)
             dbg('Creating axis GUI %s' % axis.name)
             self.axes[axis.name] = axisw

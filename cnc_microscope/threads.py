@@ -2,8 +2,8 @@ import Queue
 import threading
 from PyQt4.QtCore import *
 import time
-from usbio.controller import *
-from planner import *
+from controller import Controller
+from planner import Planner
 from pr0ntools.benchmark import Benchmark
 
 def dbg(*args):

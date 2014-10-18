@@ -5,7 +5,6 @@ Copyright 2010 John McMaster <JohnDMcMaster@gmail.com>
 Licensed under a 2 clause BSD license, see COPYING for details
 '''
 
-import sys
 import time
 import math
 import numpy
@@ -14,6 +13,7 @@ import os
 from config import config
 import copy
 import shutil
+import json
 
 VERSION = '0.1'
 
@@ -26,7 +26,11 @@ dry_run = False
 include_rowcol = False
 include_coordinate = True
     
-
+def format_t(dt):
+    s = dt % 60
+    m = int(dt / 60 % 60)
+    hr = int(dt / 60 / 60)
+    return '%02d:%02d:%02d' % (hr, m, s)
 
 def drange(start, stop, step, inclusive = False):
     r = start
@@ -127,7 +131,12 @@ class PlannerAxis:
                 imager_width, imager_scalar,
                 # start and end absolute positions (in um)
                 # Inclusive such that 0:0 means image at position 0 only
-                start, end):
+                start, end,
+                log=None):
+        if log is None:
+            def log(s):
+                print s
+        self._log = log
         # How many the pixels the imager sees after scaling
         # XXX: is this global scalar playing correctly with the objective scalar?
         self.view_pixels = imager_width * imager_scalar
@@ -147,7 +156,7 @@ class PlannerAxis:
         self.req_end = end
         self.end = end
         if self.delta() < view:
-            print 'Axis %s: delta %0.3f < view %0.3f, expanding end' % (self.name, self.delta(), view)
+            self._log('Axis %s: delta %0.3f < view %0.3f, expanding end' % (self.name, self.delta(), view))
             self.end = start + view
         self.view = view
 
@@ -180,7 +189,7 @@ class PlannerAxis:
         '''How many images should actually take after considering margins and rounding'''
         ret = int(math.ceil(self.images_ideal()))
         if ret < 1:
-            print self.images_ideal()
+            self._log(self.images_ideal())
             raise Exception('Bad number of images %d' % ret)
         return ret
     
@@ -211,10 +220,12 @@ class PlannerAxis:
     #    '''Actual percentage of each image that is unique when linearly stepping'''
             
 class Planner:
-    def __init__(self, rconfig_in, log):
-        def log(msg):
-            print msg
+    def __init__(self, rconfig_in, log=None, verbosity=2):
+        if log is None:
+            def log(msg):
+                print msg
         self.log = log
+        self.v = verbosity
         # FIXME: this is better than before but CTypes pickle error from deepcopy
         #self.rconfig = copy.deepcopy(rconfig)
         self.rconfig = copy.copy(rconfig_in)
@@ -227,7 +238,8 @@ class Planner:
         self.cur_z = 0.0
     
         if rconfig.scan_config is None:
-            rconfig.scan_config = config.get_scan_config()
+            rconfig.scan_config = json.loads(open(config['scan_json']).read())
+            
         scan_config = rconfig.scan_config
 
         scan_config['computed'] = {
@@ -260,22 +272,22 @@ class Planner:
     
         self.x = PlannerAxis('X', ideal_overlap, focus.x_view, 
                     float(config['imager']['width']), float(config['imager']['scalar']),
-                    float(scan_config['start']['x']), float(scan_config['end']['x']))
+                    float(scan_config['start']['x']), float(scan_config['end']['x']), log=self.log)
         self.y = PlannerAxis('Y', ideal_overlap, focus.y_view,
                     float(config['imager']['height']), float(config['imager']['scalar']),
-                    float(scan_config['start']['y']), float(scan_config['end']['y']))
+                    float(scan_config['start']['y']), float(scan_config['end']['y']), log=self.log)
         
         self.parse_points()
         if not self.z:
-            print 'WARNING: crudely removing Z since its not present or broken'
+            self._log('WARNING: crudely removing Z since its not present or broken')
         self.parse_focus_stack()
         
-        print 'X %f to %f, Y %f to %f' % (self.x.start, self.x.end, self.y.start, self.y.end)
-        print 'Ideal overlap: %f, actual X %g, Y %g' % (ideal_overlap, self.x.step_percent(), self.y.step_percent())
+        self._log( 'X %f to %f, Y %f to %f' % (self.x.start, self.x.end, self.y.start, self.y.end), 2)
+        self._log('Ideal overlap: %f, actual X %g, Y %g' % (ideal_overlap, self.x.step_percent(), self.y.step_percent()), 2)
         scan_config['computed']['x']['overlap']  = self.x.step_percent()
         scan_config['computed']['y']['overlap']  = self.x.step_percent()
-        print 'full x delta: %f, y delta: %f' % (self.x.delta(), self.y.delta())
-        print 'view x: %f, y: %f' % (focus.x_view, focus.y_view)
+        self._log('full x delta: %f, y delta: %f' % (self.x.delta(), self.y.delta()), 2)
+        self._log('view x: %f, y: %f' % (focus.x_view, focus.y_view), 2)
             
         if self.z:
             self.z_backlash = float(config['stage']['z_backlash'])
@@ -284,29 +296,29 @@ class Planner:
     
         #self.x_overlap = self.x.step() / focus.x_view
         #self.y_overlap = self.y.step() / focus.y_view
-        #print 'step x: %g, y: %g' % (self.x.step(), self.y.step())
+        #self._log('step x: %g, y: %g' % (self.x.step(), self.y.step()))
         '''
         expect = 100, actual = 100 => 100 % efficient
         expect = 100, actual = 200 => 50 % efficient        
         '''
-        #print 'X overlap actual %g vs ideal %g, %g efficient' % (
-        #        self.x_overlap, ideal_x_overlap, ideal_x_overlap / self.x_overlap * 100.0 )
-        #print 'Y overlap actual %g vs ideal %g, %g efficient' % (
-        #        self.y_overlap, ideal_y_overlap, ideal_y_overlap / self.y_overlap * 100.0 )
+        #self._log('X overlap actual %g vs ideal %g, %g efficient' % (
+        #        self.x_overlap, ideal_x_overlap, ideal_x_overlap / self.x_overlap * 100.0 ))
+        #self._log('Y overlap actual %g vs ideal %g, %g efficient' % (
+        #        self.y_overlap, ideal_y_overlap, ideal_y_overlap / self.y_overlap * 100.0 ))
 
         # A true useful metric of efficieny loss is how many extra pictures we had to take
         # Maybe overhead is a better way of reporting it
         ideal_n_pictures = self.x.images_ideal() * self.y.images_ideal()
         expected_n_pictures = self.x.images() * self.y.images()
-        print 'Ideally taking %g pictures (%g X %g) but actually taking %d (%d X %d), %g efficient' % (
+        self._log('Ideally taking %g pictures (%g X %g) but actually taking %d (%d X %d), %g efficient' % (
                 ideal_n_pictures, self.x.images_ideal(), self.y.images_ideal(), 
                 expected_n_pictures, self.x.images(), self.y.images(),
-                ideal_n_pictures / expected_n_pictures * 100.0)
+                ideal_n_pictures / expected_n_pictures * 100.0), 2)
         
         if self.z and self.others:
             self.calc_normal()
         else:
-            print 'Not calculating normal (z %s, others %s)' % (self.z, self.others)
+            self._log('Not calculating normal (z %s, others %s)' % (self.z, self.others))
         
         self.getPointsExInit()
     
@@ -314,16 +326,20 @@ class Planner:
         self.pictures_to_take = self.getNumPoints()
         self.rconfig.scan_config['computed']['pictures_to_take'] = self.pictures_to_take
         if self.rconfig.scan_config.get('exclude', []):
-            print 'Suprressing picture take check on exclusions'
+            self._log('Suprressing picture take check on exclusions')
         elif self.pictures_to_take != expected_n_pictures:
-            print 'Going to take %d pictures but thought was going to take %d pictures (x %d X y %d)' % (self.pictures_to_take, expected_n_pictures, self.x.images(), self.y.images())
-            print 'Points:'
+            self._log('Going to take %d pictures but thought was going to take %d pictures (x %d X y %d)' % (self.pictures_to_take, expected_n_pictures, self.x.images(), self.y.images()))
+            self._log('Points:')
             for p in self.getPoints():
-                print '    ' + str(p)
+                self._log('    ' + str(p))
             raise Exception('See above')
         self.pictures_taken = 0
         self.actual_pictures_taken = 0
         self.notify_progress(None, True)
+
+    def _log(self, msg='', verbosity=2):
+        if verbosity <= self.v:
+            self.log(msg)
 
     def __del__(self):
         pass
@@ -338,7 +354,7 @@ class Planner:
         try:
             self.z_start = float(scan_config['start']['z'])
         except:
-            print 'Failed to find z start, disabling Z'
+            self._log('Failed to find z start, disabling Z')
             self.z_start = None
             self.z = False
         self.start = [self.x.start, self.y.start, self.z_start]
@@ -346,7 +362,7 @@ class Planner:
         try:
             self.z_end = float(scan_config['end']['z'])
         except:
-            print 'Failed to find z end, disabling Z'
+            self._log('Failed to find z end, disabling Z')
             self.z_end = None
             self.z = False
         self.end = [self.x.end, self.y.end, self.z_end]
@@ -356,18 +372,18 @@ class Planner:
             i = 0
             for p in scan_config['others']:
                 l = [float(p['x']), float(p['y']), None]
-                print l
+                self._log(l)
                 self.others.append(l)
                 try:
                     self.others[i][2] = float(p['z'])
                 except:
                     self.others[i][2] = None
-                    print 'Failed to find z other (%s), disabling Z' % (p)
+                    self._log('Failed to find z other (%s), disabling Z' % (p))
                     self.z = False
                 #self.other = [self.x_other, self.y_other, self.z_other]    
                 i += 1
         else:
-            print 'Could not find other points'
+            self._log('Could not find other points')
             #raise Exception('die')
             self.others = None
     
@@ -443,16 +459,16 @@ class Planner:
                 c[i] /= n
             return c
             
-        print 'Calculating normal'
+        self._log('Calculating normal')
             
         if len(self.others) == 1:
-            print 'Single plane case'
+            self._log('Single plane case')
             p0 = self.start
             p1 = self.end
             p2 = self.others[0]
             self.normal = cross(p0, p1, p2)
         else:
-            print 'Multiple plane case'
+            self._log('Multiple plane case')
             # This is massively inefficient but number of points should be low
             self.normal = [0.0, 0.0, 0.0]
             #ps = [self.start, self.end] + self.others
@@ -470,12 +486,12 @@ class Planner:
                 for p1 in [self.end]:
                     for p2 in self.others:
                         normal = cross(p0, p1, p2)
-                        print
-                        print 'Computed normal %s' % str(normal)
-                        print p0
-                        print p1
-                        print p2
-                        print
+                        self._log()
+                        self._log('Computed normal %s' % str(normal))
+                        self._log(p0)
+                        self._log(p1)
+                        self._log(p2)
+                        self._log()
                         for i in range(0, 3):
                             self.normal[i] += normal[i]
                         n += 1
@@ -487,7 +503,7 @@ class Planner:
         # dz/dy = -b / c
         self.dz_dy = -self.normal[1] / self.normal[2]
         
-        print 'Normal: %s' % str(self.normal)
+        self._log('Normal: %s' % str(self.normal))
         
         # Validate the plane mode l is reasonable
         compare = self.others
@@ -499,13 +515,13 @@ class Planner:
             d = abs(z - z_expect)
             thresh = 5.0
             thresh_absolute = 500
-            print 'Point %s: calc %g, error %g' % (str(p), z, d)
+            self._log('Point %s: calc %g, error %g' % (str(p), z, d))
             if d > thresh:
-                print 'Bad planar solution, difference %g vs threshold %g' % (d, thresh)
-                print p
-                print 'Computed z: %g, expected z: %g' % (z, z_expect)
-                print self.others
-                print 'Normal: %s' % str(self.normal)
+                self._log('Bad planar solution, difference %g vs threshold %g' % (d, thresh))
+                self._log(p)
+                self._log('Computed z: %g, expected z: %g' % (z, z_expect))
+                self._log(self.others)
+                self._log('Normal: %s' % str(self.normal))
                 if d > thresh_absolute:
                     raise Exception('Bad planar solution')
             
@@ -513,11 +529,11 @@ class Planner:
         if self.progress_cb:
             self.progress_cb(self.pictures_to_take, self.pictures_taken, image_file_name, first)
 
-    def comment(self, s = ''):
+    def comment(self, s = '', verbosity=2):
         if len(s) == 0:
-            print
+            self._log(verbosity=verbosity)
         else:
-            print '# %s' % s
+            self._log('# %s' % s, verbosity=verbosity)
 
     def calc_z(self, cur_x, cur_y):
         if not self.z:
@@ -533,13 +549,13 @@ class Planner:
             full_z_delta = None
         else:
             full_z_delta = self.z_end - self.z_start
-        #print full_z_delta
+        #self._log(full_z_delta)
     
         center_length = math.sqrt(self.x.end * self.x.end + self.y.end * self.y.end)
         projection_length = (cur_x * self.x.end + cur_y * self.y.end) / center_length
         cur_z = full_z_delta * projection_length / center_length
         # Proportion of entire sweep
-        #print 'cur_z: %f, projection_length %f, center_length %f' % (cur_z, projection_length, center_length)
+        #self._log('cur_z: %f, projection_length %f, center_length %f' % (cur_z, projection_length, center_length))
         return cur_z
     
     def calc_z_planar(self, cur_x, cur_y):
@@ -600,18 +616,18 @@ class Planner:
         od = self.out_dir()
         if od:
             if self.rconfig.dry:
-                print 'DRY: mkdir(%s)' % od
+                self._log('DRY: mkdir(%s)' % od)
             else:
                 base = config['cnc']['out_dir']
                 if not os.path.exists(base):
-                    print 'Creating base directory %s' % base
+                    self._log('Creating base directory %s' % base)
                     os.mkdir(base)
                 if os.path.exists(od):
                     if not config['cnc']['overwrite']:
                         raise Exception("Output dir %s already exists" % od)
-                    print 'WARNING: overwriting old output'
+                    self._log('WARNING: overwriting old output')
                     shutil.rmtree(od)
-                print 'Creating output directory %s' % od
+                self._log('Creating output directory %s' % od)
                 os.mkdir(od)
             
     def take_picture(self, image_file_name):
@@ -651,7 +667,7 @@ class Planner:
             self.notify_progress(image_file_name)
     
     def do_take_picture(self, file_name = None):
-        print 'Dummy: taking picture to %s' % file_name
+        self._log('Dummy: taking picture to %s' % file_name)
         pass
         
     def reset_camera(self):
@@ -728,7 +744,7 @@ class Planner:
     
     def validate_point(self, p):
         (cur_x, cur_y, cur_z, cur_row, cur_col) = p
-        #print 'xh: %g vs cur %g, yh: %g vs cur %g' % (xh, cur_x, yh, cur_y)
+        #self._log('xh: %g vs cur %g, yh: %g vs cur %g' % (xh, cur_x, yh, cur_y))
         #do = False
         #do = cur_x > 3048 and cur_y > 3143
         x_tol = 3.0
@@ -739,26 +755,26 @@ class Planner:
         fail = False
         
         if cur_col < 0 or cur_col >= self.x.images():
-            print 'Col out of range 0 <= %d <= %d' % (cur_col, self.x.images())
+            self._log('Col out of range 0 <= %d <= %d' % (cur_col, self.x.images()))
             fail = True
         if cur_x < self.x.start - x_tol or xmax > self.x.end + x_tol:
-            print 'X out of range'
+            self._log('X out of range')
             fail = True
             
         if cur_row < 0 or cur_row >= self.y.images():
-            print 'Row out of range 0 <= %d <= %d' % (cur_row, self.y.images())
+            self._log('Row out of range 0 <= %d <= %d' % (cur_row, self.y.images()))
             fail = True
         if cur_y < self.y.start - y_tol or ymax > self.y.end + y_tol:
-            print 'Y out of range'
+            self._log('Y out of range')
             fail = True        
         
         if fail:
-            print 'Bad point:'
-            print '  X: %g' % cur_x
-            print '  Y: %g' % cur_y
-            print '  Z: %s' % str(cur_z)
-            print '  Row: %g' % cur_row
-            print '  Col: %g' % cur_col
+            self._log('Bad point:')
+            self._log('  X: %g' % cur_x)
+            self._log('  Y: %g' % cur_y)
+            self._log('  Z: %s' % str(cur_z))
+            self._log('  Row: %g' % cur_row)
+            self._log('  Col: %g' % cur_col)
             raise Exception('Bad point (%g + %g = %g, %g + %g = %g) for range (%g, %g) to (%g, %g)' % (
                     cur_x, self.focus.x_view, xmax,
                     cur_y, self.focus.y_view, ymax,
@@ -777,10 +793,10 @@ class Planner:
             c0 = exclusion.get('c0', float('inf'))
             c1 = exclusion.get('c1', float('-inf'))
             if cur_row >= r0 and cur_row <= r1:
-                print 'Excluding r%d, c%d on r0: %s, r1: %s' % (cur_row, cur_col, r0, r1)
+                self._log('Excluding r%d, c%d on r0: %s, r1: %s' % (cur_row, cur_col, r0, r1))
                 return True
             if cur_col >= c0 and cur_col <= c1:
-                print 'Excluding r%d, c%d on c0: %s, r1: %s' % (cur_row, cur_col, c0, c1)
+                self._log('Excluding r%d, c%d on c0: %s, r1: %s' % (cur_row, cur_col, c0, c1))
                 return True
         return False
     
@@ -864,9 +880,9 @@ class Planner:
         
     def run(self):
         self.start_time = time.time()
-        print
-        print
-        print
+        self._log()
+        self._log()
+        self._log()
         self.comment('Generated by pr0ncnc %s on %s' % (VERSION, time.strftime("%d/%m/%Y %H:%M:%S")))
         focus = self.focus
         net_mag = focus.objective_mag * focus.eyepiece_mag * focus.camera_mag
@@ -944,14 +960,14 @@ class Planner:
                         #self.comment('decreasing dz/dy backlash normalization')
                         z_backlash_delta = z_backlash
 
-                print
+                self._log('', 3)
                 cur_z = self.calc_z(cur_x, cur_y)
-                # print cur_z
-                # print 'full_z_delta: %f, z_start %f, z_end %f' % (full_z_delta, z_start, z_end)
-                self.comment('comp (%d, %d, %d), pos (%f, %f, %s)' % (self.x_comp, self.y_comp, self.z_comp, cur_x, cur_y, str(cur_z)))
+                # self._log(cur_z)
+                # self._log('full_z_delta: %f, z_start %f, z_end %f' % (full_z_delta, z_start, z_end))
+                self.comment('comp (%d, %d, %d), pos (%f, %f, %s)' % (self.x_comp, self.y_comp, self.z_comp, cur_x, cur_y, str(cur_z)), 3)
 
                 #if cur_z < z_start or cur_z > z_end:
-                #    print 'cur_z: %f, z_start %f, z_end %f' % (cur_z, z_start, z_end)
+                #    self._log('cur_z: %f, z_start %f, z_end %f' % (cur_z, z_start, z_end))
                 #    raise Exception('z out of range')
                 '''
                 x_delta = cur_x - prev_x
@@ -989,14 +1005,14 @@ class Planner:
         self.end_program()
         self.end_time = time.time()
 
-        print
-        print
-        print
+        self._log()
+        self._log()
+        self._log()
         #self.comment('Statistics:')
         #self.comment('Pictures: %d' % pictures_taken)
         if not self.pictures_taken == self.pictures_to_take:
             if self.rconfig.scan_config.get('exclude', []):
-                print 'Suppressing for exclusion: pictures taken mismatch (taken: %d, to take: %d)' % (self.pictures_to_take, self.pictures_taken)
+                self._log('Suppressing for exclusion: pictures taken mismatch (taken: %d, to take: %d)' % (self.pictures_to_take, self.pictures_taken))
             else:
                 raise Exception('pictures taken mismatch (taken: %d, to take: %d)' % (self.pictures_to_take, self.pictures_taken))
            
@@ -1067,18 +1083,18 @@ class Planner:
                 # with boundries messes things up
                 if i == 1:
                     # Compensate for moving right
-                    print 'Axis %d: initial compensate for moving increasing (FIXME: hack)' % i
+                    self._log('Axis %d: initial compensate for moving increasing (FIXME: hack)' % i, 3)
                     absolute_move(to() - backlash())
                     compensated(1)
                 # Starting from the left?
                 elif to() == self.x.start:
                     # Compensate for moving right
-                    print 'Axis %d: initial compensate for moving increasing' % i
+                    self._log('Axis %d: initial compensate for moving increasing' % i, 3)
                     absolute_move(to() - backlash())
                     compensated(1)
                 else:
                     # Compensate for moving left
-                    print 'Axis %d: initial compensate for moving decreasing' % i
+                    self._log('Axis %d: initial compensate for moving decreasing' % i, 3)
                     absolute_move(to() + backlash())
                     compensated(-1)
                 # XXX HACK: rapid reversal seems to cause issues
@@ -1087,12 +1103,12 @@ class Planner:
             else:
                 # Going right but was not compensating right?
                 if (to() - last() > 0) and (comp() <= 0):
-                    print 'Axis %d: compensate for changing to increasing' % i
+                    self._log('Axis %d: compensate for changing to increasing' % i, 3)
                     absolute_move(to() - backlash())
                     compensated(1)
                 # Going left but was not compensating left?
                 elif (to() - last() < 0) and (comp() >= 0):
-                    print 'Axis %d: compensate for changing to decreasing' % i
+                    self._log('Axis %d: compensate for changing to decreasing' % i, 3)
                     absolute_move(to() + backlash())
                     compensated(-1)
             
@@ -1108,12 +1124,12 @@ class Planner:
         raise Exception('required')
     
     @staticmethod
-    def get(rconfig, log):
-        if not rconfig.dry:
-            return ControllerPlanner(rconfig, log)
+    def get(rconfig, log, *args, **kwargs):
+        if rconfig.dry:
+            log("***DRY RUN***")
+            return DryControllerPlanner(rconfig, log, *args, **kwargs)
         else:
-            print "***DRY RUN***"
-            return DryControllerPlanner(rconfig, log)
+            return ControllerPlanner(rconfig, log, *args, **kwargs)
     
 class GCodePlanner(Planner):
     '''
@@ -1181,7 +1197,7 @@ class GCodePlanner(Planner):
     '''
 
     def line(self, s = ''):
-        print s
+        self._log(s)
 
     def end_program(self):
         self.line()
@@ -1195,12 +1211,20 @@ class GCodePlanner(Planner):
 Live control using an active Controller object
 '''
 class ControllerPlanner(Planner):
-    def __init__(self, rconfig, log):
-        Planner.__init__(self, rconfig, log)
+    def __init__(self, rconfig, log, *args, **kwargs):
+        Planner.__init__(self, rconfig, log, *args, **kwargs)
         self.controller = rconfig.controller
         self.imager = rconfig.imager
         # seconds to wait before snapping picture
         self.t_settle = 4.0
+
+        # Positions in um
+        self.x_pos = 0.0
+        self.y_pos = 0.0
+        self.z_pos = 0.0
+
+    def sleep(self, sec, why):
+        time.sleep(sec)
 
     def do_take_picture(self, file_name):
         #self.line('M8')
@@ -1212,7 +1236,7 @@ class ControllerPlanner(Planner):
             At full res this takes a while to settle
             all settings, including resolution, seem to be getting inherited from AmScope program which works fine for me
             '''
-            #print 'test'
+            #self._log('test')
             #time.sleep(4.5)
             # allows for better cooling, motor is getting hot
             #time.sleep(15)
@@ -1220,10 +1244,10 @@ class ControllerPlanner(Planner):
             # vibration is pretty minimal now but camera still takes a while to settle
             # raised a little
             # TODO: consider using image processing to detect settling
-            time.sleep(self.t_settle)
+            self.sleep(self.t_settle, 'settle')
             self.imager.take_picture(file_name)
         else:
-            time.sleep(0.5)
+            self.sleep(0.5, 'hack')
 
     def reset_camera(self):
         # original needed focus button released
@@ -1244,7 +1268,7 @@ class ControllerPlanner(Planner):
 
     def relative_move(self, x, y, z = None):
         if not x and not y and not z:
-            print 'Omitting 0 move'
+            self._log('Omitting 0 move')
             return
         if x:
             self.controller.x.jog(x)
@@ -1258,7 +1282,7 @@ class ControllerPlanner(Planner):
         pass
         
     def end_program(self):
-        print 'Done!'
+        self._log('Done!')
 
     def home(self):
         self.controller.home()
@@ -1270,54 +1294,79 @@ class DryControllerPlanner(ControllerPlanner):
         Took 100 seconds to move 10 mm
         self.steps_per_unit = 8.510
         um / s * step / um
-        '''
-        self.steps_per_sec = 10000 / 100 * 8.510
-        self.x_pos = 0.0
-        self.y_pos = 0.0
-        self.z_pos = 0.0
         
+        FIXME: adjusted below to try to match actual times
+        There is a large descrepency, possibly due to acceleration
+        '''
+        self.steps_per_sec = 10000 / 100 * 8.510 / 2.7
+        self._log('DRY: steps per sec: %0.1f' % self.steps_per_sec)
+        
+        self.rt_move = None
+        self.rt_settle = None
+        self.rt_sleep = None
+        self.rt_tot = None
+    
         # Make sure bugs don't cause accidental movement and instead crash us
         self.controller = None
     
+    def sleep(self, sec, why):
+        self._log('DRY %s: sleep %s' % (format_t(sec), why), 3)
+        self.rt_sleep += sec
+
+    def get_steps(self, um):
+        steps_per_unit = 8.510
+        return um * steps_per_unit
+
     def absolute_move(self, x, y, z = None):
+        rt_move = 0.0
         if x is not None:
-            self.t_tot += abs(x - self.x_pos) / self.steps_per_sec
+            #self.rt_tot += self.controller.x.get_steps(abs(x - self.x_pos)) / self.steps_per_sec
+            rt_move += self.get_steps(abs(x - self.x_pos)) / self.steps_per_sec
             self.x_pos = x
         if y is not None:
-            self.t_tot += abs(y - self.y_pos) / self.steps_per_sec
+            rt_move += self.get_steps(abs(y - self.y_pos)) / self.steps_per_sec
             self.y_pos = y
         if z is not None:
-            self.t_tot += abs(z - self.z_pos) / self.steps_per_sec
+            rt_move += self.get_steps(abs(z - self.z_pos)) / self.steps_per_sec
             self.z_pos = z
-        self.log('DRY: absolute move to (%s, %s, %s)' % (str(x), str(y), str(z)))
+        self._log('DRY %s: absolute move to (%s, %s, %s)' % (format_t(rt_move), str(x), str(y), str(z)), 3)
+        self.rt_move += rt_move
 
     def relative_move(self, x, y, z = None):
+        rt_move = 0.0
         if x is None:
             x = 0.0
-        self.t_tot += abs(x) / self.steps_per_sec
+        rt_move += self.get_steps(abs(x)) / self.steps_per_sec
         if y is None:
             y = 0.0
-        self.t_tot += abs(y) / self.steps_per_sec
+        rt_move += self.get_steps(abs(y)) / self.steps_per_sec
         if z is None:
             z = 0.0
-        self.t_tot += abs(z) / self.steps_per_sec
-        self.log('DRY: relative move to (%f, %f, %f)' % (x, y, z))
+        rt_move += self.get_steps(abs(z)) / self.steps_per_sec
+        self._log('DRY %s: relative move to (%f, %f, %f)' % (format_t(rt_move), x, y, z))
+        self.rt_move += rt_move
 
     def take_picture(self, img_fn):
-        self.log('DRY: taking picture to %s' % img_fn)
+        self._log('DRY: taking picture to %s' % img_fn, 3)
         self.actual_pictures_taken += 1
-        self.t_tot += self.t_settle
+        self.sleep(self.t_settle, 'settle')
     
     def run(self):
-        self.t_tot = 0
+        self.rt_move = 0.0
+        self.rt_settle = 0.0
+        self.rt_sleep = 0.0
+        self.rt_tot = None
+        
         ControllerPlanner.run(self)
-        s = self.t_tot % 60
-        m = int(self.t_tot / 60 % 60)
-        hr = int(self.t_tot / 60 / 60)
+        self.rt_tot = self.rt_move + self.rt_settle + self.rt_sleep
+        
         # yield hack to get print at end
         time.sleep(0.1)
-        self.log('DRY: estimated %02d:%02d:%2.1f (%0.1f sec)' % (hr, m, s, self.t_tot))
+        self._log('DRY: estimated %s (%0.1f sec)' % (format_t(self.rt_tot), self.rt_tot))
+        self._log('DRY:   Move:   %s' % (format_t(self.rt_move)))
+        #self._log('DRY:   Settle: %s' % (format_t(self.rt_settle)))
+        self._log('DRY:   Sleep:  %s' % (format_t(self.rt_sleep)))
 
     def home(self):
-        self.log('DRY: home all')
-
+        self._log('DRY: home all')
+        self.relative_move(-self.cur_x, -self.cur_y)

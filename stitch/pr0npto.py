@@ -4,7 +4,7 @@ pr0pto
 .pto utilities
 Copyright 2012 John McMaster
 '''
-import argparse		
+import argparse
 from pr0ntools.stitch.optimizer import PTOptimizer
 from pr0ntools.stitch.linopt import LinOpt
 from pr0ntools.stitch.tile_opt import TileOpt

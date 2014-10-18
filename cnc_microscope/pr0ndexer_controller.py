@@ -4,12 +4,9 @@ Higher level wrapper around the primitive indexer interface to adapt to pr0nscop
 Introduces things like units and concurrency
 '''
 
-import serial
-import sys
-import time
 import threading
-from usbio.controller import Controller
-from usbio.axis import Axis
+from controller import Controller
+from axis import Axis
 from pr0ndexer import Indexer
 
 class PDC(Controller):

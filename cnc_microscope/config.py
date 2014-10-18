@@ -55,9 +55,6 @@ class Config:
     def __delete__(self, name):
         del self.j[name]
 
-    def get_scan_config(self):
-        return json.loads(open(self['scan_json']).read())
-        
 class UScopeConfig(Config):
     pass
 

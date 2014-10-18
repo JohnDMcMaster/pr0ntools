@@ -24,7 +24,8 @@ except ImportError:
     scipy = None
 
 def debug(s = ''):
-    pass
+    if 1:
+        print s
 
 
 '''
@@ -43,12 +44,14 @@ def regress_row(m, pto, cols, rows, selector, allow_missing = False):
     selector: gets either x or y coordinate
     '''
     # Discard the constants, we will pick a reference point later
+    debug("Regress row")
     slopes = []
     for row in rows:
         '''
         For each column find a y position error
         y = col * c0 + c1
         '''
+        debug("  Row: %d" % row)
         fit_cols = []
         deps = []
         for col in cols:
@@ -61,22 +64,18 @@ def regress_row(m, pto, cols, rows, selector, allow_missing = False):
             if il is None:
                 raise Exception('Could not find %s in map' % fn)
             fit_cols.append(col)
-            selected = selector(il)
-            if selected is None:
+            if selector(il) is None:
                 raise Exception('Reference image line is missing x/y position: %s' % il)
-            deps.append(selected)
+            deps.append(selector(il))
+            debug("     col %d (%s): %d" % (col, fn, selector(il)))
         if len(fit_cols) == 0:
             if not allow_missing:
                 raise Exception('No matches')
             continue
         
-        if 0:
-            print 'Fitting polygonomial'
-            print fit_cols
-            print deps
-        
         # Find x/y given a col
         (c0, _c1) = polyfit(fit_cols, deps, 1)
+        debug("    y = %0.3f * x + %0.3f" % (c0, _c1))
         slopes.append(c0)
     if len(slopes) == 0:
         if not allow_missing:
@@ -92,7 +91,7 @@ def regress_col(m, pto, cols, rows, selector, allow_missing = False):
     for col in cols:
         '''
         For each row find an y position
-        y = row * c0 + c1
+        y = row *     c0 + c1
         '''
         fit_rows = []
         deps = []
@@ -106,6 +105,8 @@ def regress_col(m, pto, cols, rows, selector, allow_missing = False):
             if il is None:
                 raise Exception('Could not find %s in map' % fn)
             fit_rows.append(row)
+            if selector(il) is None:
+                raise Exception('Reference image line is missing x/y position: %s' % il)
             deps.append(selector(il))
         
         if len(fit_rows) == 0:
@@ -275,21 +276,21 @@ def linearize(pto, pto_ref = None, allow_missing = False, order = 2):
         # Given a column find x (primary x)
         # dependence of x on col in specified rows
         c0s.append(regress_row(m_ref, pto_ref,
-                    cols=xrange(m_ref.width()), rows=xrange(reg_y0, reg_y1 + 1, order),
+                    cols=xrange(reg_x0, reg_x1 + 1, order), rows=xrange(reg_y0, reg_y1 + 1, order),
                     selector=lambda x: x.x(), allow_missing=allow_missing))
         # dependence of x on row in specified cols
         c1s.append(regress_col(m_ref, pto_ref,
-                    cols=xrange(reg_x0, reg_x1 + 1, order), rows=xrange(m_ref.height()), selector=lambda x: x.x(),
-                    allow_missing=allow_missing))
+                    cols=xrange(reg_x0, reg_x1 + 1, order), rows=xrange(reg_y0, reg_y1 + 1, order),
+                    selector=lambda x: x.x(), allow_missing=allow_missing))
         # Given a row find y (primary y)
         # dependence of y on col in specified rows
         c3s.append(regress_row(m_ref, pto_ref,
-                    cols=xrange(m_ref.width()), rows=xrange(reg_y0, reg_y1 + 1, order), selector=lambda x: x.y(),
-                    allow_missing=allow_missing))
+                    cols=xrange(reg_x0, reg_x1 + 1, order), rows=xrange(reg_y0, reg_y1 + 1, order),
+                    selector=lambda x: x.y(), allow_missing=allow_missing))
         # cdependence of y on row in specified cols
         c4s.append(regress_col(m_ref, pto_ref,
-                    cols=xrange(reg_x0, reg_x1 + 1, order), rows=xrange(m_ref.height()), selector=lambda x: x.y(),
-                    allow_missing=allow_missing))
+                    cols=xrange(reg_x0, reg_x1 + 1, order), rows=xrange(reg_y0, reg_y1 + 1, order),
+                    selector=lambda x: x.y(), allow_missing=allow_missing))
 
     # Now chose a point in the center
     # it doesn't have to be a good fitting point in the old system, it just has to be centered
@@ -507,11 +508,55 @@ def linear_reoptimize(pto, pto_ref = None, allow_missing = False, order = 2, bor
 
 
 
-def merge_pto(src_pto, dst_pto, cplsi):
+def merge_pto(src_pto, dst_pto, cplsi=None):
     '''
-    Take a resulting pto project and merge the coordinates back into the original
+    Take a pto subproject and merge coordinates back into larger project
+    They must be using same coordinate system
     cplsi: control point indices to smash in dst_pto
     '''
+    
+    # Make sure we are going to manipulate the data and not text
+    dst_pto.parse()
+    
+    base_n = len(dst_pto.get_image_lines())
+    opt_n = len(src_pto.get_optimizer_lines())
+    # old optimized version assuming same indices
+    # XXX: remove in favor of (slower?) safer version?
+    if base_n == opt_n:
+        for i in range(len(dst_pto.get_image_lines())):
+            il = dst_pto.get_image_lines()[i]
+            ol = src_pto.optimizer_lines[i]
+            for v in 'de':
+                val = ol.get_variable(v)
+                debug('Found variable val to be %s' % str(val))
+                il.set_variable(v, val)
+                debug('New IL: ' + str(il))
+            debug()
+    else:
+        if not cplsi:
+            raise Exception('fixme: not supported')
+        cplsi_iter = cplsi.__iter__()
+        for cpl in src_pto.get_control_point_lines():
+            # c n1 N0 x121.0 y258.0 X133.0 Y1056.0 t0
+            n = cpl.get_variable('n')
+            N = cpl.get_variable('N')
+            
+            # recycle old line object
+            # it may even be the matching one but that shouldn't matter
+            cpl2 = dst_pto.control_point_lines[cplsi_iter.next()]
+            # Indexes will be different, adjust accordingly
+            cpl2.set_variable('n', dst_pto.i2i(src_pto, n))
+            cpl2.set_variable('N', dst_pto.i2i(src_pto, N))
+        
+        # verify consumed all images
+        try:
+            cplsi_iter.next()
+            raise Exception("Didn't use all images")
+        except StopIteration:
+            pass
+
+def merge_opt_pto(src_pto, dst_pto):
+    '''Take a resulting pto project and merge the coordinates back into the original'''
     '''
     o f0 r0 p0 y0 v51 d0.000000 e0.000000 u10 -buf 
     ...
@@ -555,7 +600,23 @@ def merge_pto(src_pto, dst_pto, cplsi):
                 debug('New IL: ' + str(il))
             debug()
     else:
-        cplsi_iter = cplsi.__iter__()
+        # Presumably we have a subset
+        # however, assume that there is the same number of points
+        def begin_iter():
+            # Build a list of image indices in the dst project
+            # by cross referencing file names in src project to indices in dst project
+            used_i = set()
+            for il in src_pto.get_image_lines():
+                used_i.add(dst_pto.img_fn2i(il.get_name()))
+            
+            for i, cpl in enumerate(dst_pto.get_control_point_lines()):
+                # c n1 N0 x121.0 y258.0 X133.0 Y1056.0 t0
+                n = cpl.get_variable('n')
+                N = cpl.get_variable('N')
+                if n in used_i and N in used_i:
+                    yield i
+                
+        cplsi_iter = begin_iter()
         for cpl in src_pto.get_control_point_lines():
             # c n1 N0 x121.0 y258.0 X133.0 Y1056.0 t0
             n = cpl.get_variable('n')
@@ -574,7 +635,7 @@ def merge_pto(src_pto, dst_pto, cplsi):
             raise Exception("Didn't use all images")
         except StopIteration:
             pass
-        
+
 class TileOpt:
     def __init__(self, project):
         self.project = project
@@ -732,8 +793,14 @@ class TileOpt:
             print 'Optimized project:'
             print project
             #sys.exit(1)
+        ret = self.opt_project.copy()
         print 'Optimized project parsed: %d' % self.opt_project.parsed
-        return (project, cpl_is)
+
+        print 'Merging project...'
+        merge_opt_pto(project, ret)
+        ret.save_as('fixup.pto')
+        
+        return (ret, cpl_is)
     
     def run(self):
         bench = Benchmark()
