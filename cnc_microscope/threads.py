@@ -136,7 +136,7 @@ class ControllerThread(QThread, Controller):
             except Queue.Empty:
                 self._idle.set()
                 continue
-            print 'Queue has something, ~size: %d' % (self.queue.qsize(),)
+            #print 'Queue has something, ~size: %d' % (self.queue.qsize(),)
             #print type(axis)
             #print dir(axis)
             #print axis.__dict__

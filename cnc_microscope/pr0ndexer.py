@@ -13,6 +13,9 @@ class Timeout(Exception):
 class AckException(Exception):
     pass
     
+class BadChecksum(Exception):
+    pass
+
 # 0xC0 
 SLIP_END = chr(192)
 # 0xDB
@@ -198,45 +201,71 @@ class Indexer:
     def reg_write(self, reg, value):
         self.packet_write(0x80 | reg, value)
         
-    def reg_read(self, reg):
+    # loose wire in serial adapter, should probably replace it
+    # causing lots of checksum errors on rx side
+    def reg_read(self, reg, retries=10):
         '''Return 32 bit register value'''
-        self.packet_write(reg, 0)
-        
-        reply_packet = self.packet_read()
-        if reply_packet.opcode != reg:
-            raise Exception("Replied wrong reg.  Expected 0x%02X but got 0x%02X", reg, reply_packet.opcode)
-        return reply_packet.value
-    
-    def packet_write(self, reg, value, retries=3):
-        #for retry in xrange(retries):
-        #print 'Packet write reg=0x%02X, value=0x%08X' % (reg, value)
-        packet = struct.pack('<BBi', self.seq, reg, value)
-        packet = chr(checksum(packet)) + packet
-        out = slip(packet)
-        self.seq = (self.seq + 1) % 0x100
-        
-        if self.debug:
-            print 'pr0ndexer DEBUG: packet: %s' % (binascii.hexlify(packet),)
-            print 'pr0ndexer DEBUG: sending: %s' % (binascii.hexlify(out),)
-            #if self.serial.inWaiting():
-            #    raise Exception('At send %d chars waiting' % self.serial.inWaiting())
-        
-        self.serial.write(out)
-        self.serial.flush()
-        
-        if self.wait_ack:
-            _ack_packet = self.packet_read()
-
-        '''
-            ack_packet = self.packet_read()
-            if ack_packet.seq != self.seq:
+        for i in xrange(retries):
+            try:
+                self.serial.flushInput()
+                self.packet_write(reg, 0)
                 
-            if ack_packet.opcode != reg:
-                # Maybe due to previously sent packets?
-                raise Exception("Replied wrong reg.  Expected 0x%02X but got 0x%02X", reg, reply_packet.opcode)
-        else:
-            raise AckException("Didn't get ack in %d packets" % retries)
-        '''
+                reply_packet = self.packet_read()
+                if reply_packet.opcode != reg:
+                    raise Exception("Replied wrong reg.  Expected 0x%02X but got 0x%02X", reg, reply_packet.opcode)
+                return reply_packet.value
+            except BadChecksum as e:
+                if i == retries-1:
+                    raise e
+                print 'WARNING: bad checksum on read: %s' % (e,)
+            except Timeout as e:
+                if i == retries-1:
+                    raise e
+                print 'WARNING: timed out read'
+    
+    def packet_write(self, reg, value, retries=1):
+        for retry in xrange(retries):
+            #print 'Packet write reg=0x%02X, value=0x%08X' % (reg, value)
+            packet = struct.pack('<BBi', self.seq, reg, value)
+            packet = chr(checksum(packet)) + packet
+            out = slip(packet)
+            self.seq = (self.seq + 1) % 0x100
+            
+            if self.debug:
+                print 'pr0ndexer DEBUG: packet: %s' % (binascii.hexlify(packet),)
+                print 'pr0ndexer DEBUG: sending: %s' % (binascii.hexlify(out),)
+                #if self.serial.inWaiting():
+                #    raise Exception('At send %d chars waiting' % self.serial.inWaiting())
+            
+            self.serial.write(out)
+            self.serial.flush()
+            
+            if self.wait_ack:
+                try:
+                    _ack_packet = self.packet_read()
+                except BadChecksum as e:
+                    pass
+                    # poorly assume if we get any response back that the write succeeded
+                    # since we are throwing the reply away anyway
+                    '''
+                    if i == retries-1:
+                        raise e
+                    print 'WARNING: bad checksum on read: %s' % (e,)
+                    continue
+                    '''
+            return
+
+            '''
+                ack_packet = self.packet_read()
+                if ack_packet.seq != self.seq:
+                    
+                if ack_packet.opcode != reg:
+                    # Maybe due to previously sent packets?
+                    raise Exception("Replied wrong reg.  Expected 0x%02X but got 0x%02X", reg, reply_packet.opcode)
+            else:
+                raise AckException("Didn't get ack in %d packets" % retries)
+            '''
+        raise Exception('Internal error')
         
     def packet_read(self):
         # Now read response
@@ -246,7 +275,7 @@ class Indexer:
             while True:
                 c = self.serial.read(1)
                 if not c:
-                    raise Exception('Failed to read serial port')
+                    raise Timeout('Failed to read serial port')
                 rx += c
                 #print 'Read %s' % binascii.hexlify(rx)
                 packet_raw = deslip(rx)
@@ -256,7 +285,9 @@ class Indexer:
             packet = Packet(*struct.unpack(PACKET_FORMAT, packet_raw))
             checksum_computed = checksum(packet_raw[1:])
             if packet.checksum != checksum_computed:
-                raise Exception("Bad checksum.  Expected 0x%02X but got 0x%02X" % (packet.checksum, checksum_computed))
+                self.serial.flushOutput()
+                self.serial.flushInput()
+                raise BadChecksum("Expected 0x%02X but got 0x%02X" % (packet.checksum, checksum_computed))
             return packet
         
     def step(self, axis, n, wait=True):

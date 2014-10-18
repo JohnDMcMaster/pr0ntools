@@ -1081,6 +1081,9 @@ class Planner:
                     print 'Axis %d: initial compensate for moving decreasing' % i
                     absolute_move(to() + backlash())
                     compensated(-1)
+                # XXX HACK: rapid reversal seems to cause issues
+                # only location we do rapid reversal but it may be good idea to add this check elsewhere
+                time.sleep(0.2)
             else:
                 # Going right but was not compensating right?
                 if (to() - last() > 0) and (comp() <= 0):
