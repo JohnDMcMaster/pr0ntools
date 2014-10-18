@@ -175,14 +175,17 @@ class PlannerThread(QThread):
     def log(self, msg):
         self.emit(SIGNAL('log'), msg)
     
-    def run(self):
-        print 'Initializing planner!'
-
-        self.planner = Planner.get(self.rconfig, self.log)
-        print 'Running planner'
-        b = Benchmark()
-        self.planner.run()
-        b.stop()
-        print 'Planner done!  Took : %s' % str(b)
-        self.plannerDone.emit()
+    def run(self, start_hook=None):
+        try:
+            self.log('Initializing planner!')
     
+            self.planner = Planner.get(self.rconfig, self.log)
+            self.log('Running planner')
+            b = Benchmark()
+            self.planner.run(start_hook=start_hook)
+            b.stop()
+            self.log('Planner done!  Took : %s' % str(b))
+            self.plannerDone.emit()
+        except Exception as e:
+            self.log('WARNING: planner thread crashed: %s' % str(e))
+            raise

@@ -10,9 +10,9 @@ or maybe look into Phonon some more for rendering
 Question: why on Ubuntu 12.04 w/ custom kernel can I take pictures but not stream to screen?
 '''
 
-#from imager import *
 
 from config import config, RunConfig
+from imager import Imager
 from mc import MC
 from mock_controller import MockController
 from pr0ndexer_controller import PDC
@@ -63,33 +63,33 @@ def dbg(*args):
     else:
         print 'main: ' + (args[0] % args[1:])
 
-def get_cnc():
+def get_cnc(log):
     engine = config['cnc']['engine']
     if engine == 'mock':
-        return MockController(debug=debug)
+        return MockController(debug=debug, log=log)
     # USBIO MicroControle
     elif engine == 'MC':
         try:
-            return MC(debug=debug)
+            return MC(debug=debug, log=log)
         except IOError:
             print 'Failed to open MC device'
             raise
     # pr0ndexer (still on MicroControle hardware though)
     elif engine == 'PDC':
         try:
-            return PDC(debug=False)
+            return PDC(debug=False, log=log)
         except IOError:
             print 'Failed to open PD device'
             raise
     elif engine == 'auto':
         try:
-            mc = MC(debug=debug)
+            mc = MC(debug=debug, log=log)
             if mc.version():
                 return mc
             raise IOError('Couldnt find dev')
         except IOError:
-            print 'Failed to open MC device, falling back to mock'
-            return MockController(debug=debug)
+            log('Failed to open MC device, falling back to mock')
+            return MockController(debug=debug, log=log)
     else:
         raise Exception("Unknown CNC engine %s" % engine)
 
@@ -224,16 +224,16 @@ class CaptureSink(gst.Element):
             '''
             #print 'Got image'
             if self.image_requested.is_set():
-                print 'Processing image request'
+                #print 'Processing image request'
                 # Does this need to be locked?
                 # Copy buffer so that even as object is reused we don't lose it
                 # is there a difference between str(buffer) and buffer.data?
                 self.images[self.next_image_id] = str(buffer)
                 # Clear before emitting signal so that it can be re-requested in response
                 self.image_requested.clear()
-                print 'Emitting capture event'
+                #print 'Emitting capture event'
                 self.cb(self.next_image_id)
-                print 'Capture event emitted'
+                #print 'Capture event emitted'
                 self.next_image_id += 1
         except:
             traceback.print_exc()
@@ -357,8 +357,16 @@ class CNCGUI(QMainWindow):
         
     def __init__(self):
         QMainWindow.__init__(self)
+        self.showMaximized()
 
-        self.cnc_raw = get_cnc()
+        # must be created early to accept early logging
+        # not displayed until later though
+        self.log_widget = QTextEdit()
+        # Special case for logging that might occur out of thread
+        self.connect(self, SIGNAL('log'), self.log)
+        
+        self.log_fd = None
+        self.cnc_raw = get_cnc(log=self.emit_log)
         self.cnc_raw.on()
         self.cnc_ipc = ControllerThread(self.cnc_raw)
         self.initUI()
@@ -374,7 +382,7 @@ class CNCGUI(QMainWindow):
                 engine_config = 'gstreamer'
             else:
                 engine_config = 'gstreamer-testsrc'
-            print 'Auto image engine: selected %s' % engine_config
+            self.log('Auto image engine: selected %s' % engine_config)
         if engine_config == 'gstreamer':
             self.source = gst.element_factory_make("v4l2src", "vsource")
             self.source.set_property("device", "/dev/video0")
@@ -403,6 +411,24 @@ class CNCGUI(QMainWindow):
         if config['cnc']['startup_run']:
             self.run()
         
+    def log(self, s='', newline=True):
+        if newline:
+            s += '\n'
+        
+        c = self.log_widget.textCursor()
+        c.clearSelection()
+        c.movePosition(QTextCursor.End)
+        c.insertText(s)
+        self.log_widget.setTextCursor(c)
+        
+        if self.log_fd is not None:
+            self.log_fd.write(s) 
+        
+    def emit_log(self, s='', newline=True):
+        # event must be omitted from the correct thread
+        # however, if it hasn't been created yet assume we should log from this thread
+        self.emit(SIGNAL('log'), s)
+        
     def x(self, n):
         self.axes['X'].jog(n)
     
@@ -422,7 +448,7 @@ class CNCGUI(QMainWindow):
     def update_obj_config(self):
         '''Make resolution display reflect current objective'''
         self.obj_config = config['objective'][self.obj_cb.currentIndex ()]
-        print 'Selected objective %s' % self.obj_config['name']
+        self.log('Selected objective %s' % self.obj_config['name'])
         self.obj_mag.setText('Magnification: %0.2f' % self.obj_config["mag"])
         self.obj_x_view.setText('X view (um): %0.3f' % self.obj_config["x_view"])
         self.obj_y_view.setText('Y view (um): %0.3f' % self.obj_config["y_view"])
@@ -716,11 +742,11 @@ class CNCGUI(QMainWindow):
         message_name = message.structure.get_name()
         if message_name == "prepare-xwindow-id":
             if message.src.get_name() == 'sinkx_overview':
-                print 'sinkx_overview win_id'
+                #print 'sinkx_overview win_id'
                 win_id = self.gstWindowId
             elif message.src.get_name() == 'sinkx_focus':
                 win_id = self.gstWindowId2
-                print 'sinkx_focus win_id'
+                #print 'sinkx_focus win_id'
             else:
                 raise Exception('oh noes')
             
@@ -754,7 +780,7 @@ class CNCGUI(QMainWindow):
         else:
             dbg('took %s at %d / %d' % (image, pictures_taken, pictures_to_take))
             self.bench.set_cur_items(pictures_taken)
-            print self.bench
+            self.log(str(self.bench))
             
         self.pb.setValue(pictures_taken)
             
@@ -773,6 +799,7 @@ class CNCGUI(QMainWindow):
         if not self.snapshot_pb.isEnabled():
             print "Wait for snapshot to complete before CNC'ing"
             return
+        emit_log = self.emit_log
         
         dry = self.dry()
         if dry:
@@ -780,7 +807,7 @@ class CNCGUI(QMainWindow):
         rconfig = RunConfig()
         imager = None
         if not dry:
-            print 'Loading imager...'
+            self.log('Loading imager...')
             itype = config['imager']['engine']
             
             if itype == 'auto':
@@ -804,18 +831,18 @@ class CNCGUI(QMainWindow):
                         self.image_id = None
                         
                     def take_picture(self, file_name_out = None):
-                        print 'gstreamer imager: taking image to %s' % file_name_out
+                        emit_log('gstreamer imager: taking image to %s' % file_name_out)
                         def emitSnapshotCaptured(image_id):
-                            print 'Image captured reported: %s' % image_id
+                            emit_log('Image captured reported: %s' % image_id)
                             self.image_id = image_id
                             self.image_ready.set()
 
                         self.image_id = None
                         self.image_ready.clear()
                         self.gui.capture_sink.request_image(emitSnapshotCaptured)
-                        print 'Waiting for next image...'
+                        emit_log('Waiting for next image...')
                         self.image_ready.wait()
-                        print 'Got image %s' % self.image_id
+                        emit_log('Got image %s' % self.image_id)
                         image = PImage.from_image(self.gui.capture_sink.pop_image(self.image_id))
                         factor = float(config['imager']['scalar'])
                         # Use a reasonably high quality filter
@@ -834,7 +861,7 @@ class CNCGUI(QMainWindow):
         rconfig.dry = dry
         
         def emitCncProgress(pictures_to_take, pictures_taken, image, first):
-            print 'Emitting CNC progress'
+            #print 'Emitting CNC progress'
             if image is None:
                 image = ''
             self.cncProgress.emit(pictures_to_take, pictures_taken, image, first)
@@ -858,9 +885,7 @@ class CNCGUI(QMainWindow):
         self.cnc_ipc.wait_idle()
         
         self.pt = PlannerThread(self, rconfig)
-        def log(msg):
-            print msg
-        self.connect(self.pt, SIGNAL('log'), log)
+        self.connect(self.pt, SIGNAL('log'), self.log)
         self.pt.plannerDone.connect(self.plannerDone)
         self.setControlsEnabled(False)
         #eeeee not working as well as I hoped
@@ -872,7 +897,10 @@ class CNCGUI(QMainWindow):
             self.pt.start()
         else:
             dbg("Running single threaded")
-            self.pt.run()
+            def start_hook(out_dir):
+                if not self.dry_cb.isChecked():
+                    self.log_fd = open(os.path.join(out_dir, 'log.txt'), 'w')
+            self.pt.run(start_hook=start_hook)
     
     def setControlsEnabled(self, yes):
         self.go_pb.setEnabled(yes)
@@ -881,7 +909,7 @@ class CNCGUI(QMainWindow):
         self.snapshot_pb.setEnabled(yes)
     
     def plannerDone(self):
-        print 'RX planner done'
+        self.log('RX planner done')
         # Cleanup camera objects
         self.pt = None
         self.setControlsEnabled(True)
@@ -970,11 +998,11 @@ class CNCGUI(QMainWindow):
 
         snapshot_dir = config['imager']['snapshot_dir']
         if not os.path.isdir(snapshot_dir):
-            print 'Snapshot dir %s does not exist' % snapshot_dir
+            self.log('Snapshot dir %s does not exist' % snapshot_dir)
             if os.path.exists(snapshot_dir):
                 raise Exception("Snapshot directory is not accessible")
             os.mkdir(snapshot_dir)
-            print 'Snapshot dir %s created' % snapshot_dir        
+            self.log('Snapshot dir %s created' % snapshot_dir)
 
         # nah...just have it in the config
         # d = QFileDialog.getExistingDirectory(self, 'Select snapshot directory', snapshot_dir)
@@ -1030,11 +1058,11 @@ class CNCGUI(QMainWindow):
             break
     
     def take_snapshot(self):
-        print 'Requesting snapshot'
+        self.log('Requesting snapshot')
         # Disable until snapshot is completed
         self.snapshot_pb.setEnabled(False)
         def emitSnapshotCaptured(image_id):
-            print 'Image captured: %s' % image_id
+            self.log('Image captured: %s' % image_id)
             self.snapshotCaptured.emit(image_id)
         self.capture_sink.request_image(emitSnapshotCaptured)
     
@@ -1054,18 +1082,18 @@ class CNCGUI(QMainWindow):
             self.take_snapshot()
         
     def captureSnapshot(self, image_id):
-        print 'RX image for saving'
+        self.log('RX image for saving')
         def try_save():
             image = PImage.from_image(self.capture_sink.pop_image(image_id))
             txt = str(self.snapshot_fn_le.text())
             if '.' not in txt:
                 txt = txt + '.jpg'
             elif '.jpg' not in txt:
-                print 'WARNING: refusing to take bad image file name %s' % txt
+                self.log('WARNING: refusing to take bad image file name %s' % txt)
                 return
             fn_full = os.path.join(config['imager']['snapshot_dir'], txt)
             if os.path.exists(fn_full):
-                print 'WARNING: refusing to overwrite %s' % fn_full
+                self.log('WARNING: refusing to overwrite %s' % fn_full)
                 return
             factor = float(config['imager']['scalar'])
             # Use a reasonably high quality filter
@@ -1116,13 +1144,15 @@ class CNCGUI(QMainWindow):
     def initUI(self):
         self.setGeometry(300, 300, 250, 150)
         self.setWindowTitle('pr0ncnc')    
-        
+
         # top layout
         layout = QVBoxLayout()
         
         layout.addLayout(self.get_config_layout())
         layout.addLayout(self.get_video_layout())
         layout.addLayout(self.get_bottom_layout())
+        self.log_widget.setReadOnly(True)
+        layout.addWidget(self.log_widget)
         
         w = QWidget()
         w.setLayout(layout)

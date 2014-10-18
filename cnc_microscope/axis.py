@@ -19,7 +19,12 @@ For now units are in um
 Currently assumes stepper control (even for mock), further subclass as needed
 '''
 class Axis:
-    def __init__(self, name):
+    def __init__(self, name, log=None):
+        if log is None:
+            def log(s):
+                print s
+        self.log = log
+        
         self.name = name
 
         # Active stepping

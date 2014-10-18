@@ -878,7 +878,7 @@ class Planner:
     def y_backlash(self):
         return 50
         
-    def run(self):
+    def run(self, start_hook=None):
         self.start_time = time.time()
         self._log()
         self._log()
@@ -913,6 +913,8 @@ class Planner:
         '''
 
         self.prepare_image_output()
+        if start_hook:
+            start_hook(self.out_dir())
         '''
         Backlash compensation
         0: no compensation
@@ -1351,13 +1353,13 @@ class DryControllerPlanner(ControllerPlanner):
         self.actual_pictures_taken += 1
         self.sleep(self.t_settle, 'settle')
     
-    def run(self):
+    def run(self, start_hook=None):
         self.rt_move = 0.0
         self.rt_settle = 0.0
         self.rt_sleep = 0.0
         self.rt_tot = None
         
-        ControllerPlanner.run(self)
+        ControllerPlanner.run(self, start_hook=start_hook)
         self.rt_tot = self.rt_move + self.rt_settle + self.rt_sleep
         
         # yield hack to get print at end

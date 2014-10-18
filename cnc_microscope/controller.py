@@ -5,7 +5,12 @@ Licensed under 2 clause BSD license, see COPYING for details
 
 # no real interfaces really defined yet...
 class Controller:
-    def __init__(self, debug=False):
+    def __init__(self, debug=False, log=None):
+        if log is None:
+            def log(s):
+                print s
+        self.log = log
+        
         self.debug = debug
         self.x = None
         self.y = None

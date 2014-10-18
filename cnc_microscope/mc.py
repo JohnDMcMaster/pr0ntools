@@ -49,11 +49,11 @@ class MC(Controller):
     #DIR_FORWARD = 1
     #DIR_REVERSE = 2
     
-    def __init__(self, debug=False):
-        Controller.__init__(self, debug=False)
+    def __init__(self, debug=False, log=None):
+        Controller.__init__(self, debug=False, log=log)
         
         self.usbio = USBIO(debug=debug)
-        print 'opened some USBIO okay'
+        self.log('opened some USBIO okay')
         if self.usbio.serial is None:
             raise Exception("USBIO missing serial")
         
@@ -61,9 +61,9 @@ class MC(Controller):
         #print 'debug break'
         #sys.exit(1)
         
-        self.x = MCAxis('X', self, 0, 1, invert_dir=True)
-        self.y = MCAxis('Y', self, 2, 3, invert_dir=False)
-        self.z = MCAxis('Z', self, 4, 5, invert_dir=False)
+        self.x = MCAxis('X', self, 0, 1, invert_dir=True, log=log)
+        self.y = MCAxis('Y', self, 2, 3, invert_dir=False, log=log)
+        self.z = MCAxis('Z', self, 4, 5, invert_dir=False, log=log)
         
         self.axes = [self.x, self.y, self.z]
         
@@ -73,7 +73,7 @@ class MC(Controller):
         self.um()
         # enforce some initial state?
         #self.off()
-        print 'Controller ready'
+        self.log('Controller ready')
     
     def __del__(self):
         '''
@@ -148,8 +148,8 @@ if __name__ == "__main__":
             axis.jog(100)
 
 class MCAxis(Axis):
-    def __init__(self, name, mc, step_pin, dir_pin, invert_dir = False):
-        Axis.__init__(self, name)
+    def __init__(self, name, mc, step_pin, dir_pin, invert_dir = False, log=None):
+        Axis.__init__(self, name, log=log)
         #self.mc = mc
         self.usbio = mc.usbio
         if self.usbio.serial is None:
