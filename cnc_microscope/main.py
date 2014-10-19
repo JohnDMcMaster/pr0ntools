@@ -365,6 +365,7 @@ class CNCGUI(QMainWindow):
         # Special case for logging that might occur out of thread
         self.connect(self, SIGNAL('log'), self.log)
         
+        self.pt = None
         self.log_fd = None
         self.cnc_raw = get_cnc(log=self.emit_log)
         self.cnc_raw.on()
@@ -791,9 +792,15 @@ class CNCGUI(QMainWindow):
         if self.pause_pb.text() == 'Pause':
             self.pause_pb.setText('Run')
             self.cnc_ipc.setRunning(False)
+            if self.pt:
+                self.pt.setRunning(False)
+            self.log('Pause requested')
         else:
             self.pause_pb.setText('Pause')
             self.cnc_ipc.setRunning(True)
+            if self.pt:
+                self.pt.setRunning(True)
+            self.log('Resume requested')
     
     def run(self):
         if not self.snapshot_pb.isEnabled():

@@ -171,10 +171,16 @@ class PlannerThread(QThread):
     def __init__(self,parent, rconfig):
         QThread.__init__(self, parent)
         self.rconfig = rconfig
+        self.planner = None
         
     def log(self, msg):
         self.emit(SIGNAL('log'), msg)
     
+    def setRunning(self, running):
+        planner = self.planner
+        if planner:
+            planner.setRunning(running)
+        
     def run(self, start_hook=None):
         try:
             self.log('Initializing planner!')

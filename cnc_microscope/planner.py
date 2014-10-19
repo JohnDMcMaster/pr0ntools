@@ -14,6 +14,7 @@ from config import config
 import copy
 import shutil
 import json
+import threading
 
 VERSION = '0.1'
 
@@ -226,6 +227,8 @@ class Planner:
                 print msg
         self.log = log
         self.v = verbosity
+        self.normal_running = threading.Event()
+        self.normal_running.set()
         # FIXME: this is better than before but CTypes pickle error from deepcopy
         #self.rconfig = copy.deepcopy(rconfig)
         self.rconfig = copy.copy(rconfig_in)
@@ -878,6 +881,13 @@ class Planner:
     def y_backlash(self):
         return 50
         
+    def setRunning(self, running):
+        '''Used to pause movement'''
+        if running:
+            self.normal_running.set()
+        else:
+            self.normal_running.clear()
+        
     def run(self, start_hook=None):
         self.start_time = time.time()
         self._log()
@@ -931,6 +941,10 @@ class Planner:
         self.cur_col = -1
         # columns
         for (cur_x, cur_y, cur_z, self.cur_row, self.cur_col) in self.getPointsEx():
+            if not self.normal_running.is_set():
+                self.log('Planner paused')
+                self.normal_running.wait()
+                self.log('Planner unpaused')
         #for cur_x in self.gen_x_points():
             #self.cur_x = cur_x
             #self.cur_col += 1
