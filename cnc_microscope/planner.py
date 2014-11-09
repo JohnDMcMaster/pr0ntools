@@ -576,8 +576,6 @@ class Planner:
         pass
 
     def write_metadata(self):
-        if self.rconfig.dry:
-            return
         # Copy config for reference
         self.rconfig.write_to_dir(self.out_dir())
         # TODO: write out coordinate map
@@ -898,6 +896,11 @@ class Planner:
         net_mag = focus.objective_mag * focus.eyepiece_mag * focus.camera_mag
         self.comment('objective: %f, eyepiece: %f, camera: %f, net: %f' % (focus.objective_mag, focus.eyepiece_mag, focus.camera_mag, net_mag))
         self.comment('x size: %f um / %d pix, y size: %f um / %d pix' % (self.x.delta(), self.x.delta_pixels(), self.y.delta(), self.y.delta_pixels()))
+        mp = self.x.delta_pixels() * self.y.delta_pixels() / (10**6)
+        if mp >= 1000:
+            self.comment('Image size: %0.1f GP' % (mp/1000,))
+        else:
+            self.comment('Image size: %0.1f MP' % (mp,))
         self.comment('x fov: %f, y fov: %f' % (focus.x_view, focus.y_view))
         self.comment('x_step: %f, y_step: %f' % (self.x.step(), self.y.step()))
         
@@ -1032,7 +1035,15 @@ class Planner:
             else:
                 raise Exception('pictures taken mismatch (taken: %d, to take: %d)' % (self.pictures_to_take, self.pictures_taken))
            
-        self.rconfig.scan_config['run_data'] = {
+        rd = self.run_data()
+        self.rconfig.scan_config['run_data'] = rd
+        
+        self.write_metadata()
+        return rd
+        
+    def run_data(self):
+        '''Can only be called after run'''
+        return {
             # In seconds
             'time': (self.end_time - self.start_time),
             'pictures_taken': self.pictures_taken,
@@ -1043,8 +1054,6 @@ class Planner:
                 'backlash': self.y_backlash(),
             },
         }
-        
-        self.write_metadata()
         
     def home(self):
         self.relative_move(-self.cur_x, -self.cur_y)
@@ -1115,7 +1124,7 @@ class Planner:
                     compensated(-1)
                 # XXX HACK: rapid reversal seems to cause issues
                 # only location we do rapid reversal but it may be good idea to add this check elsewhere
-                time.sleep(0.2)
+                self.sleep(0.2, 'hack')
             else:
                 # Going right but was not compensating right?
                 if (to() - last() > 0) and (comp() <= 0):
@@ -1373,16 +1382,31 @@ class DryControllerPlanner(ControllerPlanner):
         self.rt_sleep = 0.0
         self.rt_tot = None
         
-        ControllerPlanner.run(self, start_hook=start_hook)
-        self.rt_tot = self.rt_move + self.rt_settle + self.rt_sleep
+        ret = ControllerPlanner.run(self, start_hook=start_hook)
         
         # yield hack to get print at end
-        time.sleep(0.1)
+        #time.sleep(0.1)
         self._log('DRY: estimated %s (%0.1f sec)' % (format_t(self.rt_tot), self.rt_tot))
         self._log('DRY:   Move:   %s' % (format_t(self.rt_move)))
         #self._log('DRY:   Settle: %s' % (format_t(self.rt_settle)))
         self._log('DRY:   Sleep:  %s' % (format_t(self.rt_sleep)))
+        return ret
 
     def home(self):
         self._log('DRY: home all')
         self.relative_move(-self.cur_x, -self.cur_y)
+
+    def run_data(self):
+        self.rt_tot = self.rt_move + self.rt_settle + self.rt_sleep
+        
+        rd = Planner.run_data(self)
+        if self.rconfig.dry:
+            rd['rt_est'] = {
+                    'total': self.rt_tot,
+                    'move': self.rt_move,
+                    'sleep': self.rt_sleep,
+                    }
+        return rd
+
+    def write_metadata(self):
+        pass
