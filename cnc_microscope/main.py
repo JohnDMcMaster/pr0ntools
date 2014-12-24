@@ -83,6 +83,11 @@ def get_cnc(log):
             raise
     elif engine == 'auto':
         try:
+            return PDC(debug=False, log=log)
+        except IOError:
+            pass
+        
+        try:
             mc = MC(debug=debug, log=log)
             if mc.version():
                 return mc

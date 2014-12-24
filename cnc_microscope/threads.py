@@ -43,7 +43,7 @@ There must be a way to automate this more
 Don't extend axis or the getattr won't work correctly
 maybe not the most elegant but works for current needs
 '''
-class ControllerThreadAxis:
+class ControllerThreadAxis(object):
     def __init__(self, controller, axis):
         # IPC controller, not core
         self.controller = controller
@@ -159,7 +159,12 @@ class ControllerThread(QThread, Controller):
                 axis.home()
                 cb_inc()
             else:
-                getattr(axis, name)(*args)
+                try:
+                    getattr(axis, name)(*args)
+                except TypeError:
+                    print type(axis)
+                    print axis.__class__
+                    raise
     
     def stop(self):
         self.running.clear()        
@@ -195,3 +200,4 @@ class PlannerThread(QThread):
         except Exception as e:
             self.log('WARNING: planner thread crashed: %s' % str(e))
             raise
+

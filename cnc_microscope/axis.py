@@ -18,7 +18,7 @@ Can subclass later if needed to implement other styles
 For now units are in um
 Currently assumes stepper control (even for mock), further subclass as needed
 '''
-class Axis:
+class Axis(object):
     def __init__(self, name, log=None):
         if log is None:
             def log(s):
@@ -88,7 +88,7 @@ class Axis:
         '''Decrease until stopped'''
         raise Exception('Required')
           
-    def forever_pos(self, done):
+    def forever_pos(self, done, callback=None):
         '''Increase until stopped'''
         raise Exception('Required')
 

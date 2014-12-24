@@ -10,7 +10,7 @@ from axis import Axis
 from pr0ndexer import Indexer
 
 class PDC(Controller):
-    def __init__(self, debug=False):
+    def __init__(self, debug=False, log=None):
         Controller.__init__(self, debug=False)
         
         self.indexer = Indexer(debug=debug)
