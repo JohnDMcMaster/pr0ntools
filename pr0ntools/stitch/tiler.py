@@ -60,6 +60,8 @@ from pr0ntools.execute import CommandFailed
 import traceback
 from pr0ntools.stitch.pto.util import dbg
 
+class InvalidClip(Exception):
+    pass
 
 class PartialStitcher:
     def __init__(self, pto, bounds, out):
@@ -182,6 +184,7 @@ class Tiler:
         
         self.calc_size_heuristic(self.img_width, self.img_height)
         
+        # Auto calc tile parameters based on # super tile pixels?
         if stp:
             if self.stw or self.sth:
                 raise ValueError("Can't manually specify width/height and do auto")
@@ -240,16 +243,27 @@ class Tiler:
                 for check_w in xrange(min_stwh, max_stwh, 100):
                     check_h = stp / check_w
                     print 'Checking supertile size %dw X %dh (area %d)' % (check_w, check_h, check_w * check_h)
-                    tiler = Tiler(pto = self.pto, out_dir = self.out_dir,
-                            tile_width = self.tw, tile_height = self.th,
-                            st_scalar_heuristic=self.st_scalar_heuristic, dry=True,
-                            stw=check_w, sth=check_h, stp=None, clip_width=self.clip_width, clip_height=self.clip_height)
+                    try:
+                        tiler = Tiler(pto = self.pto, out_dir = self.out_dir,
+                                tile_width = self.tw, tile_height = self.th,
+                                st_scalar_heuristic=self.st_scalar_heuristic, dry=True,
+                                stw=check_w, sth=check_h, stp=None, clip_width=self.clip_width, clip_height=self.clip_height)
+                    except InvalidClip:
+                        print 'Discarding: invalid clip'
+                        print
+                        continue
                     
                     # The area will float around a little due to truncation
                     # Its better to round down than up to avoid running out of memory
                     n_expected = tiler.expected_sts()
+                    # XXX: is this a bug or something that I should just skip?
+                    if n_expected == 0:
+                        print 'Invalid STs 0'
+                        print
+                        continue
+                        
                     p = (check_w + check_h) * 2
-                    print 'Would generated %d supertiles each with perimeter %d' % (n_expected, p)
+                    print 'Would generate %d supertiles each with perimeter %d' % (n_expected, p)
                     # TODO: there might be some optimizations within this for trimming...
                     # Add a check for minimum total mapped area
                     if self.best_n is None or self.best_n > n_expected and best_p > p:
@@ -258,6 +272,9 @@ class Tiler:
                         best_w = check_w
                         best_h = check_h
                         best_p = p
+                        if n_expected == 1:
+                            print 'Only 1 ST: early break'
+                            break
                     print
             print 'Best n %d w/ %dw X %dh' % (self.best_n, best_w, best_h)
             if 0:
@@ -288,9 +305,9 @@ class Tiler:
             print '  STW: %d' % self.stw
             print '  Clip W: %d' % self.clip_width
             print '  W: %d (%d - %d)' % (w, self.right(), self.left())
-            raise Exception('Clip width exceeds supertile width: reduce clip or increase ST size')
+            raise InvalidClip('Clip width exceeds supertile width: reduce clip or increase ST size')
         if self.sth <= 2 * self.clip_height and not self.stw < h:
-            raise Exception('Clip width exceeds supertile width: reduce clip or increase ST size')
+            raise InvalidClip('Clip height exceeds supertile height: reduce clip or increase ST size')
         
     def msg(self, s, l):
         '''Print message s at verbosity level l'''
