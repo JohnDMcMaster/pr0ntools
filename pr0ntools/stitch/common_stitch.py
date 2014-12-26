@@ -7,7 +7,8 @@ Common code for various stitching strategies
 '''
 
 from pr0ntools.image.soften import Softener
-from pr0ntools.stitch.control_point import ControlPointGenerator, ajpto2pto_text
+import pr0ntools.stitch.control_point
+from pr0ntools.stitch.control_point import get_cp_engine, ajpto2pto_text, pto_unsub
 from pr0ntools.stitch.pto.project import PTOProject
 from pr0ntools.stitch.pto.util import *
 from pr0ntools.stitch.remapper import Remapper
@@ -145,7 +146,7 @@ class CommonStitch:
         self.init_failures()
 
         # Generate control points and merge them into a master project
-        self.control_point_gen = ControlPointGenerator()
+        self.control_point_gen = get_cp_engine()
         # How many rows and cols to go to each side
         # If you hand took the pictures, this might suit you
         self.project = PTOProject.from_blank()
@@ -272,17 +273,24 @@ class CommonStitch:
         sub_to_real[sub_image_1_file.file_name] = image_fn_pair[1]
 
         # Returns a pto project object
-        fast_pair_project = self.control_point_gen.generate_core(sub_image_fn_pair)
-        if fast_pair_project is None:
+        pair_project = self.control_point_gen.generate_core(sub_image_fn_pair)
+        if pair_project is None:
             print 'WARNING: failed to gen control points @ %s' % repr(pair)
             return None
-        oto_text = str(fast_pair_project)
-        if 0:
-            print oto_text
-        # are we actually doing anything useful here?
-        # The original intention was to make dead sure we had the right file order
-        # but I'm pretty sure its consistent and we don't need to parse the comments
-        final_pair_project = ajpto2pto_text(oto_text, sub_image_0_file, sub_image_1_file, sub_image_0_x_delta, sub_image_0_y_delta, sub_to_real)
+        
+        # old autpanoaj workflow
+        if type(self.control_point_gen) is pr0ntools.stitch.control_point.AutopanoAJ:
+            oto_text = str(pair_project)
+            
+            # TODO: cleanup/rename this function
+            # Shifts the project delta
+            # Also originally to make dead sure we had the right file order
+            final_pair_project = ajpto2pto_text(oto_text, sub_image_0_file, sub_image_1_file, sub_image_0_x_delta, sub_image_0_y_delta, sub_to_real)
+        # newer, much cleaner workflow
+        else:
+            # all we need to do is adjust xy positions
+            # afaik above is way overcomplicated
+            final_pair_project = pto_unsub(pair_project, (sub_image_0_file, sub_image_1_file), (sub_image_0_x_delta, sub_image_0_y_delta), sub_to_real)
         
         # Filenames become absolute
         #sys.exit(1)

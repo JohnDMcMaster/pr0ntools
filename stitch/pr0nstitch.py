@@ -36,46 +36,6 @@ grid_only = False
 
 CONTROL_POINT_ENGINE = AUTOPANO_AJ
 
-def help():
-    print '\timage file: added to input images'
-    print '\tdirectory: added to input image directories'
-    print '\t.pto file: assumed to be project file'
-    print '--result=<file_name> or --out=<file_name>'
-    print '\t--result-image=<image file name>'
-    print '\t--result-project=<project file name>'
-    print '--input-project=<project file name>'
-    print '--cp-engine=<engine>'
-    print '\tautopano-sift-c: autopano-SIFT-c'
-    print '\t\t--autopano-sift-c=<path>, default = autopano-sift-c'
-    print '\tautopano-aj: Alexandre Jenny\'s autopano'
-    print '\t\t--autopano-aj=<path>, default = autopanoaj'
-    print '--pto-merger=<engine>'
-    print '\tdefault: use pto_merge if availible'
-    print '\tpto_merge: Hugin supported merge (Hugin 2010.2.0+)'
-    print '\t\t--pto_merge=<path>, default = pto_merge'
-    print '\tinternal: quick and dirty internal version'
-    print '--algorithm=<algorithm>'
-    print '\tgrid: assume input is a regular grid tagged with row/col (default)'
-    print '\twander: assume input is contiguous. Use for back and forth pattern'
-    # Did hacks, not supported externally
-    #print '\tfortify: use input-project and try to fill in additional control points'
-    # Consider supporting
-    #print '\tauto: poke around at images and then do stitch after figuring out layout (computationally expensive!)'
-    print 'Grid formation options (col 0, row 0 should be upper left):'
-    print '--grid-only[=<bool>]: only construct/print the grid map and exit'
-    print '--flip-col[=<bool>]: flip columns'
-    print '--flip-row[=<bool>]: flip rows'
-    print '--flip-pre-transpose[=<bool>]: switch col/row before all other flips'
-    print '--flip-post-transpose[=<bool>]: switch col/row after all other flips'
-    print '--no-overwrite[=<bool>]: do not allow overwrite of existing files'
-    print '--regular[=<bool>]: images are separated by regular intervals like CNC would produce, default true'
-    print '--skip-missing: allow holes'
-
-def arg_fatal(s):
-    print s
-    help()
-    sys.exit(1)
-
 def t_or_f(arg):
     arg_value = str(arg).lower()
     return not (arg_value == "false" or arg_value == "0" or arg_value == "no")
@@ -136,7 +96,9 @@ if __name__ == "__main__":
         elif os.path.isfile(arg) or os.path.isdir(arg):
             input_image_file_names.append(arg)
         else:
-            arg_fatal('unrecognized arg: %s' % arg)
+            print 'unrecognized arg: %s' % arg
+            print 'must be pto file, image file, or image dir'
+            sys.exit(1)
     if len(input_image_file_names) == 0:
         raise Exception('Requires image file names')
 

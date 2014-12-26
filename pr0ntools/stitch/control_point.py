@@ -8,7 +8,8 @@ from pr0ntools.temp_file import ManagedTempDir
 from pr0ntools.execute import Execute, without_output
 from pr0ntools.stitch.pto.project import PTOProject
 from pr0ntools.stitch.pto.util import *
-from pr0ntools.stitch.pto.panorama_line import PanoramaLine
+from pr0ntools.stitch.pto.control_point_line import ControlPointLine
+from pr0ntools.stitch.pto.image_line import ImageLine
 import shutil
 import os.path
 import time
@@ -97,8 +98,7 @@ class AutopanoSiftC:
         return PTOProject.from_temp_file(project_file)
 
 
-#class AutopanoAJ : ControlPointGenerator:    
-class ControlPointGenerator:
+class AutopanoAJ:    
     def __init__(self):
         # For compatibility, I'd like to remove this entirely with default False
         self.invalidate_on_ransac = True
@@ -123,7 +123,6 @@ class ControlPointGenerator:
         # Use image args instead of dir
         
         # Images
-        image_links = dict()
         for image_file_name in image_file_names:
             # args.append(image_file_name.replace("/tmp/", "Z:\\tmp\\"))
             image_file_name = os.path.realpath(image_file_name)
@@ -132,7 +131,6 @@ class ControlPointGenerator:
             dbg('Linking %s -> %s' % (link_file_name, image_file_name))
             os.symlink(image_file_name, link_file_name)
 
-        #sys.exit(1)
         # go go go
         (rc, output) = Execute.with_output(command, args, temp_dir.file_name, self.print_output)
         print 'Finished control point pair execution'
@@ -208,7 +206,6 @@ class ControlPointGenerator:
             print
             print
             print
-        #sys.exit(1)
         f.close()
         f = open(final_project_file.file_name, 'w')
         f.write(project_text)
@@ -351,8 +348,53 @@ def ajpto2pto_text_generic(pto_str, sub_image_files, x_delta, y_delta, sub_to_re
     return ret
 
 
+def pto_unsub(src_prj, sub_image_files, deltas, sub_to_real):
+    '''
+    Transforms a sub-project back into original control point coordinate space using original file names
+    Returns a new project file
+    src_prj: base project that needs to be transformed
+    sub_image_files: tuple specifying original project 0/1 positions
+        needed to correctly apply deltas
+    deltas: delta to apply to pair_project coordinates to bring back to target (original) project space
+        0: x
+        1: y
+        images are relative to each other
+        only has delta within relative image frame, not entire project canvas
+    sub_to_real: map of project file names to target (original) project file names
+        the output project must use these instead of the original names
+    '''
+    ret = PTOProject.from_simple()
+    
+    same_order = True
+    # Copy/fix images
+    print 'Order check'
+    for i, src_il in enumerate(src_prj.get_image_lines()):
+        # copy it
+        dst_il = ImageLine(str(src_il), ret)
+        # fix the name so that it can be merged
+        dst_il.set_name(sub_to_real[src_il.get_name()])
+        # add it
+        ret.add_image_line(dst_il)
+        same_order = same_order and sub_image_files[i].file_name == src_il.get_name()
+        print '  %d: %s vs %s' % (i, sub_image_files[i].file_name, src_il.get_name())
+    
+    # Copy/shift control points
+    for src_cpl in src_prj.get_control_point_lines():
+        # copy it
+        dst_cpl = ControlPointLine(str(src_cpl), ret)
+        # shift to original coordinate space
+        if same_order:
+            # normal adjustment
+            dst_cpl.set_variable('x', src_cpl.get_variable('x') + deltas[0])
+            dst_cpl.set_variable('y', src_cpl.get_variable('y') + deltas[1])
+        else:
+            # they got flipped
+            dst_cpl.set_variable('X', src_cpl.get_variable('X') + deltas[0])
+            dst_cpl.set_variable('Y', src_cpl.get_variable('Y') + deltas[1])
+        # add it
+        ret.add_control_point_line(dst_cpl)
 
-
+    return ret
 
 class ControlPointGeneratorXX:
     '''
@@ -395,9 +437,100 @@ class ControlPointGeneratorXX:
             print
             print
             print
-        #sys.exit(1)
         f.close()
         f = open(project_file.file_name, 'w')
         f.write(project_text)
         return PTOProject.from_temp_file(project_file)
 
+
+# panotool's cpfind/cpclean
+class PanoCP:    
+    def __init__(self):
+        self.print_output = True
+    
+    def generate_core(self, img_fns):
+        # cpfind (and likely cpclean) trashes absolute file names
+        # we need to restore them so that tools recognize the file names
+        real_fn_base2full = {}
+        
+        args = list()
+        project = PTOProject.from_default2()
+        fn_obj = ManagedTempFile.get(None, ".pto")
+        project.set_file_name(fn_obj.file_name)
+        
+        # Start with cpfind
+        args.append("--multirow")
+        args.append("--fullscale")
+        # output file
+        args.append("-o")
+        args.append(project.file_name)
+        # input file
+        args.append(project.file_name)
+        
+        # Images
+        for img_fn in img_fns:
+            # xxx: why do we take the realpath?
+            real_fn = os.path.realpath(img_fn)
+            real_fn_base2full[os.path.basename(real_fn)] = img_fn
+            project.add_image(real_fn, def_opt=True)
+
+        project.save()
+        print
+        print
+        print
+        print project.get_text()
+        print
+        print
+        print
+ 
+        (rc, output) = Execute.with_output('cpfind', args, print_output=self.print_output)
+        print 'PanoCP: cpfind done'
+        if not rc == 0:
+            print
+            print
+            print
+            print 'output:'
+            print output
+            print
+            raise Exception('Bad rc: %d' % rc)
+        
+        
+        # Now run cpclean
+        args = list()
+        # output file
+        args.append("-o")
+        args.append(project.file_name)
+        # input file
+        args.append(project.file_name)
+        
+        (rc, output) = Execute.with_output('cpclean', args, print_output=self.print_output)
+        print 'PanoCP: cpclean done'
+        if not rc == 0:
+            print
+            print
+            print
+            print 'output:'
+            print output
+            print
+            raise Exception('Bad rc: %d' % rc)
+
+
+        project.reopen()
+        print 'Fixing image lines...'
+        for il in project.image_lines:
+            src = il.get_name()
+            dst = real_fn_base2full[src]
+            print '  %s => %s' % (src, dst)
+            il.set_name(dst)
+        
+        project.set_file_name(None)
+        fn_obj = None
+        return project
+
+def get_cp_engine(engine=None):
+    return {
+            'autopano-sift-c': AutopanoSiftC,
+            'autopanoaj': AutopanoAJ,
+            'panocp': PanoCP,
+            None: PanoCP
+    }[engine]()

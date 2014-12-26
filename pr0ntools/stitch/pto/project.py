@@ -130,13 +130,15 @@ class PTOProject:
     def __init__(self):
         # File name, if one exists
         self.file_name = None
-        # Raw project text, None is not loaded
-        self.text = None
         # If this is a temporary project, have it delete upon destruction
         self.temp_file = None
         # Could be a mix of temp and non-temp, so don't make any ordering assumptions
         self.temp_image_files = set()
+        # Raw project text, None is not loaded
+        self.text = None
+        self.unparse()
     
+    def unparse(self):
         # 'p' line
         self.panorama_line = None
         # 'm' line
@@ -227,11 +229,19 @@ class PTOProject:
                 return i
         return None
     
-    def add_image(self, image_fn, calc_dim = True):
+    def add_image(self, image_fn, calc_dim=True, def_opt=False):
         self.parse()
         il = ImageLine('i n"%s"' % image_fn, self)
+        # set w/h
         if calc_dim:
             calc_il_dim(il)
+        if def_opt:
+            il.set_variable('f', 0)
+            # default FOV
+            il.set_variable('v', 51)
+            # x/y position not yet calculated
+            il.set_variable('d', 0)
+            il.set_variable('e', 0)
         self.image_lines.append(il)
 
     def get_image_lines(self):
@@ -311,11 +321,11 @@ class PTOProject:
 
     @staticmethod
     def from_text(text):
-        ret = PTOProject()
         if text is None:
-            raise Exception('No text is invalid')
+            raise Exception('Require text')
+        ret = PTOProject()
         ret.text = text
-        #ret.reparse()
+        ret.reparse()
         return ret
 
     @staticmethod
@@ -336,6 +346,13 @@ p f0 v179 n"PSD_mask" E0.0 R0
 m g1.0 i0 f0 m2
 ''')
 
+    @staticmethod
+    def from_default2():
+        return PTOProject.from_text('''
+p f0 v179 n"TIFF_m c:LZW" E0.0 R0
+m g1.0 i0 f0 m2
+''')
+
     def parse(self):
         '''Parse if not already parsed'''
         if not self.parsed:
@@ -350,6 +367,8 @@ m g1.0 i0 f0 m2
             print 'WARNING: pto parsing disabled'
             return
 
+        self.unparse()
+
         self.panorama_line = None
         self.mode_line = None
         self.comment_lines = list()
@@ -360,9 +379,12 @@ m g1.0 i0 f0 m2
         self.misc_lines = list()
         self.optimizer_lines = list()
 
+        if self.text is None:
+            self.text = open(self.file_name).read()
+
         #print self.text
-        dbg('Beginning split on text of len %d' % (len(self.get_text())))
-        for line in self.get_text().split('\n'):
+        dbg('Beginning split on text of len %d' % (len(self.text)))
+        for line in self.text.split('\n'):
             dbg('Processing line: %s' % line)
             # Single * is end of file
             # Any comments / garbage is allowed to follow
@@ -483,7 +505,6 @@ m g1.0 i0 f0 m2
 
     def get_text(self):
         # If parsed then convert the intermediate repr since we may have modified from the saved value
-        print self.parsed
         if self.parsed:
             #print 'get_text: constructed version'
             return self.to_str_core(False)
@@ -610,7 +631,7 @@ m g1.0 i0 f0 m2
     def reopen(self):
         f = open(self.file_name, 'r')
         self.text = f.read()
-        self.parsed = False
+        self.reparse()
 
     def get_file_names(self):
         '''Get image file names'''
