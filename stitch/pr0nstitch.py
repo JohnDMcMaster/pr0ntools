@@ -17,6 +17,7 @@ import os.path
 import signal
 import sys
 import traceback
+import multiprocessing
 from pr0ntools.stitch.wander_stitch import WanderStitch
 from pr0ntools.stitch.all_stitch import AllStitch
 from pr0ntools.stitch.grid_stitch import GridStitch
@@ -57,7 +58,7 @@ if __name__ == "__main__":
     parser.add_argument('--out', default='out.pto', help='Output file name')
     parser_add_bool_arg('--grid-only', default=False, help='')
     parser.add_argument('--algorithm', default='grid', help='')
-    parser.add_argument('--threads', default='1')
+    parser.add_argument('--threads', type=int, default= multiprocessing.cpu_count())
     parser.add_argument('--n-rows', help='')
     parser.add_argument('--n-cols', help='')
     parser_add_bool_arg('--alt-rows', default=False, help='')
@@ -105,7 +106,6 @@ if __name__ == "__main__":
     print 'post arg'
     print 'output project: %s' % output_project_file_name
     
-    args.threads = int(args.threads)
     if args.threads < 1:
         raise Exception('Bad threads')
     
@@ -118,10 +118,10 @@ if __name__ == "__main__":
         if args.n_rows or args.n_cols:
             engine = GridStitch.from_file_names(input_image_file_names, args.flip_col, args.flip_row, args.flip_pre_transpose, args.flip_post_transpose, depth,
                     args.alt_rows, args.alt_cols, args.n_rows, args.n_cols)
-            engine.threads = args.threads
         else:
             engine = GridStitch.from_tagged_file_names(input_image_file_names)
-            engine.threads = args.threads
+        print 'Using %d threads' % args.threads
+        engine.threads = args.threads
         engine.skip_missing = args.skip_missing
         if grid_only:
             print 'Grid only, exiting'
