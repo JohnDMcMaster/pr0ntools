@@ -25,6 +25,9 @@ echo '**********************************'
 echo 'No failures, optimizing'
 pr0npto --optimize out.pto ||exit 1
 
+# fit to screen
+pano_modify --fov=AUTO --canvas=AUTO -o out.pto out.pto
+
 echo
 echo
 echo 'Done!  Open with Hugin to adjust size and rotate'
