@@ -167,6 +167,8 @@ class GridStitch(CommonStitch):
         self.project.save()
 
         while not (all_allocated and pair_complete == pair_submit):
+            # Most efficient to merge things in batches as they complete
+            final_pair_projects = []
             # Check for completed jobs
             for wi, worker in enumerate(self.workers):
                 try:
@@ -181,22 +183,7 @@ class GridStitch(CommonStitch):
                     msg('W%d: done' % wi)
                     # May have failed
                     if final_pair_project:
-                        '''
-                        # Fixup the canonical hack
-                        # do it here instead of later so that a halfway abort yields a usable project
-                        # FIXME: this could be performance hit for large projects
-                        # do just the two file names we actually care about
-                        for can_fn in self.canon2orig:
-                            # FIXME: if we have issues with images missing from the project due to bad stitch
-                            # we should add them (here?) instead of throwing an error
-                            orig = self.canon2orig[can_fn]
-                            il = final_pair_project.get_image_by_fn(can_fn)
-                            if il:
-                                il.set_name(orig)
-                        '''
-                        
-                        # See if we got everything back
-                        self.project.merge_into([final_pair_project])
+                        final_pair_projects.append(final_pair_project)
                         if pair_complete % 10 == 0:
                             print 'Saving intermediate result to %s' % self.project.file_name
                             self.project.save()
@@ -208,6 +195,9 @@ class GridStitch(CommonStitch):
                 else:
                     msg('%s' % (out,))
                     raise Exception('Internal error: bad task type %s' % what)
+            # Merge projects
+            if len(final_pair_projects):
+                self.project.merge_into(final_pair_projects)
             
             # Any workers need more work?
             for wi, worker in enumerate(self.workers):
