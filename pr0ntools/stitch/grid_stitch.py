@@ -197,6 +197,7 @@ class GridStitch(CommonStitch):
                     raise Exception('Internal error: bad task type %s' % what)
             # Merge projects
             if len(final_pair_projects):
+                print 'Merging %d projects' % len(final_pair_projects)
                 self.project.merge_into(final_pair_projects)
             
             # Any workers need more work?
