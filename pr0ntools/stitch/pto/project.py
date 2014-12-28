@@ -444,19 +444,6 @@ m g1.0 i0 f0 m2
     def regen_pto(self):
         self.set_text(self.to_str_core(True))
     
-    # XXX: a lot of this logic was moved out since it was more complicated than anticipated
-    def to_ptoptimizer(self):
-        '''Create a new, unusaved version compatible with PToptimizer'''
-        '''
-        FIXME: this was a hack
-        Really utilities should create a new PToptimizer compatible project
-        and then return the string repr if users want it
-        
-        
-        Illegal token in 'p'-line [83] [S] [S"103,21061,28,16889"]
-        '''
-        return PTOProject.from_text(self.to_str_core(True))
-    
     def regen(self):
         self.regen_pto()
     

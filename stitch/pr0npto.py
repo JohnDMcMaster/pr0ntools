@@ -5,7 +5,7 @@ pr0pto
 Copyright 2012 John McMaster
 '''
 import argparse
-from pr0ntools.stitch.optimizer import PTOptimizer
+from pr0ntools.stitch.optimizer import PTOptimizer, ChaosOptimizer
 from pr0ntools.stitch.linopt import LinOpt
 from pr0ntools.stitch.tile_opt import TileOpt
 from pr0ntools.stitch.pto.project import PTOProject
@@ -17,6 +17,7 @@ if __name__ == "__main__":
 	parser.add_argument('--anchor', action="store_true", dest="anchor", help='Re-anchor in the center')
 	parser.add_argument('--set-optimize-xy', action="store_true", dest="set_optimize_xy", default=False, help='Set project to optimize xy')
 	parser.add_argument('--optimize', action="store_true", dest="optimize", help='Optimize the project and also center by default')
+	parser.add_argument('--chaos-opt', action="store_true", help='Experimental optimization algorithm')
 	parser.add_argument('--tile-opt', action="store_true", help='Optimize project by optimizing sub areas')
 	parser.add_argument('--lin-opt', action="store_true", help='Optimize project using linear predictive optimize algorithm')
 	parser.add_argument('--reoptimize', action="store_true", dest="reoptimize", default=True, help='When optimizing do not remove all existing optimizations')
@@ -95,6 +96,16 @@ if __name__ == "__main__":
 	if args.optimize:
 		print 'Optimizing'
 		opt = PTOptimizer(pto)
+		opt.reoptimize = args.reoptimize
+		opt.run()
+		# Default
+		if not args.center is False:
+			print 'Centering...'
+			center(pto)
+
+	if args.chaos_opt:
+		print 'Optimizing'
+		opt = ChaosOptimizer(pto)
 		opt.reoptimize = args.reoptimize
 		opt.run()
 		# Default

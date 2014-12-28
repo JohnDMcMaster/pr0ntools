@@ -288,7 +288,7 @@ class LinOpt:
         self.verify_images()
         
         # Copy project so we can trash it
-        project = self.project.to_ptoptimizer()
+        project = self.project.copy()
         prepare_pto(project, self.reoptimize)
         
         pre_run_text = project.get_text()

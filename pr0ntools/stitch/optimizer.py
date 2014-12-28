@@ -209,52 +209,6 @@ class PTOptimizer:
                     print 'Image width %d, height %d, view %d' % (i.width(), i.height(), i.fov())
                     raise Exception('Image does not match')
         
-    def center_project(self):
-        self.calc_bounds()
-        xc = (self.xmin + self.xmax) / 2.0
-        yc = (self.ymin + self.ymax) / 2.0
-        for i in self.project.get_images():
-            i.shift(xc, yc)
-        
-    def calc_bounds(self):
-        # TODO: review pto coordinate system to see if this is accurate
-        self.xmin = min([i.left() for i in self.project.get_images()])
-        self.xmax = max([i.right() for i in self.project.get_images()])
-        self.ymin = min([i.top() for i in self.project.get_images()])
-        self.ymax = max([i.bottom() for i in self.project.get_images()])
-        
-    def calc_size(self):
-        self.calc_bounds()
-        self.width = xmax - xmin
-        self.height = ymax - ymin
-        
-    def image_fl(self, img):
-        return image_fl(img)
-        
-    def calc_v(self, fl, width):
-        # Straight off of Hugin wiki (or looking above...)
-        # FoV = 2 * atan(size / (2 * FocalLength))
-        v = 2 * math.atan(width / (2 * fl))
-        if 1:
-            v = round(v)
-            v = min(v, 179)
-            v = max(v, 1)
-        return v
-        
-    def calc_fov(self):
-        '''
-        Calculate the focal distance on a single image
-        and then match the project to it using our net desired width and height
-        '''
-        # Step 1: calculate image focal length
-        # Note that even if we had mixed image parameters they should already been normalized to be on the same focal plane
-        self.fl = self.image_fl(self.project.get_images()[0])
-        
-        # Step 2: now use the focal distance to compute v, the angle (field) of view
-        self.v = self.calc_v(self.fl, self.width)
-        pl = self.project.get_panorama_line()
-        pl.set_fov(self.v)
-        
     def run(self):
         '''
         The base Hugin project seems to work if you take out a few things:
@@ -283,7 +237,7 @@ class PTOptimizer:
         self.verify_images()
         
         # Copy project so we can trash it
-        project = self.project.to_ptoptimizer()
+        project = self.project.copy()
         prepare_pto(project, self.reoptimize)
         
         pre_run_text = project.get_text()
@@ -340,7 +294,7 @@ class PTOptimizer:
             print
             print 'Optimized project:'
             print project
-             #sys.exit(1)
+            #sys.exit(1)
         print 'Optimized project parsed: %d' % project.parsed
 
         print 'Merging project...'
@@ -351,34 +305,112 @@ class PTOptimizer:
         bench.stop()
         print 'Optimized project in %s' % bench
         
-        # These are beyond this scope
-        # Move them somewhere else if we want them
-        if 0:
-            # The following will assume all of the images have the same size
-            self.verify_images()
+
+
+'''
+Assumes images are in a grid to simplify workflow management
+Seed
+    Predicts linear position based on average control point distance
+    starting from center tile
+Iterate
+    Optimizes random xy regions
+    Takes advantage of existing optimizer while reducing problem space to reduce o(n**2) issues
+'''
+class ChaosOptimizer:
+    def __init__(self, project):
+        self.project = project
+        self.debug = False
+        self.reoptimize = True
+    
+    def verify_images(self):
+        first = True
+        for i in self.project.get_image_lines():
+            if first:
+                self.w = i.width()
+                self.h = i.height()
+                self.v = i.fov()
+                first = False
+            else:
+                if self.w != i.width() or self.h != i.height() or self.v != i.fov():
+                    print i.text
+                    print 'Old width %d, height %d, view %d' % (self.w, self.h, self.v)
+                    print 'Image width %d, height %d, view %d' % (i.width(), i.height(), i.fov())
+                    raise Exception('Image does not match')
+    
+    def run(self):
+        bench = Benchmark()
         
-            # Final dimensions are determined by field of view and width
-            # Calculate optimial dimensions
-            self.calc_dimensions()
+        # The following will assume all of the images have the same size
+        self.verify_images()
         
-            print 'Centering project...'
-            self.center_project()
+        # Copy project so we can trash it
+        project = self.project.copy()
         
-            '''
-            WARNING WARNING WARNING
-            The panotools model is too advanced for what I'm doing right now
-            The image correction has its merits but is mostly getting in the way to distort images
         
-            Therefore, I'd like to complete this to understand the intended use but I suspect its not a good idea
-            and I could do my own nona style program much better
-            The only downside is that if / when I start doing lens model corrections I'll have to rethink this a little
         
-            Actually, a lot of these problems go away if I trim to a single tile
-            I can use the same FOV as the source image or something similar
-            '''
-            print 'Calculating optimial field of view to match desired size...'
-            self.calc_fov()
-            
+        
+        prepare_pto(project, self.reoptimize)
+        
+        
+        
+        
+        pre_run_text = project.get_text()
+        
+        # "PToptimizer out.pto"
+        args = ["PToptimizer"]
+        args.append(project.get_a_file_name())
+        #project.save()
+        rc = execute.without_output(args)
+        if rc != 0:
+            fn = '/tmp/pr0nstitch.optimizer_failed.pto'
+            print
+            print
+            print 'Failed rc: %d' % rc
+            print 'Failed project save to %s' % (fn,)
+            try:
+                open(fn, 'w').write(pre_run_text)
+            except:
+                print 'WARNING: failed to write failure'
+            print
+            print
+            raise Exception('failed position optimization')
+        # API assumes that projects don't change under us
+        project.reopen()
+        
+        '''
+        Line looks like this
+        # final rms error 24.0394 units
+        '''
+        rms_error = None
+        for l in project.get_comment_lines():
+            if l.find('final rms error') >= 00:
+                rms_error = float(l.split()[4])
+                break
+        print 'Optimize: RMS error of %f' % rms_error
+        # Filter out gross optimization problems
+        if self.rms_error_threshold and rms_error > self.rms_error_threshold:
+            raise Exception("Max RMS error threshold %f but got %f" % (self.rms_error_threshold, rms_error))
+        
+        if self.debug:
+            print 'Parsed: %s' % str(project.parsed)
+
+        if self.debug:
+            print
+            print
+            print
+            print 'Optimized project:'
+            print project
+            #sys.exit(1)
+        print 'Optimized project parsed: %d' % project.parsed
+
+        print 'Merging project...'
+        merge_pto(project, self.project)
+        if self.debug:
+            print self.project
+        
+        bench.stop()
+        print 'Optimized project in %s' % bench
+        
 
 def usage():
     print 'optimizer <file in> [file out]'

@@ -809,7 +809,7 @@ class TileOpt:
         self.verify_images()
         
         # Copy project so we can trash it
-        self.opt_project = self.project.to_ptoptimizer()
+        self.opt_project = self.project.copy()
         self.prepare_pto(self.opt_project)
 
         print 'Building image coordinate map'

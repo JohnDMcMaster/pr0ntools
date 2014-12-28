@@ -17,7 +17,7 @@ class OptimizeTest(unittest.TestCase):
     
     def test_optimize_conversion(self):
 		project = PTOProject.parse_from_file_name('in.pto')
-		pt = project.to_ptoptimizer()
+		pt = project.copy()
 		#self.assertTrue(pt.text)
 		
     def test_optimize(self):
