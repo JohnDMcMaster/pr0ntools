@@ -57,7 +57,11 @@ class ManagedTempFile:
 		return self.file_name
 	
 	@staticmethod
-	def get(prefix = None, suffix = None):
+	def get(prefix=None, suffix=None, prefix_mangle=None):
+		if prefix_mangle:
+			if prefix is not None:
+				raise Exception("Can't specify prefix and prefix_mangle")
+			prefix = g_default_prefix + prefix_mangle
 		return ManagedTempFile(TempFile.get(prefix, suffix))
 
 	@staticmethod

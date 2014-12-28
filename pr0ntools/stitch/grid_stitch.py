@@ -191,7 +191,8 @@ class GridStitch(CommonStitch):
 
                 elif what == 'exception':
                     #(_task, e) = out[1]
-                    msg('WARNING: W%d failed w/ exception' % wi)
+                    msg('ERROR: W%d failed w/ exception' % wi)
+                    raise Exception('Shutdown on worker failure')
                 else:
                     msg('%s' % (out,))
                     raise Exception('Internal error: bad task type %s' % what)

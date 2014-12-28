@@ -379,6 +379,9 @@ def pto_unsub(src_prj, sub_image_files, deltas, sub_to_real):
         print '  %d: %s vs %s' % (i, sub_image_files[i].file_name, src_il.get_name())
     
     # Copy/shift control points
+    # Should have been filtered out earlier
+    if len(src_prj.get_control_point_lines()) == 0:
+        raise Exception('No source control point lines')
     for src_cpl in src_prj.get_control_point_lines():
         # copy it
         dst_cpl = ControlPointLine(str(src_cpl), ret)
@@ -525,6 +528,12 @@ class PanoCP:
         
         project.set_file_name(None)
         fn_obj = None
+
+        # Will happen if failed to match
+        # be optimistic: cpclean work will be wasted but avoids parsing project twice
+        if len(project.get_control_point_lines()) == 0:
+            print 'WARNING: failed'
+            return None
         return project
 
 def get_cp_engine(engine=None):

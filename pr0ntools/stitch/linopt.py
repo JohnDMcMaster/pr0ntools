@@ -345,7 +345,7 @@ class LinOpt:
             print
             print 'Optimized project:'
             print project
-             #sys.exit(1)
+            #sys.exit(1)
         print 'Optimized project parsed: %d' % project.parsed
 
         print 'Merging project...'
