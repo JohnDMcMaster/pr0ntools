@@ -349,17 +349,27 @@ class ChaosOptimizer:
         
         Assumptions:
         -All images must be tied together by at least one control point
+        
+        NOTE:
+        If we produce a bad mapping ptooptimizer may throw away our hint
         '''
         # reference position
         #xc = self.icm.width() / 2
         #yc = self.icm.height() / 2
         project.build_image_fn_map()
         
+        debugging = 0
+        #debugging = 1
+        def printd(s):
+            if debugging:
+                print s
+        
         # dictionary of results so that we can play around with post-processing result
         pairsx = {}
         pairsy = {}
         # start with simple algorithm where we just sweep left/right
         for y in xrange(0, self.icm.height()):
+            print 'Calc delta with Y %d / %d' % (y + 1, self.icm.height())
             for x in xrange(0, self.icm.width()):
                 il = project.img_fn2il[self.icm.get_image(x, y)]
                 ili = il.get_index()
@@ -379,11 +389,11 @@ class ChaosOptimizer:
                             # note: these are relative coordinates to each image
                             # and strictly speaking can't be directly compared
                             # however, because the images are the same size the width/height can be ignored
-                            cps_x.append(cpl.getv('X') - cpl.getv('x'))
-                            cps_y.append(cpl.getv('Y') - cpl.getv('y'))
-                        elif cpl.getv('n') == ili and cpl.getv('N') == xl_ili:
                             cps_x.append(cpl.getv('x') - cpl.getv('X'))
                             cps_y.append(cpl.getv('y') - cpl.getv('Y'))
+                        elif cpl.getv('n') == ili and cpl.getv('N') == xl_ili:
+                            cps_x.append(cpl.getv('X') - cpl.getv('x'))
+                            cps_y.append(cpl.getv('Y') - cpl.getv('y'))
                     
                     # Possible that no control points due to failed stitch
                     # or due to edge case
@@ -396,10 +406,33 @@ class ChaosOptimizer:
                     pairsx[(x, y)] = check(project.img_fn2il[self.icm.get_image(x - 1, y)])
                 if y > 0:
                     pairsy[(x, y)] = check(project.img_fn2il[self.icm.get_image(x, y - 1)])
-                
+        
+        if debugging:
+            print 'Delta map'
+            for y in xrange(0, self.icm.height()):
+                for x in xrange(0, self.icm.width()):
+                    print '  %03dX, %03dY' % (x, y)
+                    
+                    p = pairsx.get((x, y), None)
+                    if p is None:
+                        print '    X: none'
+                    else:
+                        print '    X: %0.3fx, %0.3fy' % (p[0], p[1])
+
+                    p = pairsy.get((x, y), None)
+                    if p is None:
+                        print '    Y: none'
+                    else:
+                        print '    Y: %0.3fx, %0.3fy' % (p[0], p[1])
+        
         # repair holes by successive passes
         # contains x,y points that have been finalized
         closed_set = {(0, 0): (0.0, 0.0)}
+        
+        il = project.img_fn2il[self.icm.get_image(0, 0)]
+        il.set_x(0.0)
+        il.set_y(0.0)
+        
         iters = 0
         while True:
             iters += 1
@@ -448,6 +481,11 @@ class ChaosOptimizer:
                     # Nothing useful?
                     if len(points) == 0:
                         continue
+
+                    if debugging:
+                        print '  %03dX, %03dY: setting' % (x, y)
+                        for p in points:
+                            print '    ', p
                     
                     # use all available anchor points from above
                     il = project.img_fn2il[self.icm.get_image(x, y)]
@@ -473,9 +511,9 @@ class ChaosOptimizer:
             for x in xrange(self.icm.width()):
                 p = closed_set.get((x, y))
                 if p is None:
-                    print '  %03dX, %03dY: none' % (x, y)
+                    print '  % 3dX, % 3dY: none' % (x, y)
                 else:
-                    print '  %03dX, %03dY: %0.3fx, %0.3fy' % (x, y, p[0], p[1])
+                    print '  % 3dX, % 3dY: %6.1fx, %6.1fy' % (x, y, p[0], p[1])
 
     def run(self):
         bench = Benchmark()
@@ -490,7 +528,13 @@ class ChaosOptimizer:
             fns.append(il.get_name())
         self.icm = ImageCoordinateMap.from_tagged_file_names(fns)
 
+        if 1:
+            print 'DEBUG: short circuit...'
+            self.pre_opt(self.project)
+            return
+
         self.pre_opt(project)
+        
         
         prepare_pto(project, reoptimize=False)
         
@@ -500,7 +544,7 @@ class ChaosOptimizer:
         args = ["PToptimizer"]
         args.append(project.get_a_file_name())
         print 'Optimizing %s' % project.get_a_file_name()
-        raise Exception()
+        #raise Exception()
         #self.project.save()
         rc = execute.without_output(args)
         if rc != 0:

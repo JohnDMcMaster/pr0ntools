@@ -14,6 +14,7 @@ from pr0ntools.stitch.pto.util import *
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description='Manipulate .pto files')
 	parser.add_argument('--center', action="store_true", dest="center", default=None, help='Center the project')
+	parser.add_argument('--no-center', action="store_false", dest="center", default=None, help='Center the project')
 	parser.add_argument('--anchor', action="store_true", dest="anchor", help='Re-anchor in the center')
 	parser.add_argument('--set-optimize-xy', action="store_true", dest="set_optimize_xy", default=False, help='Set project to optimize xy')
 	parser.add_argument('--optimize', action="store_true", dest="optimize", help='Optimize the project and also center by default')
@@ -99,7 +100,7 @@ if __name__ == "__main__":
 		opt.reoptimize = args.reoptimize
 		opt.run()
 		# Default
-		if not args.center is False:
+		if args.center != False:
 			print 'Centering...'
 			center(pto)
 
@@ -109,7 +110,7 @@ if __name__ == "__main__":
 		opt.reoptimize = args.reoptimize
 		opt.run()
 		# Default
-		if not args.center is False:
+		if args.center != False:
 			print 'Centering...'
 			center(pto)
 
@@ -120,7 +121,7 @@ if __name__ == "__main__":
 		opt.reoptimize = args.reoptimize
 		opt.run()
 		# Default
-		if not args.center is False:
+		if args.center != False:
 			print 'Centering...'
 			center(pto)
 
@@ -131,7 +132,7 @@ if __name__ == "__main__":
 		opt.reoptimize = args.reoptimize
 		opt.run()
 		# Default
-		if not args.center is False:
+		if args.center != False:
 			print 'Centering...'
 			center(pto)
 
