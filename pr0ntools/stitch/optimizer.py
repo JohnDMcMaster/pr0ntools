@@ -325,7 +325,7 @@ def pre_opt(project, icm):
     project.build_image_fn_map()
     
     debugging = 0
-    debugging = 1
+    #debugging = 1
     def printd(s):
         if debugging:
             print s
