@@ -13,6 +13,7 @@ from pr0ntools.stitch.pto.project import PTOProject
 from pr0ntools.stitch.pto.util import *
 from pr0ntools.stitch.remapper import Remapper
 from pr0ntools.temp_file import ManagedTempFile
+from pr0ntools.benchmark import Benchmark
 import sys
 import json
 import traceback
@@ -133,6 +134,8 @@ class CommonStitch:
         if self.dry:
             print 'Dry run abort'
             return
+
+        bench = Benchmark()
     
         if not self.output_project_file_name:
             raise Exception("need project file")
@@ -171,8 +174,6 @@ class CommonStitch:
             optimize_xy_only(self.project)
             fixup_i_lines(self.project)
             fixup_p_lines(self.project)
-            if 0:
-                center_anchor(self.project)
             
             
             print
@@ -203,6 +204,10 @@ class CommonStitch:
             except:
                 print 'WARNING: failed intermediate save'
             raise e
+        finally:
+            bench.stop()
+            print 'Stitch done in %s' % bench
+            
 
     def control_points_by_subimage(self, pair, image_fn_pair, subimage_factor = None):
         '''Stitch two images together by cropping to restrict overlap'''

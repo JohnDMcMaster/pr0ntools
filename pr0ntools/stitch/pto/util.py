@@ -20,12 +20,12 @@ def calc_center(pto):
     xbar = 0.0
     ybar = 0.0
     n = len(pto.get_image_lines())
-    for i in pto.get_image_lines():
-        x = i.x()
-        y = i.y()
+    for il in pto.get_image_lines():
+        x = il.x()
+        y = il.y()
         # first check that we have coordinates for all of the images
         if x is None or y is None:
-            raise Exception('Require positions to center panorama, missing on %s', pto.get_image())
+            raise Exception('Require positions to center panorama, missing on %s', il.get_name())
         xbar += x
         ybar += y
     xbar /= n

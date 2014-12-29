@@ -307,6 +307,205 @@ class PTOptimizer:
         
 
 
+def pre_opt(project, icm):
+    '''
+    Generates row/col to use for initial image placement
+    spiral pattern outward from center
+    
+    Assumptions:
+    -All images must be tied together by at least one control point
+    
+    NOTE:
+    If we produce a bad mapping ptooptimizer may throw away our hint
+    '''
+    # reference position
+    #xc = icm.width() / 2
+    #yc = icm.height() / 2
+    project.build_image_fn_map()
+    
+    debugging = 0
+    debugging = 1
+    def printd(s):
+        if debugging:
+            print s
+    
+    # NOTE: algorithm will still run with missing control points to best of its ability
+    # however, its expected that user will only run it on copmlete data sets
+    if debugging:
+        fail = False
+        counts = {}
+        for cpl in project.get_control_point_lines():
+            n = cpl.getv('n')
+            counts[n] = counts.get(n, 0) + 1
+            N = cpl.getv('N')
+            counts[N] = counts.get(N, 0) + 1
+        print 'Control point counts:'
+        for y in xrange(0, icm.height()):
+            for x in xrange(0, icm.width()):
+                il = project.img_fn2il[icm.get_image(x, y)]
+                ili = il.get_index()
+                count = counts.get(ili, 0)
+                print '  %03dX, %03dY: %d' % (x, y, count)
+                if count == 0:
+                    print '    ERROR: no control points'
+                    fail = True
+        if fail:
+            raise Exception('One or more images do not have control points')
+
+    # dictionary of results so that we can play around with post-processing result
+    pairsx = {}
+    pairsy = {}
+    # start with simple algorithm where we just sweep left/right
+    for y in xrange(0, icm.height()):
+        print 'Calc delta with Y %d / %d' % (y + 1, icm.height())
+        for x in xrange(0, icm.width()):
+            il = project.img_fn2il[icm.get_image(x, y)]
+            ili = il.get_index()
+            '''
+            Calculate average x/y position
+            '''
+            def check(xl_il):
+                # lesser line
+                xl_ili = xl_il.get_index()
+                # Find matching control points
+                cps_x = []
+                cps_y = []
+                for cpl in project.get_control_point_lines():
+                    # applicable?
+                    if cpl.getv('n') == xl_ili and cpl.getv('N') == ili:
+                        # compute distance
+                        # note: these are relative coordinates to each image
+                        # and strictly speaking can't be directly compared
+                        # however, because the images are the same size the width/height can be ignored
+                        cps_x.append(cpl.getv('x') - cpl.getv('X'))
+                        cps_y.append(cpl.getv('y') - cpl.getv('Y'))
+                    elif cpl.getv('n') == ili and cpl.getv('N') == xl_ili:
+                        cps_x.append(cpl.getv('X') - cpl.getv('x'))
+                        cps_y.append(cpl.getv('Y') - cpl.getv('y'))
+                
+                # Possible that no control points due to failed stitch
+                # or due to edge case
+                if len(cps_x) == 0:
+                    return None
+                else:
+                    return (    1.0 * sum(cps_x)/len(cps_x), 
+                                1.0 * sum(cps_y)/len(cps_y))
+            if x > 0:
+                pairsx[(x, y)] = check(project.img_fn2il[icm.get_image(x - 1, y)])
+            if y > 0:
+                pairsy[(x, y)] = check(project.img_fn2il[icm.get_image(x, y - 1)])
+    
+    if debugging:
+        print 'Delta map'
+        for y in xrange(0, icm.height()):
+            for x in xrange(0, icm.width()):
+                print '  %03dX, %03dY' % (x, y)
+                
+                p = pairsx.get((x, y), None)
+                if p is None:
+                    print '    X: none'
+                else:
+                    print '    X: %0.3fx, %0.3fy' % (p[0], p[1])
+
+                p = pairsy.get((x, y), None)
+                if p is None:
+                    print '    Y: none'
+                else:
+                    print '    Y: %0.3fx, %0.3fy' % (p[0], p[1])
+    
+    # repair holes by successive passes
+    # contains x,y points that have been finalized
+    closed_set = {(0, 0): (0.0, 0.0)}
+    
+    il = project.img_fn2il[icm.get_image(0, 0)]
+    il.set_x(0.0)
+    il.set_y(0.0)
+    
+    iters = 0
+    while True:
+        iters += 1
+        print 'Iters %d' % iters
+        fixes = 0
+        # no status prints here, this loop is very quick
+        for y in xrange(icm.height()):
+            for x in xrange(icm.width()):
+                if (x, y) in closed_set:
+                    continue
+                # see what we can gather from
+                # list of [xcalc, ycalc]
+                points = []
+                
+                # X
+                # left
+                # do we have a fixed point to the left?
+                o = closed_set.get((x - 1, y), None)
+                if o:
+                    d = pairsx[(x, y)]
+                    # and a delta to get to it?
+                    if d:
+                        dx, dy = d
+                        points.append((o[0] - dx, o[1] - dy))
+                # right
+                o = closed_set.get((x + 1, y), None)
+                if o:
+                    d = pairsx[(x + 1, y)]
+                    if d:
+                        dx, dy = d
+                        points.append((o[0] + dx, o[1] + dy))
+                
+                # Y
+                o = closed_set.get((x, y - 1), None)
+                if o:
+                    d = pairsy[(x, y)]
+                    if d:
+                        dx, dy = d
+                        points.append((o[0] - dx, o[1] - dy))
+                o = closed_set.get((x, y + 1), None)
+                if o:
+                    d = pairsy[(x, y + 1)]
+                    if d:
+                        d = dx, dy
+                        points.append((o[0] + dx, o[1] + dy))
+                
+                # Nothing useful?
+                if len(points) == 0:
+                    continue
+
+                if debugging:
+                    print '  %03dX, %03dY: setting' % (x, y)
+                    for p in points:
+                        print '    ', p
+                
+                # use all available anchor points from above
+                il = project.img_fn2il[icm.get_image(x, y)]
+                
+                # take average of up to 4 
+                points_x = [p[0] for p in points]
+                xpos = 1.0 * sum(points_x) / len(points_x)
+                il.set_x(xpos)
+                
+                points_y = [p[1] for p in points]
+                ypos = 1.0 * sum(points_y) / len(points_y)
+                il.set_y(ypos)
+                
+                closed_set[(x, y)] = (xpos, ypos)
+                fixes += 1
+        print 'Iter fixes: %d' % fixes
+        if fixes == 0:
+            print 'Break on stable output'
+            print '%d iters' % iters
+            break
+    if debugging:
+        print 'Final position optimization:'
+        for y in xrange(icm.height()):
+            for x in xrange(icm.width()):
+                p = closed_set.get((x, y))
+                if p is None:
+                    print '  % 3dX, % 3dY: none' % (x, y)
+                else:
+                    print '  % 3dX, % 3dY: %6.1fx, %6.1fy' % (x, y, p[0], p[1])
+
+
 '''
 Assumes images are in a grid to simplify workflow management
 Seed
@@ -342,179 +541,6 @@ class ChaosOptimizer:
                     print 'Image width %d, height %d, view %d' % (i.width(), i.height(), i.fov())
                     raise Exception('Image does not match')
     
-    def pre_opt(self, project):
-        '''
-        Generates row/col to use for initial image placement
-        spiral pattern outward from center
-        
-        Assumptions:
-        -All images must be tied together by at least one control point
-        
-        NOTE:
-        If we produce a bad mapping ptooptimizer may throw away our hint
-        '''
-        # reference position
-        #xc = self.icm.width() / 2
-        #yc = self.icm.height() / 2
-        project.build_image_fn_map()
-        
-        debugging = 0
-        #debugging = 1
-        def printd(s):
-            if debugging:
-                print s
-        
-        # dictionary of results so that we can play around with post-processing result
-        pairsx = {}
-        pairsy = {}
-        # start with simple algorithm where we just sweep left/right
-        for y in xrange(0, self.icm.height()):
-            print 'Calc delta with Y %d / %d' % (y + 1, self.icm.height())
-            for x in xrange(0, self.icm.width()):
-                il = project.img_fn2il[self.icm.get_image(x, y)]
-                ili = il.get_index()
-                '''
-                Calculate average x/y position
-                '''
-                def check(xl_il):
-                    # lesser line
-                    xl_ili = xl_il.get_index()
-                    # Find matching control points
-                    cps_x = []
-                    cps_y = []
-                    for cpl in project.get_control_point_lines():
-                        # applicable?
-                        if cpl.getv('n') == xl_ili and cpl.getv('N') == ili:
-                            # compute distance
-                            # note: these are relative coordinates to each image
-                            # and strictly speaking can't be directly compared
-                            # however, because the images are the same size the width/height can be ignored
-                            cps_x.append(cpl.getv('x') - cpl.getv('X'))
-                            cps_y.append(cpl.getv('y') - cpl.getv('Y'))
-                        elif cpl.getv('n') == ili and cpl.getv('N') == xl_ili:
-                            cps_x.append(cpl.getv('X') - cpl.getv('x'))
-                            cps_y.append(cpl.getv('Y') - cpl.getv('y'))
-                    
-                    # Possible that no control points due to failed stitch
-                    # or due to edge case
-                    if len(cps_x) == 0:
-                        return None
-                    else:
-                        return (    1.0 * sum(cps_x)/len(cps_x), 
-                                    1.0 * sum(cps_y)/len(cps_y))
-                if x > 0:
-                    pairsx[(x, y)] = check(project.img_fn2il[self.icm.get_image(x - 1, y)])
-                if y > 0:
-                    pairsy[(x, y)] = check(project.img_fn2il[self.icm.get_image(x, y - 1)])
-        
-        if debugging:
-            print 'Delta map'
-            for y in xrange(0, self.icm.height()):
-                for x in xrange(0, self.icm.width()):
-                    print '  %03dX, %03dY' % (x, y)
-                    
-                    p = pairsx.get((x, y), None)
-                    if p is None:
-                        print '    X: none'
-                    else:
-                        print '    X: %0.3fx, %0.3fy' % (p[0], p[1])
-
-                    p = pairsy.get((x, y), None)
-                    if p is None:
-                        print '    Y: none'
-                    else:
-                        print '    Y: %0.3fx, %0.3fy' % (p[0], p[1])
-        
-        # repair holes by successive passes
-        # contains x,y points that have been finalized
-        closed_set = {(0, 0): (0.0, 0.0)}
-        
-        il = project.img_fn2il[self.icm.get_image(0, 0)]
-        il.set_x(0.0)
-        il.set_y(0.0)
-        
-        iters = 0
-        while True:
-            iters += 1
-            print 'Iters %d' % iters
-            fixes = 0
-            for y in xrange(self.icm.height()):
-                for x in xrange(self.icm.width()):
-                    if (x, y) in closed_set:
-                        continue
-                    # see what we can gather from
-                    # list of [xcalc, ycalc]
-                    points = []
-                    
-                    # X
-                    # left
-                    # do we have a fixed point to the left?
-                    o = closed_set.get((x - 1, y), None)
-                    if o:
-                        d = pairsx[(x, y)]
-                        # and a delta to get to it?
-                        if d:
-                            dx, dy = d
-                            points.append((o[0] - dx, o[1] - dy))
-                    # right
-                    o = closed_set.get((x + 1, y), None)
-                    if o:
-                        d = pairsx[(x + 1, y)]
-                        if d:
-                            dx, dy = d
-                            points.append((o[0] + dx, o[1] + dy))
-                    
-                    # Y
-                    o = closed_set.get((x, y - 1), None)
-                    if o:
-                        d = pairsy[(x, y)]
-                        if d:
-                            dx, dy = d
-                            points.append((o[0] - dx, o[1] - dy))
-                    o = closed_set.get((x, y + 1), None)
-                    if o:
-                        d = pairsy[(x, y + 1)]
-                        if d:
-                            d = dx, dy
-                            points.append((o[0] + dx, o[1] + dy))
-                    
-                    # Nothing useful?
-                    if len(points) == 0:
-                        continue
-
-                    if debugging:
-                        print '  %03dX, %03dY: setting' % (x, y)
-                        for p in points:
-                            print '    ', p
-                    
-                    # use all available anchor points from above
-                    il = project.img_fn2il[self.icm.get_image(x, y)]
-                    
-                    # take average of up to 4 
-                    points_x = [p[0] for p in points]
-                    xpos = 1.0 * sum(points_x) / len(points_x)
-                    il.set_x(xpos)
-                    
-                    points_y = [p[1] for p in points]
-                    ypos = 1.0 * sum(points_y) / len(points_y)
-                    il.set_y(ypos)
-                    
-                    closed_set[(x, y)] = (xpos, ypos)
-                    fixes += 1
-            print 'Iter fixes: %d' % fixes
-            if fixes == 0:
-                print 'Break on stable output'
-                print '%d iters' % iters
-                break
-        print 'Final position optimization:'
-        for y in xrange(self.icm.height()):
-            for x in xrange(self.icm.width()):
-                p = closed_set.get((x, y))
-                if p is None:
-                    print '  % 3dX, % 3dY: none' % (x, y)
-                else:
-                    print '  % 3dX, % 3dY: %6.1fx, %6.1fy' % (x, y, p[0], p[1])
-
     def run(self):
         bench = Benchmark()
         
@@ -530,10 +556,12 @@ class ChaosOptimizer:
 
         if 1:
             print 'DEBUG: short circuit...'
-            self.pre_opt(self.project)
+            print 'working direclty on %s' % self.project.get_a_file_name()
+            pre_opt(self.project, self.icm)
+            self.project.save()
             return
 
-        self.pre_opt(project)
+        pre_opt(project, self.icm)
         
         
         prepare_pto(project, reoptimize=False)
@@ -596,7 +624,47 @@ class ChaosOptimizer:
         
         bench.stop()
         print 'Optimized project in %s' % bench
+
+class PreOptimizer:
+    def __init__(self, project):
+        self.project = project
+        self.debug = False
+        self.icm = None
+    
+    def verify_images(self):
+        first = True
+        for i in self.project.get_image_lines():
+            if first:
+                self.w = i.width()
+                self.h = i.height()
+                self.v = i.fov()
+                first = False
+            else:
+                if self.w != i.width() or self.h != i.height() or self.v != i.fov():
+                    print i.text
+                    print 'Old width %d, height %d, view %d' % (self.w, self.h, self.v)
+                    print 'Image width %d, height %d, view %d' % (i.width(), i.height(), i.fov())
+                    raise Exception('Image does not match')
+    
+    def run(self):
+        bench = Benchmark()
         
+        # The following will assume all of the images have the same size
+        self.verify_images()
+        
+        fns = []
+        # Copy project so we can trash it
+        project = self.project.copy()
+        for il in project.get_image_lines():
+            fns.append(il.get_name())
+        self.icm = ImageCoordinateMap.from_tagged_file_names(fns)
+
+        print 'DEBUG: short circuit...'
+        print 'working direclty on %s' % self.project.get_a_file_name()
+        pre_opt(self.project, self.icm)
+        
+        bench.stop()
+        print 'Optimized project in %s' % bench
 
 def usage():
     print 'optimizer <file in> [file out]'

@@ -619,7 +619,9 @@ m g1.0 i0 f0 m2
         self.save_as(self.file_name)
 
     def save_as(self, file_name, is_new_filename = False):
-        open(file_name, 'w').write(self.get_text())
+        with open(file_name + '.tmp', 'w') as f:
+            f.write(self.get_text())
+        shutil.move(file_name + '.tmp', file_name)
         if is_new_filename:
             self.file_name = file_name
 
