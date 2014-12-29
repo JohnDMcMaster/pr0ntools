@@ -5,7 +5,7 @@ pr0pto
 Copyright 2012 John McMaster
 '''
 import argparse
-from pr0ntools.stitch.optimizer import PTOptimizer, ChaosOptimizer, PreOptimizer
+from pr0ntools.stitch.optimizer import PTOptimizer, ChaosOptimizer, PreOptimizer, PreOptimizerPT
 from pr0ntools.stitch.linopt import LinOpt
 from pr0ntools.stitch.tile_opt import TileOpt
 from pr0ntools.stitch.pto.project import PTOProject
@@ -20,6 +20,7 @@ if __name__ == "__main__":
 	parser.add_argument('--optimize', action="store_true", dest="optimize", help='Optimize the project and also center by default')
 	parser.add_argument('--chaos-opt', action="store_true", help='Experimental optimization algorithm')
 	parser.add_argument('--pre-opt', action="store_true", help='Experimental optimization algorithm')
+	parser.add_argument('--pre-opt-pt', action="store_true", help='Experimental optimization algorithm')
 	parser.add_argument('--tile-opt', action="store_true", help='Optimize project by optimizing sub areas')
 	parser.add_argument('--lin-opt', action="store_true", help='Optimize project using linear predictive optimize algorithm')
 	parser.add_argument('--reoptimize', action="store_true", dest="reoptimize", default=True, help='When optimizing do not remove all existing optimizations')
@@ -110,6 +111,15 @@ if __name__ == "__main__":
 	if args.pre_opt:
 		print 'Optimizing'
 		opt = PreOptimizer(pto)
+		opt.run()
+		# Default
+		if args.center != False:
+			print 'Centering...'
+			center(pto)
+
+	if args.pre_opt_pt:
+		print 'Optimizing'
+		opt = PreOptimizerPT(pto)
 		opt.run()
 		# Default
 		if args.center != False:

@@ -105,11 +105,6 @@ def prepare_pto(pto, reoptimize = True):
         if v == None or v >= 180:
             il.set_variable('v', 51)
         
-        # These aren't liked: TrX0 TrY0 TrZ0
-        il.remove_variable('TrX')
-        il.remove_variable('TrY')
-        il.remove_variable('TrZ')
-
         # panotools seems to set these to -1 on some ocassions
         if il.get_variable('w') == None or il.get_variable('h') == None or int(il.get_variable('w')) <= 0 or int(il.get_variable('h')) <= 0:
             img = PImage.from_file(il.get_name())
@@ -120,6 +115,12 @@ def prepare_pto(pto, reoptimize = True):
             if il.get_variable(v) == None or reoptimize:
                 il.set_variable(v, 0)
                 #print 'setting var'
+        
+        nv = {}
+        for k, v in il.variables.iteritems():
+            if k in ['w', 'h', 'f', 'Va', 'Vb', 'Vc', 'Vd', 'Vx', 'Vy', 'd', 'e', 'g', 't', 'v', 'Vm', 'n']:
+                nv[k] = v
+        il.variables = nv
     
     fix_pl(pto.get_panorama_line())
     
@@ -554,15 +555,7 @@ class ChaosOptimizer:
             fns.append(il.get_name())
         self.icm = ImageCoordinateMap.from_tagged_file_names(fns)
 
-        if 1:
-            print 'DEBUG: short circuit...'
-            print 'working direclty on %s' % self.project.get_a_file_name()
-            pre_opt(self.project, self.icm)
-            self.project.save()
-            return
-
         pre_opt(project, self.icm)
-        
         
         prepare_pto(project, reoptimize=False)
         
@@ -665,6 +658,76 @@ class PreOptimizer:
         
         bench.stop()
         print 'Optimized project in %s' % bench
+
+class PreOptimizerPT:
+    def __init__(self, project):
+        self.project = project
+        self.debug = False
+        self.icm = None
+        self.rms_error_threshold = 250.0
+    
+    def verify_images(self):
+        first = True
+        for i in self.project.get_image_lines():
+            if first:
+                self.w = i.width()
+                self.h = i.height()
+                self.v = i.fov()
+                first = False
+            else:
+                if self.w != i.width() or self.h != i.height() or self.v != i.fov():
+                    print i.text
+                    print 'Old width %d, height %d, view %d' % (self.w, self.h, self.v)
+                    print 'Image width %d, height %d, view %d' % (i.width(), i.height(), i.fov())
+                    raise Exception('Image does not match')
+    
+    def run(self):
+        bench = Benchmark()
+        
+        # The following will assume all of the images have the same size
+        self.verify_images()
+        
+        fns = []
+        # Copy project so we can trash it
+        project = self.project.copy()
+        for il in project.get_image_lines():
+            fns.append(il.get_name())
+        self.icm = ImageCoordinateMap.from_tagged_file_names(fns)
+
+        pre_opt(project, self.icm)
+        prepare_pto(project, reoptimize=False)
+        
+        # "PToptimizer out.pto"
+        args = ["PToptimizer"]
+        args.append(project.get_a_file_name())
+        print 'Optimizing %s' % project.get_a_file_name()
+        #raise Exception()
+        #self.project.save()
+        rc = execute.without_output(args)
+        if rc != 0:
+            raise Exception('failed position optimization')
+        # API assumes that projects don't change under us
+        project.reopen()
+        
+        # final rms error 24.0394 units
+        rms_error = None
+        for l in project.get_comment_lines():
+            if l.find('final rms error') >= 00:
+                rms_error = float(l.split()[4])
+                break
+        print 'Optimize: RMS error of %f' % rms_error
+        # Filter out gross optimization problems
+        if self.rms_error_threshold and rms_error > self.rms_error_threshold:
+            raise Exception("Max RMS error threshold %f but got %f" % (self.rms_error_threshold, rms_error))
+        
+        print 'Merging project...'
+        merge_pto(project, self.project)
+        if self.debug:
+            print self.project
+        
+        bench.stop()
+        print 'Optimized project in %s' % bench
+
 
 def usage():
     print 'optimizer <file in> [file out]'
