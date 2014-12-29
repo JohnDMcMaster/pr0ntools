@@ -89,29 +89,6 @@ class GridStitch(CommonStitch):
         self.workers = []
         
     @staticmethod
-    def from_file_names(image_file_names, flip_col = False, flip_row = False, flip_pre_transpose = False, flip_post_transpose = False, depth = 1,
-            alt_rows = False, alt_cols = False, rows = None, cols = None):
-        engine = GridStitch()
-        engine.image_file_names = image_file_names
-        dbg('Orig file names: %s' % str(image_file_names))
-        
-        '''
-        Certain program take file names relative to the project file, others to working dir
-        Since I like making temp files in /tmp so as not to clutter up working dir, this doesn't work well
-        Only way to get stable operation is to make all file paths canonical
-        '''
-        file_names_canonical = list()
-        for file_name in image_file_names:
-            new_fn = os.path.realpath(file_name)
-            engine.canon2orig[new_fn] = file_name
-            file_names_canonical.append(new_fn)
-        
-        engine.coordinate_map = ImageCoordinateMap.from_file_names(file_names_canonical,
-                flip_col, flip_row, flip_pre_transpose, flip_post_transpose, depth,
-                alt_rows, alt_cols, rows, cols)
-        return engine
-    
-    @staticmethod
     def from_tagged_file_names(image_file_names):
         engine = GridStitch()
         engine.image_file_names = image_file_names

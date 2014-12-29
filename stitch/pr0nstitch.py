@@ -59,14 +59,6 @@ if __name__ == "__main__":
     parser_add_bool_arg('--grid-only', default=False, help='')
     parser.add_argument('--algorithm', default='grid', help='')
     parser.add_argument('--threads', type=int, default= multiprocessing.cpu_count())
-    parser.add_argument('--n-rows', help='')
-    parser.add_argument('--n-cols', help='')
-    parser_add_bool_arg('--alt-rows', default=False, help='')
-    parser_add_bool_arg('--alt-cols', default=False, help='')
-    parser_add_bool_arg('--flip-row', default=False, help='')
-    parser_add_bool_arg('--flip-col', default=False, help='')
-    parser_add_bool_arg('--flip-pre-transpose', default=False, help='')
-    parser_add_bool_arg('--flip-post-transpose', default=False, help='')
     parser_add_bool_arg('--overwrite', default=False, help='')
     parser_add_bool_arg('--regular', default=True, help='')
     parser.add_argument('--x-overlap', help='')
@@ -110,16 +102,8 @@ if __name__ == "__main__":
         raise Exception('Bad threads')
     
     if args.algorithm == "grid":
-        '''
-        Probably most intuitive is to have (0, 0) at lower left 
-        like its presented in many linear algebra works and XY graph
-        ...but image stuff tends to to upper left, so thats what things use
-        '''
-        if args.n_rows or args.n_cols:
-            engine = GridStitch.from_file_names(input_image_file_names, args.flip_col, args.flip_row, args.flip_pre_transpose, args.flip_post_transpose, depth,
-                    args.alt_rows, args.alt_cols, args.n_rows, args.n_cols)
-        else:
-            engine = GridStitch.from_tagged_file_names(input_image_file_names)
+        engine = GridStitch.from_tagged_file_names(input_image_file_names)
+        
         print 'Using %d threads' % args.threads
         engine.threads = args.threads
         engine.skip_missing = args.skip_missing

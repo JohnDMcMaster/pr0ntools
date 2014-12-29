@@ -72,6 +72,8 @@ class Line:
 	
 	# this doesn't distingiush between a key only and not present
 	def get_variable(self, k):
+		return self.getv(k)
+	def getv(self, k):
 		if not k in self.variables:
 			return None
 		ret = self.variables[k]
@@ -80,6 +82,8 @@ class Line:
 		return ret 
 	
 	def set_variable(self, k, v = None):
+		self.setv(k, v)
+	def setv(self, k, v = None):
 		'''
 		if v is None:
 			if k in self.variables:

@@ -151,6 +151,7 @@ class PTOProject:
         self.control_point_lines = None
         self.absolute_control_point_lines = None
         self.image_lines = None
+        self.img_fn2il = None
         self.optimizer_lines = None
         '''
         I bet lone v lines can be omitted
@@ -223,7 +224,15 @@ class PTOProject:
         '''Return image object n'''
         return self.get_image_lines()[n]
     
+    def build_image_fn_map(self):
+        self.img_fn2il = {}
+        for il in self.get_image_lines():
+            self.img_fn2il[il.get_name()] = il
+    
     def get_image_by_fn(self, fn):
+        if self.img_fn2il:
+            return self.img_fn2il.get(fn, None)
+        
         for i in self.get_image_lines():
             if fn == i.get_name():
                 return i

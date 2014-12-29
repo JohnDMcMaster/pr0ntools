@@ -414,16 +414,7 @@ class Tiler:
             self.clip_width = int(image_width * 1.5)
         if self.clip_height is None:
             self.clip_height = int(image_height * 1.5)
-    
-    '''
-    def build_spatial_map(self):
-        #image_file_names = self.pto.get_file_names()
-        #self.map = ImageCoordinateMap.from_file_names(image_file_names)
         
-        items = [PolygonQuadTreeItem(il.left(), il.right(), il.top(), il.bottom()) for il in self.pto.get_image_lines()]
-        self.map = PolygonQuadTree(items)    
-    '''
-    
     def gen_supertile_tiles(self, x0, x1, y0, y1):
         '''Yield UL coordinates in (y, x) pairs'''
         xt0 = ceil_mult(x0, self.tw, align=self.x0)
