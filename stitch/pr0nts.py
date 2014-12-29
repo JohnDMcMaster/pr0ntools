@@ -106,6 +106,7 @@ if __name__ == "__main__":
     parser.add_argument('--st-ystep', action="store", dest="super_t_ystep", type=int, help='Supertile y step (advanced)')
     parser.add_argument('--clip-width', action="store", dest="clip_width", type=int, help='x clip (advanced)')
     parser.add_argument('--clip-height', action="store", dest="clip_height", type=int, help='y clip (advanced)')
+    parser.add_argument('--ignore-crop', action="store_true", help='Continue even if not cropped')
     parser.add_argument('--nona-args')
     parser.add_argument('--enblend-args')
     parser.add_argument('--ignore-errors', action="store_true", dest="ignore_errors", help='skip broken tile stitches (advanced)')
@@ -149,6 +150,7 @@ if __name__ == "__main__":
     t.merge = args.merge
     t.out_extension = args.out_ext
     t.ignore_errors = args.ignore_errors
+    t.ignore_crop = args.ignore_crop
 
     # TODO: make this more proper?
     if args.nona_args:

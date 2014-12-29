@@ -141,6 +141,7 @@ class Tiler:
         self.dry = dry
         self.st_scalar_heuristic = st_scalar_heuristic
         self.ignore_errors = False
+        self.ignore_crop = False
         self.verbose = False
         self.verbosity = 2
         self.stw = stw
@@ -759,7 +760,10 @@ class Tiler:
             print
             print
             self.dry = False
-    
+            
+        if not self.ignore_crop and self.pto.get_panorama_line().getv('S') is None:
+            raise Exception('Not cropped.  Set ignore crop to force continue')
+
         '''
         if we have a width of 256 and 1 pixel we need total size of 256
         If we have a width of 256 and 256 pixels we need total size of 256

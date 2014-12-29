@@ -57,7 +57,10 @@ class PanoramaLine(line.Line):
 		return c[0] - c[1]
 	
 	def left(self):
-		return self.get_crop()[0]
+		c = self.get_crop()
+		if c is None:
+			return 0
+		return c[0]
 	
 	def set_left(self, left):
 		c = self.get_crop()
@@ -65,7 +68,10 @@ class PanoramaLine(line.Line):
 		self.set_crop(c)
 		
 	def right(self):
-		return self.get_crop()[1]
+		c = self.get_crop()
+		if c is None:
+			return self.getv('w')
+		return c[1]
 	
 	def set_right(self, right):
 		c = self.get_crop()
@@ -77,7 +83,10 @@ class PanoramaLine(line.Line):
 		return c[2] - c[3]
 	
 	def top(self):
-		return self.get_crop()[2]
+		c = self.get_crop()
+		if c is None:
+			return 0
+		return c[2]
 	
 	def set_top(self, top):
 		c = self.get_crop()
@@ -85,7 +94,10 @@ class PanoramaLine(line.Line):
 		self.set_crop(c)
 		
 	def bottom(self):
-		return self.get_crop()[3]
+		c = self.get_crop()
+		if c is None:
+			return self.getv('h')
+		return c[3]
 	
 	def set_bottom(self, bottom):
 		c = self.get_crop()
