@@ -789,7 +789,10 @@ class CNCGUI(QMainWindow):
             self.log(str(self.bench))
             
         self.pb.setValue(pictures_taken)
-            
+        # Update position GUI
+        for axis in self.axes.values():
+            axis.emit_pos()
+        
     def dry(self):
         return self.dry_cb.isChecked()
     
