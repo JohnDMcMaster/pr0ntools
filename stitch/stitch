@@ -23,7 +23,7 @@ echo
 echo
 echo '**********************************'
 echo 'No failures, optimizing'
-time pr0npto --optimize out.pto ||exit 1
+time pr0npto --pre-opt-pt out.pto ||exit 1
 
 # fit to screen
 time pano_modify --fov=AUTO --canvas=AUTO -o out.pto out.pto
