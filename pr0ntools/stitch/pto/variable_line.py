@@ -56,7 +56,7 @@ class VariableLine(Line):
         return VariableLine(line, project)
 
     def update(self):
-        # Update to the correct indexes
+        # Update to the correct indices
         if not self.image:
             # See if we can parse it then
             image_index = None

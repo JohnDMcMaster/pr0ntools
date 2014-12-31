@@ -20,16 +20,6 @@ import re
 from pr0ntools.config import config
 from pr0ntools.util import IOTimestamp, IOLog
 
-VERSION = '0.1'
-
-
-def usage():
-    print 'pr0nts: create tiles from unstitched images'
-    print 'Usage:'
-    print 'pr0nts <image file names>'
-    print 'single file name will expect to be a .pto already optimized and cropped'
-    print 'FIXME broken: multiple file names (TODO: or directory) will be stitched together and must overlap'
-
 def size2str(d):
     if d < 1000:
         return '%g' % d

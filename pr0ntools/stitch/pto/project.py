@@ -253,6 +253,60 @@ class PTOProject:
             il.set_variable('e', 0)
         self.image_lines.append(il)
 
+    def del_images(self, ils):
+        '''Delete image as well as coresponding control point lines'''
+        # added to support image sub-projects for fast preview
+        
+        ils_i = [il.get_index() for il in ils]
+        new_image_lines = []
+        for i, il in enumerate(self.image_lines):
+            if not i in ils_i:
+                new_image_lines.append(il)
+
+        # Build a map of old image index to new
+        img_fn2ii_old = {}
+        for i, il in enumerate(self.image_lines):
+            img_fn2ii_old[il.get_name()] = i
+        img_fn2ii_new = {}
+        for i, il in enumerate(new_image_lines):
+            img_fn2ii_new[il.get_name()] = i
+        ii_old2new = {}
+        for fn, ii_new in img_fn2ii_new.iteritems():
+            try:
+                ii_old2new[img_fn2ii_old[fn]] = ii_new
+            except:
+                print 'ERROR'
+                print fn
+                print img_fn2ii_old
+                print img_fn2ii_new
+                print ii_old2new
+                raise
+        
+        # remove unneeded control points
+        # and replace image indices
+        new_control_point_lines = []
+        for cpl in self.control_point_lines:
+            n = cpl.getv('n')
+            N = cpl.getv('N')
+            if n not in ils_i and N not in ils_i:
+                # Translate indices
+                cpl.setv('n', ii_old2new[cpl.getv('n')])
+                cpl.setv('N', ii_old2new[cpl.getv('N')])
+                # and add to the keep set
+                new_control_point_lines.append(cpl)
+        # shift in new control point set
+        self.control_point_lines = new_control_point_lines
+        
+        # FIXME: hack since I don't need variables for intended purpose of this function
+        # variable lines are messy since technically you might have to split it
+        self.variable_lines = []
+        
+        # shift in new image line set
+        self.image_lines = new_image_lines
+        
+        # Invalidate the index cache, if any
+        self.img_fn2il = None
+
     def get_image_lines(self):
         self.parse()
         return self.image_lines
