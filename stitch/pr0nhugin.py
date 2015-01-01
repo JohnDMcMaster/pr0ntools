@@ -27,8 +27,8 @@ if __name__ == "__main__":
     # Delete all lines not in the peripheral
     pto_orig.build_image_fn_map()
     ils_del = []
-    for y in xrange(1, icm.width() - 1):
-        for x in xrange(1, icm.height() - 1):
+    for y in xrange(1, icm.height() - 1):
+        for x in xrange(1, icm.width() - 1):
             ils_del.append(pto_orig.img_fn2il[icm.get_image(x, y)])
     print 'Deleting %d / %d images' % (len(ils_del), icm.width() * icm.height())
     pto_red.del_images(ils_del)

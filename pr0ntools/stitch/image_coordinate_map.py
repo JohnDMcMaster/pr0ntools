@@ -143,11 +143,9 @@ class ImageCoordinateMap:
 			return self.get_image(col, row)
 	
 	def get_image(self, col, row):
-		try:
-			return self.layout[self.cols * row + col]
-		except:
-			print 'col %d row %d out of range for width %d height %d and length %d' % (col, row, self.width(), self.height(), len(self.layout))
-			raise
+		if col < 0 or col >= self.cols or row < 0 or row >= self.rows:
+			raise IndexError('col %d row %d out of range for width %d height %d and length %d' % (col, row, self.width(), self.height(), len(self.layout)))
+		return self.layout[self.cols * row + col]
 	
 	def get_images_from_pair(self, pair):
 		# ImageCoordinatePair
@@ -203,8 +201,8 @@ class ImageCoordinateMap:
 			row_parts = set()
 			col_parts = set()			
 			
-			for file_name in file_names:
-				(row, col) = get_row_col(file_name)
+			for fn in file_names:
+				(row, col) = get_row_col(fn)
 				row_parts.add(row)
 				col_parts.add(col)
 			
