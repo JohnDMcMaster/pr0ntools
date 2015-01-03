@@ -361,6 +361,9 @@ def pre_opt(project, icm):
     def printd(s):
         if debugging:
             print s
+
+    rms_this = get_rms(project)
+    print 'Pre-opt: exiting project RMS error: %f' % rms_this
     
     # NOTE: algorithm will still run with missing control points to best of its ability
     # however, its expected that user will only run it on copmlete data sets
@@ -508,6 +511,10 @@ def pre_opt(project, icm):
                     print '  % 3dX, % 3dY: none' % (x, y)
                 else:
                     print '  % 3dX, % 3dY: %6.1fx, %6.1fy' % (x, y, p[0], p[1])
+
+    rms_this = get_rms(project)
+    print 'Pre-opt: final RMS error: %f' % rms_this
+
     # internal use only
     return closed_set
 
