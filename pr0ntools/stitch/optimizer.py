@@ -32,6 +32,7 @@ from pr0ntools.pimage import PImage
 from pr0ntools.stitch.pto.util import *
 from pr0ntools.benchmark import Benchmark
 import sys
+import random
 
 def debug(s = ''):
     pass
@@ -306,7 +307,38 @@ class PTOptimizer:
         bench.stop()
         print 'Optimized project in %s' % bench
         
-
+'''
+Calculate average x/y position
+NOTE: x/y deltas are positive right/down
+But global coordinates are positive left,up
+Return positive left/up convention to match global coordinate system
+'''
+def pair_check(project, l_il, r_il):
+    # lesser line
+    l_ili = l_il.get_index()
+    # Find matching control points
+    cps_x = []
+    cps_y = []
+    for cpl in project.control_point_lines:
+        # applicable?
+        if cpl.getv('n') == l_ili and cpl.getv('N') == r_il:
+            # compute distance
+            # note: these are relative coordinates to each image
+            # and strictly speaking can't be directly compared
+            # however, because the images are the same size the width/height can be ignored
+            cps_x.append(cpl.getv('x') - cpl.getv('X'))
+            cps_y.append(cpl.getv('y') - cpl.getv('Y'))
+        elif cpl.getv('n') == r_il and cpl.getv('N') == l_ili:
+            cps_x.append(cpl.getv('X') - cpl.getv('x'))
+            cps_y.append(cpl.getv('Y') - cpl.getv('y'))
+    
+    # Possible that no control points due to failed stitch
+    # or due to edge case
+    if len(cps_x) == 0:
+        return None
+    else:
+        return (1.0 * sum(cps_x)/len(cps_x),
+                1.0 * sum(cps_y)/len(cps_y))
 
 def pre_opt(project, icm):
     '''
@@ -362,39 +394,10 @@ def pre_opt(project, icm):
         for x in xrange(0, icm.width()):
             il = project.img_fn2il[icm.get_image(x, y)]
             ili = il.get_index()
-            '''
-            Calculate average x/y position
-            '''
-            def check(xl_il):
-                # lesser line
-                xl_ili = xl_il.get_index()
-                # Find matching control points
-                cps_x = []
-                cps_y = []
-                for cpl in project.get_control_point_lines():
-                    # applicable?
-                    if cpl.getv('n') == xl_ili and cpl.getv('N') == ili:
-                        # compute distance
-                        # note: these are relative coordinates to each image
-                        # and strictly speaking can't be directly compared
-                        # however, because the images are the same size the width/height can be ignored
-                        cps_x.append(cpl.getv('x') - cpl.getv('X'))
-                        cps_y.append(cpl.getv('y') - cpl.getv('Y'))
-                    elif cpl.getv('n') == ili and cpl.getv('N') == xl_ili:
-                        cps_x.append(cpl.getv('X') - cpl.getv('x'))
-                        cps_y.append(cpl.getv('Y') - cpl.getv('y'))
-                
-                # Possible that no control points due to failed stitch
-                # or due to edge case
-                if len(cps_x) == 0:
-                    return None
-                else:
-                    return (    1.0 * sum(cps_x)/len(cps_x), 
-                                1.0 * sum(cps_y)/len(cps_y))
             if x > 0:
-                pairsx[(x, y)] = check(project.img_fn2il[icm.get_image(x - 1, y)])
+                pairsx[(x, y)] = pair_check(project, project.img_fn2il[icm.get_image(x - 1, y)], ili)
             if y > 0:
-                pairsy[(x, y)] = check(project.img_fn2il[icm.get_image(x, y - 1)])
+                pairsy[(x, y)] = pair_check(project, project.img_fn2il[icm.get_image(x, y - 1)], ili)
     
     if debugging:
         print 'Delta map'
@@ -505,7 +508,131 @@ def pre_opt(project, icm):
                     print '  % 3dX, % 3dY: none' % (x, y)
                 else:
                     print '  % 3dX, % 3dY: %6.1fx, %6.1fy' % (x, y, p[0], p[1])
+    # internal use only
+    return closed_set
 
+def get_rms(project):
+    '''Calculate the root mean square error between control points'''
+    rms = 0.0
+    for cpl in project.control_point_lines:
+        imgn = project.image_lines[cpl.get_variable('n')]
+        imgN = project.image_lines[cpl.get_variable('N')]
+        
+        # global coordinates (d/e) are positive upper left
+        # but image coordinates (x/X//y/Y) are positive down right
+        # wtf?
+        # invert the sign so that the math works out
+        dx2 = ((imgn.getv('d') - cpl.getv('x')) - (imgN.getv('d') - cpl.getv('X')))**2
+        dy2 = ((imgn.getv('e') - cpl.getv('y')) - (imgN.getv('e') - cpl.getv('Y')))**2
+        
+        if 0:
+            print 'iter'
+            print '  ', imgn.text
+            print '  ', imgN.text
+            print '  ', imgn.getv('d'), cpl.getv('x'), imgN.getv('d'), cpl.getv('X')
+            print '  %f vs %f' % ((imgn.getv('d') + cpl.getv('x')), (imgN.getv('d') + cpl.getv('X')))
+            print '  ', imgn.getv('e'), cpl.getv('y'), imgN.getv('e'), cpl.getv('Y')
+            print '  %f vs %f' % ((imgn.getv('e') + cpl.getv('y')), (imgN.getv('e') + cpl.getv('Y')))
+        
+        this = math.sqrt(dx2 + dy2)
+        if 0:
+            print '  ', this
+        rms += this
+    return rms / len(project.control_point_lines)
+
+def chaos_opt(project, icm):
+    pos_xy = pre_opt(project, icm)
+    
+    debugging = 0
+    #debugging = 1
+    def printd(s):
+        if debugging:
+            print s
+    
+    
+    il = project.img_fn2il[icm.get_image(0, 0)]
+    il.set_x(0.0)
+    il.set_y(0.0)
+    
+    iters = 0
+    rms_last = None
+    while True:
+        iters += 1
+        print 'Iters %d' % iters
+
+        rms_this = get_rms(project)
+        print 'RMS error: %f' % rms_this
+        if rms_last is not None and (rms_last - rms_this) < 0.01:
+            print 'Break on minor improvement'
+            break
+        
+        open_set = set()
+        for y in xrange(icm.height()):
+            for x in xrange(icm.width()):
+                open_set.add((x, y))
+        while len(open_set) > 0:
+            def process():
+                il0 = project.img_fn2il[icm.get_image(pref[0], pref[1])]
+                points = []
+                x, y = pref
+        
+                # left
+                o = pos_xy.get((x - 1, y), None)
+                if o:
+                    d = pair_check(project, project.img_fn2il[icm.get_image(pref[0] - 1, pref[1])], il0)
+                    # and a delta to get to it?
+                    if d:
+                        dx, dy = d
+                        points.append((o[0] + dx, o[1] + dy))
+                # right
+                o = pos_xy.get((x + 1, y), None)
+                if o:
+                    d = pair_check(project, project.img_fn2il[icm.get_image(pref[0] + 1, pref[1])], il0)
+                    if d:
+                        dx, dy = d
+                        points.append((o[0] + dx, o[1] + dy))
+                
+                # Y
+                o = pos_xy.get((x, y - 1), None)
+                if o:
+                    d = pair_check(project, project.img_fn2il[icm.get_image(pref[0], pref[1] - 1)], il0)
+                    if d:
+                        dx, dy = d
+                        points.append((o[0] + dx, o[1] + dy))
+                o = pos_xy.get((x, y + 1), None)
+                if o:
+                    d = pair_check(project, project.img_fn2il[icm.get_image(pref[0], pref[1] + 1)], il0)
+                    if d:
+                        dx, dy = d
+                        points.append((o[0] + dx, o[1] + dy))
+                
+                # Nothing useful?
+                if len(points) == 0:
+                    return
+        
+                if debugging:
+                    print '  %03dX, %03dY: setting' % (x, y)
+                    for p in points:
+                        print '    ', p
+                
+                # use all available anchor points from above
+                il = project.img_fn2il[icm.get_image(x, y)]
+                
+                # take average of up to 4 
+                points_x = [p[0] for p in points]
+                xpos = 1.0 * sum(points_x) / len(points_x)
+                il.set_x(xpos)
+                
+                points_y = [p[1] for p in points]
+                ypos = 1.0 * sum(points_y) / len(points_y)
+                il.set_y(ypos)
+                
+                # Adjust new position
+                pos_xy[(x, y)] = (xpos, ypos)
+            
+            pref = random.sample(open_set, 1)[0]
+            process()
+            open_set.remove(pref)
 
 '''
 Assumes images are in a grid to simplify workflow management
@@ -520,12 +647,8 @@ class ChaosOptimizer:
     def __init__(self, project):
         self.project = project
         self.debug = False
-        self.rms_error_threshold = 250.0
-        self.reoptimize = True
-        # in images
-        self.stw = 4
-        self.sth = 4
         self.icm = None
+        self.rms_error_threshold = 250.0
     
     def verify_images(self):
         first = True
@@ -555,11 +678,8 @@ class ChaosOptimizer:
             fns.append(il.get_name())
         self.icm = ImageCoordinateMap.from_tagged_file_names(fns)
 
-        pre_opt(project, self.icm)
-        
+        chaos_opt(project, self.icm)
         prepare_pto(project, reoptimize=False)
-        
-        pre_run_text = project.get_text()
         
         # "PToptimizer out.pto"
         args = ["PToptimizer"]
@@ -569,25 +689,11 @@ class ChaosOptimizer:
         #self.project.save()
         rc = execute.without_output(args)
         if rc != 0:
-            fn = '/tmp/pr0nstitch.optimizer_failed.pto'
-            print
-            print
-            print 'Failed rc: %d' % rc
-            print 'Failed project save to %s' % (fn,)
-            try:
-                open(fn, 'w').write(pre_run_text)
-            except:
-                print 'WARNING: failed to write failure'
-            print
-            print
             raise Exception('failed position optimization')
         # API assumes that projects don't change under us
         project.reopen()
         
-        '''
-        Line looks like this
         # final rms error 24.0394 units
-        '''
         rms_error = None
         for l in project.get_comment_lines():
             if l.find('final rms error') >= 00:
@@ -598,18 +704,6 @@ class ChaosOptimizer:
         if self.rms_error_threshold and rms_error > self.rms_error_threshold:
             raise Exception("Max RMS error threshold %f but got %f" % (self.rms_error_threshold, rms_error))
         
-        if self.debug:
-            print 'Parsed: %s' % str(project.parsed)
-
-        if self.debug:
-            print
-            print
-            print
-            print 'Optimized project:'
-            print project
-            #sys.exit(1)
-        print 'Optimized project parsed: %d' % project.parsed
-
         print 'Merging project...'
         merge_pto(project, self.project)
         if self.debug:
