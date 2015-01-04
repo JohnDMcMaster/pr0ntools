@@ -5,11 +5,13 @@ pre-stitched means non-overlapping
 They can be either a single large input image or the bottom level tiles
 '''
 
-import os
 import argparse		
+import datetime
+import os
 from pr0ntools.tile.map import Map, ImageMapSource, TileMapSource
 
-std_copyright = '&copy;2014 John McMaster, CC BY'
+std_c_mc = '&copy;%d John McMaster, CC BY' % datetime.datetime.now().year
+std_c_dig = '&copy;%d Digshadow, CC BY' % datetime.datetime.now().year
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description='Generate Google Maps code from image file(s)')
@@ -25,11 +27,15 @@ if __name__ == "__main__":
 	parser.add_argument('--name', dest="title_name", help='SiMap: <name> title')
 	parser.add_argument('--title', dest="title", help='Set title.  Default: SiMap: <project name>')
 	parser.add_argument('--copyright', '-c', help='Set copyright message (default: none)')
-	parser.add_argument('--std-copyright', '-C', action='store_true', help='Set copyright "%s"' % std_copyright)
+	parser.add_argument('--c-mc', '-M', action='store_true', help='Set copyright "%s"' % std_c_mc)
+	parser.add_argument('--c-dig', '-D', action='store_true', help='Set copyright "%s"' % std_c_dig)
 	args = parser.parse_args()
 	
-	if args.std_copyright:
-		args.copyright = std_copyright
+	if args.c_mc:
+		args.copyright = std_c_mc
+	
+	if args.c_dig:
+		args.copyright = std_c_dig
 	
 	if os.path.isdir(args.images_in):
 		print 'Working on directory of max zoomed tiles'
