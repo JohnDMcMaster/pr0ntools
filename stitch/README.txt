@@ -1,8 +1,15 @@
-Syntax error in script, line 6
-	Caused by a variety of things
-	Ex: negative focal length
-		i f-2 n...	
-		Not sure how these are getting generated...
-		Occurs after I save
-		Doesn't work before then
-		Guess its required attribute
+See stitch script for example workflow
+
+you *might* need a file like this to get it working:
+$ cat ~/.pr0nrc
+{
+	"keep_temp":1,
+	"pr0nts": {
+		"mem":"6144m"
+	},
+	"enblend": {
+		"opts":"-m 6144"
+	}
+}
+
+above file is for 6GB of RAM
