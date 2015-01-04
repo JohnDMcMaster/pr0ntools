@@ -33,5 +33,5 @@ echo
 echo 'Done!  Open with Hugin to adjust size and rotate'
 ) || exit 1
 
-hugin out.pto &
+pr0nhugin out.pto &
 
