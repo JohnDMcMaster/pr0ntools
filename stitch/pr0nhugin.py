@@ -50,6 +50,18 @@ if __name__ == "__main__":
     print 'Replacing m line...'
     pto_orig.mode_line = pto_red.mode_line
 
+    # copy over rotation
+    # assume its the same for all
+    r = pto_red.image_lines[0].getv('r')
+    def floats(f):
+        if f is None:
+            return 'None'
+        else:
+            return '%0.2f' % f
+    print 'Rotation %s => %s' % (floats(pto_orig.image_lines[0].getv('r')), floats(r))
+    for il in pto_orig.image_lines:
+        il.setv('r', r)
+
     print 'Saving final project'
     # small backup in case something went wrong
     shutil.move(pto_orig.file_name, '/tmp/pr0n-prehugin.pto')
