@@ -1,4 +1,4 @@
-See stitch script for example workflow
+See pr0nauto script for example workflow
 
 you *might* need a file like this to get it working:
 $ cat ~/.pr0nrc
