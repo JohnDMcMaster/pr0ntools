@@ -363,7 +363,8 @@ def pre_opt(project, icm):
             print s
 
     rms_this = get_rms(project)
-    print 'Pre-opt: exiting project RMS error: %f' % rms_this
+    if rms_this is not None:
+        print 'Pre-opt: exiting project RMS error: %f' % rms_this
     
     # NOTE: algorithm will still run with missing control points to best of its ability
     # however, its expected that user will only run it on copmlete data sets
@@ -529,8 +530,12 @@ def get_rms(project):
         # but image coordinates (x/X//y/Y) are positive down right
         # wtf?
         # invert the sign so that the math works out
-        dx2 = ((imgn.getv('d') - cpl.getv('x')) - (imgN.getv('d') - cpl.getv('X')))**2
-        dy2 = ((imgn.getv('e') - cpl.getv('y')) - (imgN.getv('e') - cpl.getv('Y')))**2
+        try:
+            dx2 = ((imgn.getv('d') - cpl.getv('x')) - (imgN.getv('d') - cpl.getv('X')))**2
+            dy2 = ((imgn.getv('e') - cpl.getv('y')) - (imgN.getv('e') - cpl.getv('Y')))**2
+        # Abort RMS if not all variables defined
+        except TypeError:
+            return None
         
         if 0:
             print 'iter'
