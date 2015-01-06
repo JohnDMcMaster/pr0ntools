@@ -130,6 +130,12 @@ if __name__ == "__main__":
         stm = config.super_tile_memory()
         if stm:
             stp = mem2pix(mksize(stm))
+            # having issues creating very large 
+            if stp > 2**32/4:
+                # 66 GB max useful as currently written
+                print 'WARNING: reducing to maximum tile size'
+                stp = 2**32/4
+
     
     t = Tiler(project, 'out', stw=mksize(args.stw), sth=mksize(args.sth), stp=stp, clip_width=args.clip_width, clip_height=args.clip_height)
     t.verbose = args.verbose
