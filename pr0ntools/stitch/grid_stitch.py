@@ -133,7 +133,9 @@ class GridStitch(common_stitch.CommonStitch):
             try:
                 self.coordinate_map.is_complete()
             except image_coordinate_map.MissingImage as e:
+                msg('!' * 80)
                 msg('Missing images.  Use --skip-missing to continue')
+                msg('!' * 80)
                 raise e
         
         msg('Initializing %d workers' % self.threads)
@@ -143,86 +145,95 @@ class GridStitch(common_stitch.CommonStitch):
             self.workers.append(w)
             w.start()
 
-        coord_pairs = self.coordinate_map.gen_pairs(1, 1)
-        
-        all_allocated = False
-
-        # Seed project with all images in order
-        # note we used the filename that will get used below
-        # not the final output file name
-        for can_fn in sorted(self.canon2orig.keys()):
-            self.project.add_image(can_fn)
-        self.project.save()
-
-        while not (all_allocated and pair_complete == pair_submit):
-            # Most efficient to merge things in batches as they complete
-            final_pair_projects = []
-            # Check for completed jobs
-            for wi, worker in enumerate(self.workers):
-                try:
-                    out = worker.qo.get(False)
-                except Queue.Empty:
-                    continue
-                pair_complete += 1
-                what = out[0]
-                
-                if what == 'done':
-                    (_task, final_pair_project) = out[1]
-                    msg('W%d: done' % wi)
-                    # May have failed
-                    if final_pair_project:
-                        final_pair_projects.append(final_pair_project)
-                        if pair_complete % 10 == 0:
-                            print 'Saving intermediate result to %s' % self.project.file_name
-                            self.project.save()
-                            print 'Saved'
-
-                elif what == 'exception':
-                    #(_task, e) = out[1]
-                    msg('ERROR: W%d failed w/ exception' % wi)
-                    raise Exception('Shutdown on worker failure')
-                else:
-                    msg('%s' % (out,))
-                    raise Exception('Internal error: bad task type %s' % what)
-            # Merge projects
-            if len(final_pair_projects):
-                print 'Merging %d projects' % len(final_pair_projects)
-                self.project.merge_into(final_pair_projects)
+        try:
+            coord_pairs = self.coordinate_map.gen_pairs(1, 1)
             
-            # Any workers need more work?
-            for wi, worker in enumerate(self.workers):
-                if all_allocated:
-                    break
-                if worker.qi.empty():
-                    while True:
-                        try:
-                            pair = coord_pairs.next()
-                        except  StopIteration:
-                            msg('All tasks allocated')
-                            all_allocated = True
-                            break
-        
-                        pair_submit += 1
-            
-                        msg('*' * 80)
-                        msg('W%d: submit %s (%d / %d)' % (wi, repr(pair), pair_submit, n_pairs))
-            
-                        # Image file names as list
-                        pair_images = self.coordinate_map.get_images_from_pair(pair)
-                        msg('pair images: ' + repr(pair_images))
-                        if pair_images[0] is None or pair_images[1] is None:
-                            msg('WARNING: skipping missing image')
-                            continue
-                            
-                        worker.qi.put((pair, pair_images))
-                        break
+            all_allocated = False
+    
+            # Seed project with all images in order
+            # note we used the filename that will get used below
+            # not the final output file name
+            for can_fn in sorted(self.canon2orig.keys()):
+                self.project.add_image(can_fn)
+            self.project.save()
+    
+            while not (all_allocated and pair_complete == pair_submit):
+                # Most efficient to merge things in batches as they complete
+                final_pair_projects = []
+                # Check for completed jobs
+                for wi, worker in enumerate(self.workers):
+                    try:
+                        out = worker.qo.get(False)
+                    except Queue.Empty:
+                        continue
+                    pair_complete += 1
+                    what = out[0]
                     
-            time.sleep(0.1)
+                    if what == 'done':
+                        (_task, final_pair_project) = out[1]
+                        msg('W%d: done' % wi)
+                        # May have failed
+                        if final_pair_project:
+                            final_pair_projects.append(final_pair_project)
+                            if pair_complete % 10 == 0:
+                                print 'Saving intermediate result to %s' % self.project.file_name
+                                self.project.save()
+                                print 'Saved'
+    
+                    elif what == 'exception':
+                        for worker in self.workers:
+                            worker.running.clear()
+                        # let stdout clear up
+                        time.sleep(1)
+                        
+                        #(_task, e) = out[1]
+                        msg('!' * 80)
+                        msg('ERROR: W%d failed w/ exception' % wi)
+                        msg('!' * 80)
+                        raise Exception('Shutdown on worker failure')
+                    else:
+                        msg('%s' % (out,))
+                        raise Exception('Internal error: bad task type %s' % what)
+                # Merge projects
+                if len(final_pair_projects):
+                    print 'Merging %d projects' % len(final_pair_projects)
+                    self.project.merge_into(final_pair_projects)
+                
+                # Any workers need more work?
+                for wi, worker in enumerate(self.workers):
+                    if all_allocated:
+                        break
+                    if worker.qi.empty():
+                        while True:
+                            try:
+                                pair = coord_pairs.next()
+                            except  StopIteration:
+                                msg('All tasks allocated')
+                                all_allocated = True
+                                break
             
-        msg('pairs done')
-        
-        for worker in self.workers:
-            worker.running.clear()
+                            pair_submit += 1
+                
+                            msg('*' * 80)
+                            msg('W%d: submit %s (%d / %d)' % (wi, repr(pair), pair_submit, n_pairs))
+                
+                            # Image file names as list
+                            pair_images = self.coordinate_map.get_images_from_pair(pair)
+                            msg('pair images: ' + repr(pair_images))
+                            if pair_images[0] is None or pair_images[1] is None:
+                                msg('WARNING: skipping missing image')
+                                continue
+                                
+                            worker.qi.put((pair, pair_images))
+                            break
+                        
+                time.sleep(0.1)
+                
+            msg('pairs done')
+            
+        finally:
+            for worker in self.workers:
+                worker.running.clear()
         
         msg('Reverting canonical file names to original input...')
         # Fixup the canonical hack
