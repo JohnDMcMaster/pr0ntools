@@ -389,7 +389,7 @@ def pre_opt_core(project, icm, closed_set, pairsx, pairsy, order):
                 if o:
                     d = pairsy.get((x, y + order), None)
                     if d:
-                        d = dx, dy
+                        dx, dy = d
                         points.append((o[0] + dx * order, o[1] + dy * order))
                 
                 # Nothing useful?
