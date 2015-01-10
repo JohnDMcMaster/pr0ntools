@@ -8,6 +8,7 @@ I get this using my CNC microscope because the pictures *are* taken as fairly pr
 This allows considerable optimization since we know where all the picture are
 '''
 
+import image_coordinate_map
 from image_coordinate_map import ImageCoordinateMap
 import os
 import sys
@@ -15,7 +16,7 @@ from pr0ntools.stitch.pto.util import dbg
 import threading
 import Queue
 import traceback
-from common_stitch import *
+import common_stitch
 #from pr0ntools.util import msg
 import time
 
@@ -78,9 +79,9 @@ class Worker(threading.Thread):
                 traceback.print_exc()
                 self.qo.put(('exception', (task, e)))
 
-class GridStitch(CommonStitch):
+class GridStitch(common_stitch.CommonStitch):
     def __init__(self):
-        CommonStitch.__init__(self)
+        common_stitch.CommonStitch.__init__(self)
         self.coordinate_map = None
         self.set_regular(True)
         self.canon2orig = dict()
@@ -101,13 +102,14 @@ class GridStitch(CommonStitch):
             file_names_canonical.append(new_fn)
         
         engine.coordinate_map = ImageCoordinateMap.from_tagged_file_names(file_names_canonical)
+        
         return engine
 
     def init_failures(self):
         open_list = set()
         for (file_name, _row, _col) in self.coordinate_map.images():
             open_list.add(file_name)
-        self.failures = FailedImages(open_list)
+        self.failures = common_stitch.FailedImages(open_list)
         
         
     def generate_control_points(self):
@@ -124,7 +126,16 @@ class GridStitch(CommonStitch):
         pair_submit = 0
         pair_complete = 0
         
-            
+        if self.skip_missing:
+            msg('Not verifying image map')
+        else:
+            msg('Verifying image map')
+            try:
+                self.coordinate_map.is_complete()
+            except image_coordinate_map.MissingImage as e:
+                msg('Missing images.  Use --skip-missing to continue')
+                raise e
+        
         msg('Initializing %d workers' % self.threads)
         for ti in xrange(self.threads):
             w = Worker(ti)
@@ -200,8 +211,6 @@ class GridStitch(CommonStitch):
                         pair_images = self.coordinate_map.get_images_from_pair(pair)
                         msg('pair images: ' + repr(pair_images))
                         if pair_images[0] is None or pair_images[1] is None:
-                            if not self.skip_missing:
-                                raise Exception('Missing images.  Use --skip-missing to continue')
                             msg('WARNING: skipping missing image')
                             continue
                             
@@ -250,7 +259,7 @@ class GridStitch(CommonStitch):
         '''
             
     def do_generate_control_points_by_pair(self, pair, image_fn_pair):
-        ret = CommonStitch.do_generate_control_points_by_pair(self, pair, image_fn_pair)
+        ret = common_stitch.CommonStitch.do_generate_control_points_by_pair(self, pair, image_fn_pair)
         if ret is None and pair.adjacent():
             msg('WARNING: last ditch effort, increasing field of view')
             

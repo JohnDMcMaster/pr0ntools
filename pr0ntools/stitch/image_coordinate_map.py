@@ -8,6 +8,9 @@ import math
 import os
 from pr0ntools.pimage import PImage
 
+class MissingImage(Exception):
+	pass
+
 '''
 Grid coordinates
 Not an actual image
@@ -128,6 +131,15 @@ class ImageCoordinateMap:
 	def height(self):
 		'''Return number of rows'''
 		return self.rows
+	
+	def is_complete(self):
+		'''Raise MissingImage on first missing image found or return if no missing images'''
+		for i in xrange(len(self.layout)):
+			row = i / self.cols
+			col = i % self.width()
+			img = self.layout[i]
+			if img is None:
+				raise MissingImage('Row %d, col %d missing' % (row, col))
 	
 	def debug_print(self):
 		print 'height %d rows, width %d cols' % (self.height(), self.width())
