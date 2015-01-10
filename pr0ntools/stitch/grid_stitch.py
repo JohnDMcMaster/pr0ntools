@@ -239,7 +239,7 @@ class GridStitch(common_stitch.CommonStitch):
                 if progress:
                     last_progress = time.time()
                 else:
-                    if time.time() - last_progress > 10:
+                    if time.time() - last_progress > 30:
                         msg('WARNING: server thread stalled')
                         last_progress = time.time()
                 

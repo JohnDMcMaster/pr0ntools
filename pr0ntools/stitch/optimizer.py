@@ -421,6 +421,89 @@ def pre_opt_core(project, icm, closed_set, pairsx, pairsy, order):
             print '%d iters' % iters
             break
 
+def pre_opt_final(project, icm, closed_set, pairsx, pairsy, order):
+    if len(pairsx) > 0:
+        pairsx_avg = (sum([dx for dx,_dy in pairsx]) / len(pairsx), sum([dy for _dx,dy in pairsx]) / len(pairsx))
+    else:
+        pairsx_avg = None
+    print 'pairsx: %s' % (pairsx_avg,)
+    if len(pairsy) > 0:
+        pairsy_avg = (sum([dx for dx,_dy in pairsy]) / len(pairsy), sum([dy for _dx,dy in pairsy]) / len(pairsy))
+    else:
+        pairsy_avg = None
+    print 'pairsy: %s' % (pairsy_avg,)
+
+    iters = 0
+    while True:
+        iters += 1
+        print 'Iters %d' % iters
+        fixes = 0
+        # no status prints here, this loop is very quick
+        for y in xrange(icm.height()):
+            for x in xrange(icm.width()):
+                if (x, y) in closed_set:
+                    continue
+                img = icm.get_image(x, y)
+                # Skip missing images
+                if img is None:
+                    continue
+                
+                # see what we can gather from
+                # list of [xcalc, ycalc]
+                points = []
+                
+                # X
+                # left
+                # do we have a fixed point to the left?
+                o = closed_set.get((x - order, y), None)
+                if o and pairsx_avg:
+                    dx, dy = pairsx_avg
+                    points.append((o[0] - dx * order, o[1] - dy * order))
+                # right
+                o = closed_set.get((x + order, y), None)
+                if o and pairsx_avg:
+                    dx, dy = pairsx_avg
+                    points.append((o[0] + dx * order, o[1] + dy * order))
+                
+                # Y
+                o = closed_set.get((x, y - order), None)
+                if o and pairsy_avg:
+                    dx, dy = pairsy_avg
+                    points.append((o[0] - dx * order, o[1] - dy * order))
+                o = closed_set.get((x, y + order), None)
+                if o and pairsy_avg:
+                    dx, dy = pairsy_avg
+                    points.append((o[0] + dx * order, o[1] + dy * order))
+                
+                # Nothing useful?
+                if len(points) == 0:
+                    continue
+
+                if debugging:
+                    print '  %03dX, %03dY: setting' % (x, y)
+                    for p in points:
+                        print '    ', p
+                
+                # use all available anchor points from above
+                il = project.img_fn2il[img]
+                
+                # take average of up to 4 
+                points_x = [p[0] for p in points]
+                xpos = 1.0 * sum(points_x) / len(points_x)
+                il.set_x(xpos)
+                
+                points_y = [p[1] for p in points]
+                ypos = 1.0 * sum(points_y) / len(points_y)
+                il.set_y(ypos)
+                
+                closed_set[(x, y)] = (xpos, ypos)
+                fixes += 1
+        print 'Iter fixes: %d' % fixes
+        if fixes == 0:
+            print 'Break on stable output'
+            print '%d iters' % iters
+            break
+
 def pre_opt(project, icm):
     '''
     Generates row/col to use for initial image placement
@@ -525,13 +608,24 @@ def pre_opt(project, icm):
     il.set_x(0.0)
     il.set_y(0.0)
     
+    print
+    print
     print 'First pass: adjacent images'
     pre_opt_core(project, icm, closed_set, pairsx, pairsy, order=1)
     
+    print
+    print
     print 'Second pass: second adjacent images'
     pre_opt_core(project, icm, closed_set, pairsx, pairsy, order=2)
     
+    print
+    print
+    print 'Third pass: desperation'
+    pre_opt_final(project, icm, closed_set, pairsx, pairsy, order=1)
 
+
+    print
+    print
     print 'Checking for critical images'
     for y in xrange(icm.height()):
         for x in xrange(icm.width()):
