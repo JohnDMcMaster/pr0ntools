@@ -175,7 +175,7 @@ class GridStitch(common_stitch.CommonStitch):
                     
                     if what == 'done':
                         (_task, final_pair_project) = out[1]
-                        msg('W%d: done' % wi)
+                        msg('W%d: done w/ submit %d, complete %d' % (wi, pair_submit, pair_complete))
                         # May have failed
                         if final_pair_project:
                             final_pair_projects.append(final_pair_project)
