@@ -365,7 +365,7 @@ def pre_opt_core(project, icm, closed_set, pairsx, pairsy, order):
                 # do we have a fixed point to the left?
                 o = closed_set.get((x - order, y), None)
                 if o:
-                    d = pairsx[(x - order + 1, y)]
+                    d = pairsx.get((x - order + 1, y), None)
                     # and a delta to get to it?
                     if d:
                         dx, dy = d
@@ -373,7 +373,7 @@ def pre_opt_core(project, icm, closed_set, pairsx, pairsy, order):
                 # right
                 o = closed_set.get((x + order, y), None)
                 if o:
-                    d = pairsx[(x + order, y)]
+                    d = pairsx.get((x + order, y), None)
                     if d:
                         dx, dy = d
                         points.append((o[0] + dx * order, o[1] + dy * order))
@@ -381,13 +381,13 @@ def pre_opt_core(project, icm, closed_set, pairsx, pairsy, order):
                 # Y
                 o = closed_set.get((x, y - order), None)
                 if o:
-                    d = pairsy[(x, y - order + 1)]
+                    d = pairsy.get((x, y - order + 1), None)
                     if d:
                         dx, dy = d
                         points.append((o[0] - dx * order, o[1] - dy * order))
                 o = closed_set.get((x, y + order), None)
                 if o:
-                    d = pairsy[(x, y + order)]
+                    d = pairsy.get((x, y + order), None)
                     if d:
                         d = dx, dy
                         points.append((o[0] + dx * order, o[1] + dy * order))
