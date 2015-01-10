@@ -340,6 +340,87 @@ def pair_check(project, l_il, r_il):
         return (1.0 * sum(cps_x)/len(cps_x),
                 1.0 * sum(cps_y)/len(cps_y))
 
+def pre_opt_core(project, icm, closed_set, pairsx, pairsy, order):
+    iters = 0
+    while True:
+        iters += 1
+        print 'Iters %d' % iters
+        fixes = 0
+        # no status prints here, this loop is very quick
+        for y in xrange(icm.height()):
+            for x in xrange(icm.width()):
+                if (x, y) in closed_set:
+                    continue
+                img = icm.get_image(x, y)
+                # Skip missing images
+                if img is None:
+                    continue
+                
+                # see what we can gather from
+                # list of [xcalc, ycalc]
+                points = []
+                
+                # X
+                # left
+                # do we have a fixed point to the left?
+                o = closed_set.get((x - order, y), None)
+                if o:
+                    d = pairsx[(x - order + 1, y)]
+                    # and a delta to get to it?
+                    if d:
+                        dx, dy = d
+                        points.append((o[0] - dx * order, o[1] - dy * order))
+                # right
+                o = closed_set.get((x + order, y), None)
+                if o:
+                    d = pairsx[(x + order, y)]
+                    if d:
+                        dx, dy = d
+                        points.append((o[0] + dx * order, o[1] + dy * order))
+                
+                # Y
+                o = closed_set.get((x, y - order), None)
+                if o:
+                    d = pairsy[(x, y - order + 1)]
+                    if d:
+                        dx, dy = d
+                        points.append((o[0] - dx * order, o[1] - dy * order))
+                o = closed_set.get((x, y + order), None)
+                if o:
+                    d = pairsy[(x, y + order)]
+                    if d:
+                        d = dx, dy
+                        points.append((o[0] + dx * order, o[1] + dy * order))
+                
+                # Nothing useful?
+                if len(points) == 0:
+                    continue
+
+                if debugging:
+                    print '  %03dX, %03dY: setting' % (x, y)
+                    for p in points:
+                        print '    ', p
+                
+                # use all available anchor points from above
+                il = project.img_fn2il[img]
+                
+                # take average of up to 4 
+                points_x = [p[0] for p in points]
+                xpos = 1.0 * sum(points_x) / len(points_x)
+                il.set_x(xpos)
+                
+                points_y = [p[1] for p in points]
+                ypos = 1.0 * sum(points_y) / len(points_y)
+                il.set_y(ypos)
+                
+                closed_set[(x, y)] = (xpos, ypos)
+                fixes += 1
+        print 'Iter fixes: %d' % fixes
+        if fixes == 0:
+            print 'Break on stable output'
+            print '%d iters' % iters
+            break
+
 def pre_opt(project, icm):
     '''
     Generates row/col to use for initial image placement
@@ -444,85 +525,25 @@ def pre_opt(project, icm):
     il.set_x(0.0)
     il.set_y(0.0)
     
-    iters = 0
-    while True:
-        iters += 1
-        print 'Iters %d' % iters
-        fixes = 0
-        # no status prints here, this loop is very quick
-        for y in xrange(icm.height()):
-            for x in xrange(icm.width()):
-                if (x, y) in closed_set:
-                    continue
-                img = icm.get_image(x, y)
-                # Skip missing images
-                if img is None:
-                    continue
-                
-                # see what we can gather from
-                # list of [xcalc, ycalc]
-                points = []
-                
-                # X
-                # left
-                # do we have a fixed point to the left?
-                o = closed_set.get((x - 1, y), None)
-                if o:
-                    d = pairsx[(x, y)]
-                    # and a delta to get to it?
-                    if d:
-                        dx, dy = d
-                        points.append((o[0] - dx, o[1] - dy))
-                # right
-                o = closed_set.get((x + 1, y), None)
-                if o:
-                    d = pairsx[(x + 1, y)]
-                    if d:
-                        dx, dy = d
-                        points.append((o[0] + dx, o[1] + dy))
-                
-                # Y
-                o = closed_set.get((x, y - 1), None)
-                if o:
-                    d = pairsy[(x, y)]
-                    if d:
-                        dx, dy = d
-                        points.append((o[0] - dx, o[1] - dy))
-                o = closed_set.get((x, y + 1), None)
-                if o:
-                    d = pairsy[(x, y + 1)]
-                    if d:
-                        d = dx, dy
-                        points.append((o[0] + dx, o[1] + dy))
-                
-                # Nothing useful?
-                if len(points) == 0:
-                    continue
+    print 'First pass: adjacent images'
+    pre_opt_core(project, icm, closed_set, pairsx, pairsy, order=1)
+    
+    print 'Second pass: second adjacent images'
+    pre_opt_core(project, icm, closed_set, pairsx, pairsy, order=2)
+    
 
-                if debugging:
-                    print '  %03dX, %03dY: setting' % (x, y)
-                    for p in points:
-                        print '    ', p
-                
-                # use all available anchor points from above
-                il = project.img_fn2il[img]
-                
-                # take average of up to 4 
-                points_x = [p[0] for p in points]
-                xpos = 1.0 * sum(points_x) / len(points_x)
-                il.set_x(xpos)
-                
-                points_y = [p[1] for p in points]
-                ypos = 1.0 * sum(points_y) / len(points_y)
-                il.set_y(ypos)
-                
-                closed_set[(x, y)] = (xpos, ypos)
-                fixes += 1
-        print 'Iter fixes: %d' % fixes
-        if fixes == 0:
-            print 'Break on stable output'
-            print '%d iters' % iters
-            break
+    print 'Checking for critical images'
+    for y in xrange(icm.height()):
+        for x in xrange(icm.width()):
+            if (x, y) in closed_set:
+                continue
+            img = icm.get_image(x, y)
+            # Skip missing images
+            if img is None:
+                continue
+            print '  WARNING: un-located image %s' % img
+
+    
     if debugging:
         print 'Final position optimization:'
         for y in xrange(icm.height()):
