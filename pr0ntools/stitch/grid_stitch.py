@@ -158,7 +158,9 @@ class GridStitch(common_stitch.CommonStitch):
                 self.project.add_image(can_fn)
             self.project.save()
     
+            last_progress = time.time()
             while not (all_allocated and pair_complete == pair_submit):
+                progress = False
                 # Most efficient to merge things in batches as they complete
                 final_pair_projects = []
                 # Check for completed jobs
@@ -169,6 +171,7 @@ class GridStitch(common_stitch.CommonStitch):
                         continue
                     pair_complete += 1
                     what = out[0]
+                    progress = True
                     
                     if what == 'done':
                         (_task, final_pair_project) = out[1]
@@ -218,6 +221,7 @@ class GridStitch(common_stitch.CommonStitch):
                                 break
             
                             pair_submit += 1
+                            progress = True
                 
                             msg('*' * 80)
                             msg('W%d: submit %s (%d / %d)' % (wi, repr(pair), pair_submit, n_pairs))
@@ -232,11 +236,19 @@ class GridStitch(common_stitch.CommonStitch):
                             worker.qi.put((pair, pair_images))
                             break
                         
+                if progress:
+                    last_progress = time.time()
+                else:
+                    if time.time() - last_progress > 10:
+                        msg('WARNING: server thread stalled')
+                        last_progress = time.time()
+                
                 time.sleep(0.1)
                 
             msg('pairs done')
             
         finally:
+            msg('Shutting down workers')
             for worker in self.workers:
                 worker.running.clear()
         
