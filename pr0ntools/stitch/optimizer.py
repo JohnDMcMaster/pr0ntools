@@ -602,11 +602,22 @@ def pre_opt(project, icm):
     
     # repair holes by successive passes
     # contains x,y points that have been finalized
-    closed_set = {(0, 0): (0.0, 0.0)}
-    
-    il = project.img_fn2il[icm.get_image(0, 0)]
-    il.set_x(0.0)
-    il.set_y(0.0)
+    for y in xrange(0, icm.height()):
+        for x in xrange(0, icm.width()):
+            img = icm.get_image(x, y)
+            if img is None:
+                continue
+            print 'Chose anchor image: %s' % img
+            closed_set = {(x, y): (0.0, 0.0)}
+            il = project.img_fn2il[img]
+            il.set_x(0.0)
+            il.set_y(0.0)
+            break
+        if img:
+            break
+    else:
+        raise Exception('No images...')
+        
     
     print
     print
