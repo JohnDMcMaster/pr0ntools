@@ -77,7 +77,8 @@ class Worker(threading.Thread):
                 
             except Exception as e:
                 traceback.print_exc()
-                self.qo.put(('exception', (task, e)))
+                estr = traceback.format_exc()
+                self.qo.put(('exception', (task, e, estr)))
 
 class GridStitch(common_stitch.CommonStitch):
     def __init__(self):
@@ -189,6 +190,10 @@ class GridStitch(common_stitch.CommonStitch):
                         #(_task, e) = out[1]
                         msg('!' * 80)
                         msg('ERROR: W%d failed w/ exception' % wi)
+                        (_task, _e, estr) = out[1]
+                        msg('Stack trace:')
+                        for l in estr.split('\n'):
+                            msg(l)
                         msg('!' * 80)
                         raise Exception('Shutdown on worker failure')
                     else:
