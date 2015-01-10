@@ -422,13 +422,17 @@ def pre_opt_core(project, icm, closed_set, pairsx, pairsy, order):
             break
 
 def pre_opt_final(project, icm, closed_set, pairsx, pairsy, order):
+    def avg(vals, s):
+        vals = filter(lambda x: x is not None, vals)
+        vals = [s(val) for val in vals]
+        return sum(vals) / len(vals)
     if len(pairsx) > 0:
-        pairsx_avg = (sum([dx for dx,_dy in pairsx]) / len(pairsx), sum([dy for _dx,dy in pairsx]) / len(pairsx))
+        pairsx_avg = (avg(pairsx.values(), lambda x: x[0]), avg(pairsx.values(), lambda x: x[1]))
     else:
         pairsx_avg = None
     print 'pairsx: %s' % (pairsx_avg,)
     if len(pairsy) > 0:
-        pairsy_avg = (sum([dx for dx,_dy in pairsy]) / len(pairsy), sum([dy for _dx,dy in pairsy]) / len(pairsy))
+        pairsy_avg = (avg(pairsy.values(), lambda x: x[0]), avg(pairsy.values(), lambda x: x[1]))
     else:
         pairsy_avg = None
     print 'pairsy: %s' % (pairsy_avg,)
@@ -448,6 +452,7 @@ def pre_opt_final(project, icm, closed_set, pairsx, pairsy, order):
                 if img is None:
                     continue
                 
+                print 'Trying to fix %s' % img
                 # see what we can gather from
                 # list of [xcalc, ycalc]
                 points = []
@@ -458,25 +463,34 @@ def pre_opt_final(project, icm, closed_set, pairsx, pairsy, order):
                 o = closed_set.get((x - order, y), None)
                 if o and pairsx_avg:
                     dx, dy = pairsx_avg
-                    points.append((o[0] - dx * order, o[1] - dy * order))
+                    px, py = (o[0] - dx * order, o[1] - dy * order)
+                    print "  L calc (%0.1f, %0.1f)" % (px, py)
+                    points.append((px, py))
                 # right
                 o = closed_set.get((x + order, y), None)
                 if o and pairsx_avg:
                     dx, dy = pairsx_avg
-                    points.append((o[0] + dx * order, o[1] + dy * order))
+                    px, py = (o[0] + dx * order, o[1] + dy * order)
+                    print "  R calc (%0.1f, %0.1f)" % (px, py)
+                    points.append((px, py))
                 
                 # Y
                 o = closed_set.get((x, y - order), None)
                 if o and pairsy_avg:
                     dx, dy = pairsy_avg
-                    points.append((o[0] - dx * order, o[1] - dy * order))
+                    px, py = (o[0] - dx * order, o[1] - dy * order)
+                    print "  U calc (%0.1f, %0.1f)" % (px, py)
+                    points.append((px, py))
                 o = closed_set.get((x, y + order), None)
                 if o and pairsy_avg:
                     dx, dy = pairsy_avg
-                    points.append((o[0] + dx * order, o[1] + dy * order))
+                    px, py = (o[0] + dx * order, o[1] + dy * order)
+                    print "  D calc (%0.1f, %0.1f)" % (px, py)
+                    points.append((px, py))
                 
                 # Nothing useful?
                 if len(points) == 0:
+                    print "  Couldn't match points :("
                     continue
 
                 if debugging:
