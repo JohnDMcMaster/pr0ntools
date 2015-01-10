@@ -220,7 +220,6 @@ class GridStitch(common_stitch.CommonStitch):
                                 all_allocated = True
                                 break
             
-                            pair_submit += 1
                             progress = True
                 
                             msg('*' * 80)
@@ -234,6 +233,7 @@ class GridStitch(common_stitch.CommonStitch):
                                 continue
                                 
                             worker.qi.put((pair, pair_images))
+                            pair_submit += 1
                             break
                         
                 if progress:
