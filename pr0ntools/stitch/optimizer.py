@@ -379,7 +379,10 @@ def pre_opt(project, icm):
         print 'Control point counts:'
         for y in xrange(0, icm.height()):
             for x in xrange(0, icm.width()):
-                il = project.img_fn2il[icm.get_image(x, y)]
+                img = icm.get_image(x, y)
+                if img is None:
+                    continue
+                il = project.img_fn2il[img]
                 ili = il.get_index()
                 count = counts.get(ili, 0)
                 print '  %03dX, %03dY: %d' % (x, y, count)
@@ -396,12 +399,24 @@ def pre_opt(project, icm):
     for y in xrange(0, icm.height()):
         print 'Calc delta with Y %d / %d' % (y + 1, icm.height())
         for x in xrange(0, icm.width()):
-            il = project.img_fn2il[icm.get_image(x, y)]
+            img = icm.get_image(x, y)
+            # Skip missing images
+            if img is None:
+                continue
+            il = project.img_fn2il[img]
             ili = il.get_index()
             if x > 0:
-                pairsx[(x, y)] = pair_check(project, project.img_fn2il[icm.get_image(x - 1, y)], ili)
+                img = icm.get_image(x - 1, y)
+                if img:
+                    pairsx[(x, y)] = pair_check(project, project.img_fn2il[img], ili)
+                else:
+                    pairsx[(x, y)] = None
             if y > 0:
-                pairsy[(x, y)] = pair_check(project, project.img_fn2il[icm.get_image(x, y - 1)], ili)
+                img = icm.get_image(x, y - 1)
+                if img:
+                    pairsy[(x, y)] = pair_check(project, project.img_fn2il[img], ili)
+                else:
+                    pairsx[(x, y)] = None
     
     if debugging:
         print 'Delta map'
@@ -439,6 +454,11 @@ def pre_opt(project, icm):
             for x in xrange(icm.width()):
                 if (x, y) in closed_set:
                     continue
+                img = icm.get_image(x, y)
+                # Skip missing images
+                if img is None:
+                    continue
+                
                 # see what we can gather from
                 # list of [xcalc, ycalc]
                 points = []
@@ -485,7 +505,7 @@ def pre_opt(project, icm):
                         print '    ', p
                 
                 # use all available anchor points from above
-                il = project.img_fn2il[icm.get_image(x, y)]
+                il = project.img_fn2il[img]
                 
                 # take average of up to 4 
                 points_x = [p[0] for p in points]
@@ -552,7 +572,9 @@ def get_rms(project):
         rms += this
     return rms / len(project.control_point_lines)
 
+# TODO: give some more thought and then delete entirely
 def chaos_opt(project, icm):
+    raise Exception("Isn't helpful, don't use")
     pos_xy = pre_opt(project, icm)
     
     debugging = 0
