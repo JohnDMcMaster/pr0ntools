@@ -467,14 +467,14 @@ def pre_opt_propagate(project, icm, closed_set, pairsx, pairsy, order):
                 if o and pairsx_avg:
                     dx, dy = pairsx_avg
                     px, py = (o[0] - dx * order, o[1] - dy * order)
-                    print "  L calc (%0.1f, %0.1f)" % (px, py)
+                    #print "  L calc (%0.1f, %0.1f)" % (px, py)
                     points.append((px, py))
                 # right
                 o = closed_set.get((x + order, y), None)
                 if o and pairsx_avg:
                     dx, dy = pairsx_avg
                     px, py = (o[0] + dx * order, o[1] + dy * order)
-                    print "  R calc (%0.1f, %0.1f)" % (px, py)
+                    #print "  R calc (%0.1f, %0.1f)" % (px, py)
                     points.append((px, py))
                 
                 # Y
@@ -482,13 +482,13 @@ def pre_opt_propagate(project, icm, closed_set, pairsx, pairsy, order):
                 if o and pairsy_avg:
                     dx, dy = pairsy_avg
                     px, py = (o[0] - dx * order, o[1] - dy * order)
-                    print "  U calc (%0.1f, %0.1f)" % (px, py)
+                    #print "  U calc (%0.1f, %0.1f)" % (px, py)
                     points.append((px, py))
                 o = closed_set.get((x, y + order), None)
                 if o and pairsy_avg:
                     dx, dy = pairsy_avg
                     px, py = (o[0] + dx * order, o[1] + dy * order)
-                    print "  D calc (%0.1f, %0.1f)" % (px, py)
+                    #print "  D calc (%0.1f, %0.1f)" % (px, py)
                     points.append((px, py))
                 
                 # Nothing useful?
@@ -515,6 +515,10 @@ def pre_opt_propagate(project, icm, closed_set, pairsx, pairsy, order):
             print 'Break on stable output'
             print '%d iters' % iters
             break
+
+    print
+    print
+    print 'Final pass: guestimate'
 
     # one last attempt: just find an anchor and roll with it
     # repair holes by successive passes
@@ -671,12 +675,12 @@ def pre_opt(project, icm):
     
     print
     print
-    print 'Second pass: second adjacent images'
+    print 'Second pass: adjacent adjacent images'
     pre_opt_core(project, icm, closed_set, pairsx, pairsy, order=2)
     
     print
     print
-    print 'Third pass: lowering standards'
+    print 'Third pass: propagate adjacent'
     pre_opt_propagate(project, icm, closed_set, pairsx, pairsy, order=1)
 
 

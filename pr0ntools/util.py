@@ -59,11 +59,11 @@ class IOTimestamp(object):
 
 # Log file descriptor to file
 class IOLog(object):
-    def __init__(self, obj=sys, name='stdout', out_fn=None, out_fd=None):
+    def __init__(self, obj=sys, name='stdout', out_fn=None, out_fd=None, mode='w'):
         if out_fd:
             self.out_fd = out_fd
         else:
-            self.out_fd = open(out_fn, 'w')
+            self.out_fd = open(out_fn, mode)
         
         self.obj = obj
         self.name = name

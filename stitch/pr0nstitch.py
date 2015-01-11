@@ -69,11 +69,12 @@ if __name__ == "__main__":
     parser_add_bool_arg('--stampout', default=True, help='timestamp output')
     args = parser.parse_args()
     
+    _outlog = IOLog(obj=sys, name='stdout', out_fn='pr0nstitch.log')
+    _errlog = IOLog(obj=sys, name='stderr', out_fd=_outlog.out_fd)
+    
     if args.stampout:
         _outdate = IOTimestamp(sys, 'stdout')
         _errdate = IOTimestamp(sys, 'stderr')
-    _outlog = IOLog(obj=sys, name='stdout', out_fn='pr0nstitch.log')
-    _errlog = IOLog(obj=sys, name='stderr', out_fd=_outlog.out_fd)
 
     depth = 1
     # CNC like precision?
