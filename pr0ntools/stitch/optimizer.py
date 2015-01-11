@@ -421,7 +421,10 @@ def pre_opt_core(project, icm, closed_set, pairsx, pairsy, order):
             print '%d iters' % iters
             break
 
-def pre_opt_final(project, icm, closed_set, pairsx, pairsy, order):
+def pre_opt_propagate(project, icm, closed_set, pairsx, pairsy, order):
+    '''
+    Take average delta and space tiles based on any adjacent placed tile
+    '''
     def avg(vals, s):
         vals = filter(lambda x: x is not None, vals)
         vals = [s(val) for val in vals]
@@ -452,7 +455,7 @@ def pre_opt_final(project, icm, closed_set, pairsx, pairsy, order):
                 if img is None:
                     continue
                 
-                print 'Trying to fix %s' % img
+                #print 'Trying to fix %s' % img
                 # see what we can gather from
                 # list of [xcalc, ycalc]
                 points = []
@@ -490,14 +493,9 @@ def pre_opt_final(project, icm, closed_set, pairsx, pairsy, order):
                 
                 # Nothing useful?
                 if len(points) == 0:
-                    print "  Couldn't match points :("
+                    #print "  Couldn't match points :("
                     continue
 
-                if debugging:
-                    print '  %03dX, %03dY: setting' % (x, y)
-                    for p in points:
-                        print '    ', p
-                
                 # use all available anchor points from above
                 il = project.img_fn2il[img]
                 
@@ -517,6 +515,39 @@ def pre_opt_final(project, icm, closed_set, pairsx, pairsy, order):
             print 'Break on stable output'
             print '%d iters' % iters
             break
+
+    # one last attempt: just find an anchor and roll with it
+    # repair holes by successive passes
+    # contains x,y points that have been finalized
+    for anch_r in xrange(0, icm.height()):
+        for anch_c in xrange(0, icm.width()):
+            if (anch_c, anch_r) not in closed_set:
+                continue
+            print 'Chose anchor image: %s' % img
+            anch_x, anch_y = closed_set[(anch_c, anch_r)]
+            break
+        if img:
+            break
+    else:
+        raise Exception('No images...')
+
+    for r in xrange(icm.height()):
+        for c in xrange(icm.width()):
+            if (c, r) in closed_set:
+                continue
+            img = icm.get_image(c, r)
+            # Skip missing images
+            if img is None:
+                continue
+            
+            xpos = anch_x + (c - anch_c) * pairsx_avg[0] + (r - anch_r) * pairsy_avg[0]
+            ypos = anch_y + (c - anch_c) * pairsx_avg[1] + (r - anch_r) * pairsy_avg[1]
+            print 'WARNING: rough estimate on %s: %0.1f, %0.1f' % (img, xpos, ypos)
+            # use all available anchor points from above
+            il = project.img_fn2il[img]
+            il.set_x(xpos)
+            il.set_y(ypos)
+            closed_set[(c, r)] = (xpos, ypos)
 
 def pre_opt(project, icm):
     '''
@@ -645,8 +676,8 @@ def pre_opt(project, icm):
     
     print
     print
-    print 'Third pass: desperation'
-    pre_opt_final(project, icm, closed_set, pairsx, pairsy, order=1)
+    print 'Third pass: lowering standards'
+    pre_opt_propagate(project, icm, closed_set, pairsx, pairsy, order=1)
 
 
     print
