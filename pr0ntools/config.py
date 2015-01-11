@@ -39,6 +39,9 @@ class Config:
 	def keep_temp_files(self):
 		return self.get('keep_temp', 0)
 
+	def temp_base(self):
+		return self.get('temp_base', "/tmp/pr0ntools_")
+		
 	def enblend_opts(self):
 		return self.get('enblend', {'opts':''})['opts']
 	

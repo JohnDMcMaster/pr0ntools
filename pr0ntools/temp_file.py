@@ -11,7 +11,9 @@ from pr0ntools.config import config
 
 g_default_prefix_dir = None
 g_default_prefix = None
-PREFIX_BASE = "/tmp/pr0ntools_"
+
+
+PREFIX_BASE = config.temp_base()
 
 def verbose(s):
 	pass
@@ -75,7 +77,7 @@ class ManagedTempFile:
 	def __del__(self):
 		try:
 			if os.path.exists(self.file_name):
-				if config.keep_temp_files():			
+				if config.keep_temp_files():
 					verbose('KEEP: Deleted temp file %s' % self.file_name)
 				else:
 					os.remove(self.file_name)
