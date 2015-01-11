@@ -102,8 +102,8 @@ if __name__ == "__main__":
     parser.add_argument('--ignore-errors', action="store_true", dest="ignore_errors", help='skip broken tile stitches (advanced)')
     parser.add_argument('--verbose', '-v', action="store_true", help='spew lots of info')
     parser.add_argument('--st-dir', help='store intermediate supertiles to given dir')
-    parser_add_bool_arg('--enblend-lock', default=True, help='use lock file to only enblend (memory intensive part) one at a time')
-    parser_add_bool_arg('--stampout', default=True, help='timestamp output')
+    parser_add_bool_arg('--enblend-lock', default=False, help='use lock file to only enblend (memory intensive part) one at a time')
+    parser_add_bool_arg('--stampout', default=False, help='timestamp output')
     args = parser.parse_args()
     
     if args.stampout:
