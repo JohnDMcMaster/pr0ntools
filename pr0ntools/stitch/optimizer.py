@@ -544,8 +544,9 @@ def pre_opt_propagate(project, icm, closed_set, pairsx, pairsy, order):
             if img is None:
                 continue
             
-            xpos = anch_x + (c - anch_c) * pairsx_avg[0] + (r - anch_r) * pairsy_avg[0]
-            ypos = anch_y + (c - anch_c) * pairsx_avg[1] + (r - anch_r) * pairsy_avg[1]
+            # ship it: "all working image programs have an even number of sign errors"
+            xpos = anch_x - (c - anch_c) * pairsx_avg[0] - (r - anch_r) * pairsy_avg[0]
+            ypos = anch_y - (c - anch_c) * pairsx_avg[1] - (r - anch_r) * pairsy_avg[1]
             print 'WARNING: rough estimate on %s: %0.1f, %0.1f' % (img, xpos, ypos)
             # use all available anchor points from above
             il = project.img_fn2il[img]
