@@ -103,6 +103,10 @@ class CommonStitch:
         # Each filename as the key
         #self.failures = FailedImages()
         self.failures = None
+        # attempted soften
+        self.soften_try = {0:0, 1:0, 2:0}
+        # soften that worked
+        self.soften_ok = {0:0, 1:0, 2:0}
 
     def set_dry(self, d):
         self.dry = d
@@ -169,6 +173,8 @@ class CommonStitch:
             Generate control points
             '''
             self.generate_control_points()
+            print 'Soften try: %s' % (self.soften_try,)
+            print 'Soften ok: %s' % (self.soften_ok,)
     
             print 'Post stitch fixup...'
             optimize_xy_only(self.project)
@@ -357,6 +363,8 @@ class CommonStitch:
         softener = Softener()
 
         for i in xrange(soften_iterations):
+            self.soften_try[i] += 1
+
             # And then start screwing with it
             # Wonder if we can combine features from multiple soften passes?
             # Or at least take the maximum
@@ -377,27 +385,32 @@ class CommonStitch:
             if ret_project:
                 # Fixup the project to reflect the correct file names
                 text = str(ret_project)
-                print
-                print 'Before sub'
-                print
-                print str(ret_project)
-                print
-                print
-                print
+                if 0:
+                    print
+                    print 'Before sub'
+                    print
+                    print str(ret_project)
+                    print
+                    print
+                    print
                 print '%s => %s' % (soften_image_file_0_managed.file_name, image_fn_pair[0])
                 text = text.replace(soften_image_file_0_managed.file_name, image_fn_pair[0])
                 print '%s => %s' % (soften_image_file_1_managed.file_name, image_fn_pair[1])
                 text = text.replace(soften_image_file_1_managed.file_name, image_fn_pair[1])
 
                 ret_project.set_text(text)
-                print
-                print 'After sub'
-                print
-                print str(ret_project)
-                print
-                print
-                print
-                #sys.exit(1)
+                if 0:
+                    print
+                    print 'After sub'
+                    print
+                    print str(ret_project)
+                    print
+                    print
+                    print
+                    #sys.exit(1)
+                self.soften_ok[i] += 1
+                print 'Soften try: %s' % (self.soften_try,)
+                print 'Soften ok: %s' % (self.soften_ok,)
                 return ret_project
 
         print 'WARNING: gave up on generating control points!' 

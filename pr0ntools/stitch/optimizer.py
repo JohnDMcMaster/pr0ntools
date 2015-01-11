@@ -527,6 +527,9 @@ def pre_opt_propagate(project, icm, closed_set, pairsx, pairsy, order):
         for anch_c in xrange(0, icm.width()):
             if (anch_c, anch_r) not in closed_set:
                 continue
+            img = icm.get_image(x, y)
+            if img is None:
+                continue
             print 'Chose anchor image: %s' % img
             anch_x, anch_y = closed_set[(anch_c, anch_r)]
             break
