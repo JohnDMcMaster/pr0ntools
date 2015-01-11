@@ -29,7 +29,10 @@ if __name__ == "__main__":
     ils_del = []
     for y in xrange(1, icm.height() - 1):
         for x in xrange(1, icm.width() - 1):
-            ils_del.append(pto_orig.img_fn2il[icm.get_image(x, y)])
+            im = icm.get_image(x, y)
+            if im is None:
+                continue
+            ils_del.append(pto_orig.img_fn2il[im])
     print 'Deleting %d / %d images' % (len(ils_del), icm.width() * icm.height())
     pto_red.del_images(ils_del)
     pto_red.save_as(pto_orig.file_name.replace('.pto', '_sm.pto'), is_new_filename=True)
@@ -53,6 +56,8 @@ if __name__ == "__main__":
     # copy over rotation
     # assume its the same for all
     r = pto_red.image_lines[0].getv('r')
+    if r is None:
+        r = 0.0
     def floats(f):
         if f is None:
             return 'None'
@@ -64,7 +69,7 @@ if __name__ == "__main__":
 
     print 'Saving final project'
     # small backup in case something went wrong
-    shutil.move(pto_orig.file_name, '/tmp/pr0n-prehugin.pto')
+    shutil.copy(pto_orig.file_name, '/tmp/pr0n-prehugin.pto')
     pto_orig.save_as(pto_orig.file_name)
 
     print 'Done!'
