@@ -12,6 +12,7 @@ from pr0ntools.stitch.tile_opt import TileOpt
 from pr0ntools.stitch.pto.project import PTOProject
 from pr0ntools.stitch.pto.util import *
 from pr0ntools.util import IOTimestamp, IOLog
+from pr0ntools.benchmark import Benchmark
 
 def parser_add_bool_arg(yes_arg, default=False, **kwargs):
     dashed = yes_arg.replace('--', '')
@@ -70,6 +71,7 @@ if __name__ == "__main__":
     print 'pr0npto starting'
     print 'In: %s' % pto_in
     print 'Out: %s' % pto_out
+    bench = Benchmark()
 
     pto = PTOProject.from_file_name(pto_in)
     # Make sure we don't accidently override the original
@@ -186,5 +188,8 @@ if __name__ == "__main__":
 
     print 'Saving to %s' % pto_out
     pto.save_as(pto_out)
+    
+    bench.stop()
+    print 'Completed in %s' % bench
 
 
