@@ -421,7 +421,7 @@ def pre_opt_core(project, icm, closed_set, pairsx, pairsy, order):
             print '%d iters' % iters
             break
 
-def pre_opt_propagate(project, icm, closed_set, pairsx, pairsy, order):
+def pre_opt_propagate(project, icm, closed_set, pairsx, pairsy, order, anch_cr):
     '''
     Take average delta and space tiles based on any adjacent placed tile
     '''
@@ -521,22 +521,10 @@ def pre_opt_propagate(project, icm, closed_set, pairsx, pairsy, order):
     print 'Final pass: guestimate'
 
     # one last attempt: just find an anchor and roll with it
-    # repair holes by successive passes
-    # contains x,y points that have been finalized
-    for anch_r in xrange(0, icm.height()):
-        for anch_c in xrange(0, icm.width()):
-            if (anch_c, anch_r) not in closed_set:
-                continue
-            img = icm.get_image(x, y)
-            if img is None:
-                continue
-            print 'Chose anchor image: %s' % img
-            anch_x, anch_y = closed_set[(anch_c, anch_r)]
-            break
-        if img:
-            break
-    else:
-        raise Exception('No images...')
+    (anch_c, anch_r) = anch_cr
+    # should be 0.0, 0.0
+    anch_x, anch_y = closed_set[anch_cr]
+    print 'Using anchor image c%d, r%d' % (anch_c, anch_r)
 
     for r in xrange(icm.height()):
         for c in xrange(icm.width()):
@@ -655,16 +643,24 @@ def pre_opt(project, icm):
     
     # repair holes by successive passes
     # contains x,y points that have been finalized
-    for y in xrange(0, icm.height()):
-        for x in xrange(0, icm.width()):
-            img = icm.get_image(x, y)
+    for anch_r in xrange(0, icm.height()):
+        for anch_c in xrange(0, icm.width()):
+            # Image must exist
+            img = icm.get_image(anch_c, anch_r)
             if img is None:
                 continue
-            print 'Chose anchor image: %s' % img
-            closed_set = {(x, y): (0.0, 0.0)}
+            # Must be linked to at least one other image
             il = project.img_fn2il[img]
-            il.set_x(0.0)
-            il.set_y(0.0)
+            cpls = img_cpls(project, il.get_index())
+            if len(cpls) == 0:
+                img = None
+                continue
+            # Only anchor if control points
+            print 'Chose anchor image: %s' % img
+            closed_set = {(anch_c, anch_r): (0.0, 0.0)}
+            anch_il = project.img_fn2il[img]
+            anch_il.set_x(0.0)
+            anch_il.set_y(0.0)
             break
         if img:
             break
@@ -685,7 +681,7 @@ def pre_opt(project, icm):
     print
     print
     print 'Third pass: propagate adjacent'
-    pre_opt_propagate(project, icm, closed_set, pairsx, pairsy, order=1)
+    pre_opt_propagate(project, icm, closed_set, pairsx, pairsy, order=1, anch_cr=(anch_c, anch_r))
 
 
     print

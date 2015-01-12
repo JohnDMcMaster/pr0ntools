@@ -409,4 +409,12 @@ def fixup_image_dim(pto):
         calc_il_dim(il)
         dbg('With size info: %s' % il)
 
-
+def img_cpls(pto, img_i):
+    '''Return control point lines for given image file name'''
+    cpls = []
+    for cpl in pto.control_point_lines:
+        n = cpl.getv('n')
+        N = cpl.getv('N')
+        if n == img_i or N == img_i:
+            cpls.append(cpl)
+    return cpls
