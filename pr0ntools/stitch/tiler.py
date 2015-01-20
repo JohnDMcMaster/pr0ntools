@@ -52,13 +52,16 @@ from pr0ntools.temp_file import ManagedTempDir
 from pr0ntools.pimage import PImage
 from pr0ntools.benchmark import Benchmark
 from pr0ntools.geometry import ceil_mult
-import os
+from pr0ntools.execute import CommandFailed
+from pr0ntools.stitch.pto.util import dbg
 import math
+import os
+import Queue
 import shutil
 import sys
-from pr0ntools.execute import CommandFailed
+import threading
+import time
 import traceback
-from pr0ntools.stitch.pto.util import dbg
 
 class InvalidClip(Exception):
     pass
@@ -126,6 +129,45 @@ class PartialStitcher:
         
         print 'Supertile ready!'
 
+
+class Worker(threading.Thread):
+    def __init__(self, i, tiler):
+        threading.Thread.__init__(self)
+        self.i = i
+        self.qi = Queue.Queue()
+        self.qo = Queue.Queue()
+        self.running = threading.Event()
+        self.tiler = tiler
+
+    def run(self):
+        self.running.set()
+        while self.running.is_set():
+            try:
+                task = self.qi.get(True, 0.1)
+            except Queue.Empty:
+                continue
+            
+            try:
+                (st_bounds,) = task
+
+                print
+                print
+                print
+                print
+                print
+                print '*' * 80
+                print 'w%d: task rx' % self.i
+                img = self.tiler.work(st_bounds)
+                
+                self.qo.put(('done', (st_bounds, img)))
+                print 'w%d: task done' % self.i
+                
+            except Exception as e:
+                traceback.print_exc()
+                estr = traceback.format_exc()
+                self.qo.put(('exception', (task, e, estr)))
+
+
 # For managing the closed list        
 
 class Tiler:
@@ -151,6 +193,8 @@ class Tiler:
         self.st_dir = None
         self.nona_args = []
         self.enblend_args = []
+        self.threads = 1
+        self.workers = []
         
         # TODO: this is a heuristic just for this, uniform input images aren't actually required
         for i in pto.get_image_lines():
@@ -249,8 +293,8 @@ class Tiler:
                                 tile_width = self.tw, tile_height = self.th,
                                 st_scalar_heuristic=self.st_scalar_heuristic, dry=True,
                                 stw=check_w, sth=check_h, stp=None, clip_width=self.clip_width, clip_height=self.clip_height)
-                    except InvalidClip:
-                        print 'Discarding: invalid clip'
+                    except InvalidClip as e:
+                        print 'Discarding: invalid clip: %s' % (e,)
                         print
                         continue
                     
@@ -306,9 +350,9 @@ class Tiler:
             print '  STW: %d' % self.stw
             print '  Clip W: %d' % self.clip_width
             print '  W: %d (%d - %d)' % (w, self.right(), self.left())
-            raise InvalidClip('Clip width exceeds supertile width: reduce clip or increase ST size')
+            raise InvalidClip('Clip width %d exceeds supertile width %d after adj: reduce clip or increase ST size' % (self.clip_width, self.stw))
         if self.sth <= 2 * self.clip_height and not self.stw < h:
-            raise InvalidClip('Clip height exceeds supertile height: reduce clip or increase ST size')
+            raise InvalidClip('Clip height %d exceeds supertile height %d after adj: reduce clip or increase ST size' % (self.clip_height, self.sth))
         
     def msg(self, s, l):
         '''Print message s at verbosity level l'''
@@ -476,20 +520,30 @@ class Tiler:
                     continue
                 yield (y, x)
             
-            
-    def try_supertile(self, x0, x1, y0, y1):
+    def work(self, st_bounds):
+        try:
+            return self.try_supertile(st_bounds)
+        except CommandFailed:
+            if self.ignore_errors:
+                # We shouldn't be trying commands during dry but just in case should raise?
+                print 'WARNING: got exception trying supertile %d' % (self.n_supertiles)
+                traceback.print_exc()
+            else:
+                raise
+
+    def try_supertile(self, st_bounds):
         '''x0/1 and y0/1 are global absolute coordinates'''
         # First generate all of the valid tiles across this area to see if we can get any useful work done?
         # every supertile should have at least one solution or the bounds aren't good
+        x0, x1, y0, y1 = st_bounds
         
         bench = Benchmark()
         try:
             temp_file = ManagedTempFile.get(None, '.tif')
 
-            bounds = [x0, x1, y0, y1]
             #out_name_base = "%s/r%03d_c%03d" % (self.out_dir, row, col)
             #print 'Working on %s' % out_name_base
-            stitcher = PartialStitcher(self.pto, bounds, temp_file.file_name)
+            stitcher = PartialStitcher(self.pto, st_bounds, temp_file.file_name)
             stitcher.enblend_lock = self.enblend_lock
             stitcher.nona_args = self.nona_args
             stitcher.enblend_args = self.enblend_args
@@ -516,48 +570,50 @@ class Tiler:
                         raise Exception('Failed to copy stitched file')
                 img = PImage.from_file(temp_file.file_name)
                 print 'Supertile width: %d, height: %d' % (img.width(), img.height())
-        
-            
-        
-            '''
-            A tile is valid if its in a safe location
-            There are two ways for the location to be safe:
-            -No neighboring tiles as found on canvas edges
-            -Sufficiently inside the blend area that artifacts should be minimal
-            '''
-            gen_tiles = 0
-            print
-            # TODO: get the old info back if I miss it after yield refactor
-            print 'Phase 4: chopping up supertile'
-            self.msg('step(x: %d, y: %d)' % (self.tw, self.th), 3)
-            #self.msg('x in xrange(%d, %d, %d)' % (xt0, xt1, self.tw), 3)
-            #self.msg('y in xrange(%d, %d, %d)' % (yt0, yt1, self.th), 3)
-        
-            for (y, x) in self.gen_supertile_tiles(x0, x1, y0, y1):    
-                # If we made it this far the tile can be constructed with acceptable enblend artifacts
-                row = self.y2row(y)
-                col = self.x2col(x)
-            
-                # Did we already do this tile?
-                if self.is_done(row, col):
-                    # No use repeating it although it would be good to diff some of these
-                    if self.verbose:
-                        print 'Rejecting tile x%d, y%d / r%d, c%d: already done' % (x, y, row, col)
-                    continue
-            
-                # note that x and y are in whole pano coords
-                # we need to adjust to our frame
-                # row and col on the other hand are used for global naming
-                self.make_tile(img, x - x0, y - y0, row, col)
-                gen_tiles += 1
-            bench.stop()
-            print 'Generated %d new tiles for a total of %d / %d in %s' % (gen_tiles, len(self.closed_list), self.net_expected_tiles, str(bench))
-            if gen_tiles == 0:
-                raise Exception("Didn't generate any tiles")
-            # temp_file should be automatically deleted upon exit
+            return img
         except:
             print 'Supertile failed at %s' % bench
             raise
+    
+    def process_image(self, img, st_bounds):
+        '''
+        A tile is valid if its in a safe location
+        There are two ways for the location to be safe:
+        -No neighboring tiles as found on canvas edges
+        -Sufficiently inside the blend area that artifacts should be minimal
+        '''
+        bench = Benchmark()
+        [x0, x1, y0, y1] = st_bounds
+        gen_tiles = 0
+        print
+        # TODO: get the old info back if I miss it after yield refactor
+        print 'Phase 4: chopping up supertile'
+        self.msg('step(x: %d, y: %d)' % (self.tw, self.th), 3)
+        #self.msg('x in xrange(%d, %d, %d)' % (xt0, xt1, self.tw), 3)
+        #self.msg('y in xrange(%d, %d, %d)' % (yt0, yt1, self.th), 3)
+    
+        for (y, x) in self.gen_supertile_tiles(x0, x1, y0, y1):    
+            # If we made it this far the tile can be constructed with acceptable enblend artifacts
+            row = self.y2row(y)
+            col = self.x2col(x)
+        
+            # Did we already do this tile?
+            if self.is_done(row, col):
+                # No use repeating it although it would be good to diff some of these
+                if self.verbose:
+                    print 'Rejecting tile x%d, y%d / r%d, c%d: already done' % (x, y, row, col)
+                continue
+        
+            # note that x and y are in whole pano coords
+            # we need to adjust to our frame
+            # row and col on the other hand are used for global naming
+            self.make_tile(img, x - x0, y - y0, row, col)
+            gen_tiles += 1
+        bench.stop()
+        print 'Generated %d new tiles for a total of %d / %d in %s' % (gen_tiles, len(self.closed_list), self.net_expected_tiles, str(bench))
+        if gen_tiles == 0:
+            raise Exception("Didn't generate any tiles")
+        # temp_file should be automatically deleted upon exit
     
     def get_name(self, row, col):
         out_dir = ''
@@ -806,40 +862,109 @@ class Tiler:
                 x_tiles, y_tiles, self.net_expected_tiles)
         if self.merge:
             self.seed_merge()
-        
-        #temp_file = 'partial.tif'
-        self.n_supertiles = 0
-        for supertile in self.gen_supertiles():
-            self.n_supertiles += 1
-            [x0, x1, y0, y1] = supertile
-            
-            print 'Checking supertile x(%d:%d) y(%d:%d)' % (x0, x1, y0, y1)
-            
-            if self.should_try_supertile(x0, x1, y0, y1):
-                print
-                print
-                print "Creating supertile %d / %d with x%d:%d, y%d:%d" % (self.n_supertiles, self.n_expected_sts, x0, x1, y0, y1)
-                
-                try:
-                    self.try_supertile(x0, x1, y0, y1)
-                except CommandFailed:
-                    if self.ignore_errors:
-                        # We shouldn't be trying commands during dry but just in case should raise?
-                        print 'WARNING: got exception trying supertile %d' % (self.n_supertiles)
-                        traceback.print_exc()
+
+        print 'Initializing %d workers' % self.threads
+        for ti in xrange(self.threads):
+            w = Worker(ti, self)
+            self.workers.append(w)
+            w.start()
+
+        try:
+            #temp_file = 'partial.tif'
+            self.n_supertiles = 0
+            st_gen = self.gen_supertiles()
+    
+            all_allocated = False
+            last_progress = time.time()
+            pair_submit = 0
+            pair_complete = 0
+            while not (all_allocated and pair_complete == pair_submit):
+                progress = False
+                # Check for completed jobs
+                for wi, worker in enumerate(self.workers):
+                    try:
+                        out = worker.qo.get(False)
+                    except Queue.Empty:
+                        continue
+                    pair_complete += 1
+                    what = out[0]
+                    print out
+                    progress = True
+    
+                    if what == 'done':
+                        (st_bounds, img) = out[1]
+                        print 'W%d: done w/ submit %d, complete %d' % (wi, pair_submit, pair_complete)
+                        self.process_image(img, st_bounds)
+                    elif what == 'exception':
+                        for worker in self.workers:
+                            worker.running.clear()
+                        # let stdout clear up
+                        time.sleep(1)
+                        
+                        #(_task, e) = out[1]
+                        print '!' * 80
+                        print 'ERROR: W%d failed w/ exception' % wi
+                        (_task, _e, estr) = out[1]
+                        print 'Stack trace:'
+                        for l in estr.split('\n'):
+                            print l
+                        print '!' * 80
+                        raise Exception('Shutdown on worker failure')
                     else:
-                        raise
-            else:
-                print 'WARNING: skipping supertile %d as it would not generate any new tiles' % self.n_supertiles
+                        print '%s' % (out,)
+                        raise Exception('Internal error: bad task type %s' % what)
+    
+                # Any workers need more work?
+                for wi, worker in enumerate(self.workers):
+                    if all_allocated:
+                        break
+                    if worker.qi.empty():
+                        while True:
+                            try:
+                                st_bounds = st_gen.next()
+                            except StopIteration:
+                                print 'All tasks allocated'
+                                all_allocated = True
+                                break
+            
+                            progress = True
 
-        bench.stop()
-        print 'Processed %d supertiles to generate %d new (%d total) tiles in %s' % (self.n_expected_sts, self.this_tiles_done, self.tiles_done(), str(bench))
-        tiles_s = self.this_tiles_done / bench.delta_s()
-        print '%f tiles / sec, %f pix / sec' % (tiles_s, tiles_s * self.tw * self.th)
-        
-        if self.tiles_done() != self.net_expected_tiles:
-            print 'ERROR: expected to do %d basic tiles but did %d' % (self.net_expected_tiles, self.tiles_done())
-            self.dump_open_list()
-            raise Exception('State mismatch')
-
-
+                            [x0, x1, y0, y1] = st_bounds
+                            print 'Checking supertile x(%d:%d) y(%d:%d)' % (x0, x1, y0, y1)
+                            if not self.should_try_supertile(x0, x1, y0, y1):
+                                print 'WARNING: skipping supertile %d as it would not generate any new tiles' % self.n_supertiles
+                                continue
+                
+                            print '*' * 80
+                            #print 'W%d: submit %s (%d / %d)' % (wi, repr(pair), pair_submit, n_pairs)
+                            print "Creating supertile %d / %d with x%d:%d, y%d:%d" % (self.n_supertiles, self.n_expected_sts, x0, x1, y0, y1)
+                            print 'W%d: submit' % (wi,)
+                
+                            worker.qi.put((st_bounds,))
+                            pair_submit += 1
+                            break
+    
+                if progress:
+                    last_progress = time.time()
+                else:
+                    # can take some time, but should be using smaller tiles now
+                    if time.time() - last_progress > 4 * 60 * 60:
+                        print 'WARNING: server thread stalled'
+                        last_progress = time.time()
+                
+                time.sleep(0.1)
+            
+    
+            bench.stop()
+            print 'Processed %d supertiles to generate %d new (%d total) tiles in %s' % (self.n_expected_sts, self.this_tiles_done, self.tiles_done(), str(bench))
+            tiles_s = self.this_tiles_done / bench.delta_s()
+            print '%f tiles / sec, %f pix / sec' % (tiles_s, tiles_s * self.tw * self.th)
+            
+            if self.tiles_done() != self.net_expected_tiles:
+                print 'ERROR: expected to do %d basic tiles but did %d' % (self.net_expected_tiles, self.tiles_done())
+                self.dump_open_list()
+                raise Exception('State mismatch')
+        finally:
+            print 'Shutting down workers'
+            for worker in self.workers:
+                worker.running.clear()

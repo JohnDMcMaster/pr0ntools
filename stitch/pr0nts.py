@@ -12,13 +12,14 @@ Described in detail here:
 http://uvicrec.blogspot.com/2012/02/tile-stitch.html
 '''
 
-import sys 
 from pr0ntools.stitch.tiler import Tiler
 from pr0ntools.stitch.pto.project import PTOProject
-import argparse
-import re
 from pr0ntools.config import config
 from pr0ntools.util import IOTimestamp, IOLog
+import argparse
+import multiprocessing
+import re
+import sys 
 
 def size2str(d):
     if d < 1000:
@@ -103,8 +104,13 @@ if __name__ == "__main__":
     parser.add_argument('--verbose', '-v', action="store_true", help='spew lots of info')
     parser.add_argument('--st-dir', help='store intermediate supertiles to given dir')
     parser_add_bool_arg('--enblend-lock', default=False, help='use lock file to only enblend (memory intensive part) one at a time')
+    parser.add_argument('--threads', type=int, default= multiprocessing.cpu_count())
     parser_add_bool_arg('--stampout', default=False, help='timestamp output')
     args = parser.parse_args()
+
+    if args.threads < 1:
+        raise Exception('Bad threads')
+    print 'Using %d threads' % args.threads
     
     if args.stampout:
         _outdate = IOTimestamp(sys, 'stdout')
@@ -138,6 +144,7 @@ if __name__ == "__main__":
 
     
     t = Tiler(project, 'out', stw=mksize(args.stw), sth=mksize(args.sth), stp=stp, clip_width=args.clip_width, clip_height=args.clip_height)
+    t.threads = args.threads
     t.verbose = args.verbose
     if args.st_dir is None:
         args.st_dir = 'single'
