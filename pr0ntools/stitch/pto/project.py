@@ -458,7 +458,7 @@ m g1.0 i0 f0 m2
             self.parse_line(line)
             dbg()
 
-        print 'Finished reparse'
+        #print 'Finished reparse'
         self.parsed = True
 
     def parse_line(self, line):
@@ -574,7 +574,7 @@ m g1.0 i0 f0 m2
 
     def make_absolute(self, to = None):
         '''Make all image paths absolute'''
-        print 'Making %d images absolute' % len(self.get_image_lines())
+        #print 'Making %d images absolute' % len(self.get_image_lines())
         for i in self.get_image_lines():
             i.make_absolute(to)
 

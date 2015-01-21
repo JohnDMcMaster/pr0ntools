@@ -33,6 +33,7 @@ class Worker(threading.Thread):
         self.qo = Queue.Queue()
         self.running = threading.Event()
         self.generate_control_points_by_pair = None
+        self.idle = True
 
     def run(self):
         self.running.set()
@@ -40,7 +41,9 @@ class Worker(threading.Thread):
             try:
                 task = self.qi.get(True, 0.1)
             except Queue.Empty:
+                self.idle = True
                 continue
+            self.idle = False
             
             try:
                 (pair, pair_images) = task

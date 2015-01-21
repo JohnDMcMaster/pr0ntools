@@ -4,11 +4,13 @@ Copyright 2011 John McMaster <JohnDMcMaster@gmail.com>
 Licensed under a 2 clause BSD license, see COPYING for details
 '''
 
-import os
 from temp_file import ManagedTempFile
-import subprocess
+import datetime
+import os
 import select
+import subprocess
 import sys
+import time
 
 class CommandFailed(Exception):
     pass
@@ -203,3 +205,64 @@ class Execute:
         return (subp.returncode, output)
         '''
 
+class Prefixer:
+    def __init__(self, f, prefix):
+        self.f = f
+        self.inline = False
+        self.prefix = prefix
+
+    def write(self, s):
+        pos = 0
+        while True:
+            posn = s.find('\n', pos)
+            if posn >= 0:
+                if not self.inline:
+                    self.f.write(self.prefix())
+                self.f.write(s[pos:posn + 1])
+                pos = posn + 2
+                self.inline = False
+            else:
+                out = s[pos:]
+                if len(out) and not self.inline:
+                    self.f.write(self.prefix())
+                    self.inline = True
+                self.f.write(out)
+                break
+        self.f.flush()
+        
+def timestamp(args, stdout=sys.stdout, stderr=sys.stderr):
+    return prefix(args, stdout, stderr, lambda: datetime.datetime.utcnow().isoformat() + ': ')
+
+def prefix(args, stdout=sys.stdout, stderr=sys.stderr, prefix=lambda: ''):
+    '''Execute, prepending timestamps to newlines'''
+    subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False)
+    try:
+        p_stdout = Prefixer(stdout, prefix)
+        p_stderr = Prefixer(stderr, prefix)
+        while subp.poll() is None:
+            r_rdy, _w_rdy, _x_rdy = select.select([subp.stdout, subp.stderr], [], [], 0.1)
+            if subp.stdout in r_rdy:
+                p_stdout.write(os.read(subp.stdout.fileno(), 1024))
+            if subp.stderr in r_rdy:
+                p_stderr.write(os.read(subp.stderr.fileno(), 1024))
+        # Flush lingering output
+        # could move these above but afraid of race conditions losing output
+        while True:
+            s = os.read(subp.stdout.fileno(), 1024)
+            if len(s) == 0:
+                break
+            p_stdout.write(s)
+        while True:
+            s = os.read(subp.stderr.fileno(), 1024)
+            if len(s) == 0:
+                break
+            p_stderr.write(s)
+    
+        return subp.returncode
+    finally:
+        if subp.poll() is None:
+            try:
+                subp.kill()
+            # be careful of race conditions.  child may execute after poll
+            except OSError:
+                pass

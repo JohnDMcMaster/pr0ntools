@@ -85,11 +85,13 @@ Mask generation options:
 Report bugs at <http://sourceforge.net/projects/enblend/>.
 '''
 
+from pr0ntools import execute
 from pr0ntools.execute import Execute, CommandFailed
 from pr0ntools.config import config
 import fcntl
 import time
 import sys
+import datetime
 
 class BlenderFailed(CommandFailed):
     pass
@@ -103,15 +105,19 @@ class Blender:
         self.additional_args = []
         self._lock = lock
         self._lock_fp = None
+        def p(s=''):
+            print '%s%s' % (self.out_prefix(), s)
+        self.p = p
+        self.out_prefix = lambda: datetime.datetime.utcnow().isoformat() + ': '
         
     def lock(self):
         if not self._lock:
-            print 'note: Skipping enblend lock'
+            self.p('note: Skipping enblend lock')
             return
         pid_file = '/tmp/pr0ntools-enblend.pid'
         self._lock_fp = open(pid_file, 'w')
         i = 0
-        print 'note: Acquiring enblend lock'
+        self.p('note: Acquiring enblend lock')
         while True:
             try:
                 fcntl.lockf(self._lock_fp, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -119,16 +125,16 @@ class Blender:
             except IOError:
                 # Can take a while, print every 10 min or so and once at failure
                 if i % (10 * 60 * 10) == 0:
-                    print 'Failed to acquire enblend lock, retrying (print every 10 min)'
+                    self.p('Failed to acquire enblend lock, retrying (print every 10 min)')
                 time.sleep(0.1)
             i += 1
-        print 'Acquired enblend lock'
+        self.p('Acquired enblend lock')
         
     def unlock(self):
         if self._lock_fp is None:
-            print 'Skipping enblend unlock'
+            self.p('Skipping enblend unlock')
             return
-        print 'Releasing enblend lock'
+        self.p('Releasing enblend lock')
         self._lock_fp.close()
         self._lock_fp = None
         
@@ -152,20 +158,18 @@ class Blender:
         args.append(self.pto_project.get_a_file_name())
         self.lock()
         try:
-            (rc, output) = Execute.with_output("enblend", args)
+            (rc, _output) = Execute.with_output("enblend", args)
             if not rc == 0:
                 raise BlenderFailed('failed to blend')
             self.project.reopen()
-            print 'enblend finished OK'
+            self.p('enblend finished OK')
         finally:
             self.unlock()
-        print 'Blender complete'
+        self.p('Blender complete')
 
         
     def run(self):
-        args = list()
-        args.append("-o")
-        args.append(self.output_file)
+        args = ["enblend", "-o", self.output_file]
         if self.compression:
             args.append('--compression=%s' % str(self.compression))
         if self.gpu:
@@ -179,12 +183,13 @@ class Blender:
             args.append(opt)
         
         self.lock()
-        rc = Execute.show_output("enblend", args)
+                
+        rc = execute.prefix(args, stdout=sys.stdout, stderr=sys.stderr, prefix=self.out_prefix)
         if not rc == 0:
-            print
-            print
-            print
-            print 'Failed to blend'
-            print 'rc: %d' % rc
-            print args
+            self.p('')
+            self.p('')
+            self.p('')
+            self.p('Failed to blend')
+            self.p('rc: %d' % rc)
+            self.p(args)
             raise BlenderFailed('failed to remap')

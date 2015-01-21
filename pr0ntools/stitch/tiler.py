@@ -54,6 +54,7 @@ from pr0ntools.benchmark import Benchmark
 from pr0ntools.geometry import ceil_mult
 from pr0ntools.execute import CommandFailed
 from pr0ntools.stitch.pto.util import dbg
+import datetime
 import math
 import os
 import Queue
@@ -67,13 +68,18 @@ class InvalidClip(Exception):
     pass
 
 class PartialStitcher:
-    def __init__(self, pto, bounds, out):
+    def __init__(self, pto, bounds, out, worki, work_run):
         self.pto = pto
         self.bounds = bounds
         self.out = out
         self.nona_args = []
         self.enblend_args = []
         self.enblend_lock = False
+        self.worki = worki
+        self.work_run = work_run
+        def p(s=''):
+            print 'w%d: %s' % (self.worki, s)
+        self.p = p
         
     def run(self):
         '''
@@ -83,13 +89,13 @@ class PartialStitcher:
         but will only generate output for those that matter
         Each one takes a noticible amount of time but its relatively small compared to the time spent actually mapping images
         '''
-        print
-        print 'Supertile phase 1: remapping (nona)'
+        self.p()
+        self.p('Supertile phase 1: remapping (nona)')
         if self.out.find('.') < 0:
             raise Exception('Require image extension')
         # Hugin likes to use the base filename as the intermediates, lets do the sames
         out_name_base = self.out[0:self.out.find('.')].split('/')[-1]
-        print "out name: %s, base: %s" % (self.out, out_name_base)
+        self.p("out name: %s, base: %s" % (self.out, out_name_base))
         #ssadf
         if out_name_base is None or len(out_name_base) == 0 or out_name_base == '.' or out_name_base == '..':
             raise Exception('Bad output file base "%s"' % str(out_name_base))
@@ -101,10 +107,10 @@ class PartialStitcher:
         out_name_prefix = managed_temp_dir.file_name + "/"
         
         pto = self.pto.copy()
-        print 'Making absolute'
+        self.p('Making absolute')
         pto.make_absolute()
         
-        print 'Cropping...'
+        self.p('Cropping...')
         #sys.exit(1)
         pl = pto.get_panorama_line()
         # It is fine to go out of bounds, it will be black filled
@@ -117,17 +123,25 @@ class PartialStitcher:
         '''
         Phase 2: blend the remapped images into an output image
         '''
-        print
-        print 'Supertile phase 2: blending (enblend)'
+        self.p()
+        self.p('Supertile phase 2: blending (enblend)')
         blender = Blender(remapper.get_output_files(), self.out, lock=self.enblend_lock)
         blender.args = self.enblend_args
+        def out_prefix():
+            # hack: ocassionally get io
+            # use that to interrupt if need be
+            if not self.work_run:
+                raise Exception('not running')
+            return datetime.datetime.utcnow().isoformat() + ' w%d: ' % self.worki
+        
+        blender.out_prefix = out_prefix
         blender.run()
         # We are done with these files, they should be nuked
         if not config.keep_temp_files():
             for f in remapper.get_output_files():
                 os.remove(f)
         
-        print 'Supertile ready!'
+        self.p('Supertile ready!')
 
 
 class Worker(threading.Thread):
@@ -157,7 +171,7 @@ class Worker(threading.Thread):
                 print
                 print '*' * 80
                 print 'w%d: task rx' % self.i
-                img = self.tiler.work(st_bounds)
+                img = self.tiler.work(self.i, self.running, st_bounds)
                 
                 self.qo.put(('done', (st_bounds, img)))
                 print 'w%d: task done' % self.i
@@ -194,7 +208,7 @@ class Tiler:
         self.nona_args = []
         self.enblend_args = []
         self.threads = 1
-        self.workers = []
+        self.workers = None
         
         # TODO: this is a heuristic just for this, uniform input images aren't actually required
         for i in pto.get_image_lines():
@@ -520,9 +534,9 @@ class Tiler:
                     continue
                 yield (y, x)
             
-    def work(self, st_bounds):
+    def work(self, worki, work_run, st_bounds):
         try:
-            return self.try_supertile(st_bounds)
+            return self.try_supertile(worki, work_run, st_bounds)
         except CommandFailed:
             if self.ignore_errors:
                 # We shouldn't be trying commands during dry but just in case should raise?
@@ -531,7 +545,7 @@ class Tiler:
             else:
                 raise
 
-    def try_supertile(self, st_bounds):
+    def try_supertile(self, worki, work_run, st_bounds):
         '''x0/1 and y0/1 are global absolute coordinates'''
         # First generate all of the valid tiles across this area to see if we can get any useful work done?
         # every supertile should have at least one solution or the bounds aren't good
@@ -543,21 +557,21 @@ class Tiler:
 
             #out_name_base = "%s/r%03d_c%03d" % (self.out_dir, row, col)
             #print 'Working on %s' % out_name_base
-            stitcher = PartialStitcher(self.pto, st_bounds, temp_file.file_name)
+            stitcher = PartialStitcher(self.pto, st_bounds, temp_file.file_name, worki, work_run)
             stitcher.enblend_lock = self.enblend_lock
             stitcher.nona_args = self.nona_args
             stitcher.enblend_args = self.enblend_args
 
             if self.dry:
-                print 'Dry: skipping partial stitch'
+                print 'w%d: dry: skipping partial stitch' % (worki,)
                 stitcher = None
             else:
                 stitcher.run()
         
             print
-            print 'Phase 3: loading supertile image'
+            print 'w%d: phase 3: loading supertile image' % (worki,)
             if self.dry:
-                print 'Dry: skipping loading PTO'
+                print 'w%d: dry: skipping loading PTO' % (worki,)
                 img = None
             else:
                 if self.st_dir:
@@ -569,10 +583,10 @@ class Tiler:
                     if not rc == 0:
                         raise Exception('Failed to copy stitched file')
                 img = PImage.from_file(temp_file.file_name)
-                print 'Supertile width: %d, height: %d' % (img.width(), img.height())
+                print 'w%d: supertile width: %d, height: %d' % (worki, img.width(), img.height())
             return img
         except:
-            print 'Supertile failed at %s' % bench
+            print 'w%d: supertile failed at %s' % (worki, bench)
             raise
     
     def process_image(self, img, st_bounds):
@@ -729,7 +743,7 @@ class Tiler:
         # 0:256 generates a 256 width pano
         # therefore, we don't want the upper bound included
         
-        print 'Generating supertiles from y(%d:%d) x(%d:%d)' % (self.top(), self.bottom(), self.left(), self.right())
+        print 'M: Generating supertiles from y(%d:%d) x(%d:%d)' % (self.top(), self.bottom(), self.left(), self.right())
         #row = 0
         y_done = False
         for y in xrange(self.top(), self.bottom(), self.super_t_ystep):
@@ -739,7 +753,7 @@ class Tiler:
                 y_done = True
                 y0 = max(self.top(), self.bottom() - self.sth)
                 y1 = self.bottom()
-                print 'Y %d:%d would have overstretched, shifting to maximum height position %d:%d' % (y, y + self.sth, y0, y1)
+                print 'M: Y %d:%d would have overstretched, shifting to maximum height position %d:%d' % (y, y + self.sth, y0, y1)
                 
             #col = 0
             x_done = False
@@ -752,7 +766,7 @@ class Tiler:
                     x_done = True
                     x0 = max(self.left(), self.right() - self.stw)
                     x1 = self.right()
-                    print 'X %d:%d would have overstretched, shifting to maximum width position %d:%d' % (x, x + self.stw, x0, x1)
+                    print 'M: X %d:%d would have overstretched, shifting to maximum width position %d:%d' % (x, x + self.stw, x0, x1)
                 
                 yield [x0, x1, y0, y1]
                 
@@ -762,7 +776,7 @@ class Tiler:
             #row +=1     
             if y_done:
                 break
-        print 'All supertiles generated'
+        print 'M: All supertiles generated'
         
     def n_supertile_tiles(self, x0, x1, y0, y1):
         return len(list(self.gen_supertile_tiles(x0, x1, y0, y1)))
@@ -772,7 +786,7 @@ class Tiler:
         if not self.merge:
             return True
         
-        print 'Checking supertile for existing tiles with %d candidates' % (self.n_supertile_tiles(x0, x1, y0, y1))
+        print 'M: checking supertile for existing tiles with %d candidates' % (self.n_supertile_tiles(x0, x1, y0, y1))
         
         for (y, x) in self.gen_supertile_tiles(x0, x1, y0, y1):
             # If we made it this far the tile can be constructed with acceptable enblend artifacts
@@ -848,7 +862,7 @@ class Tiler:
         self.closed_list = set()
         
         self.n_expected_sts = len(list(self.gen_supertiles()))
-        print 'Generating %d supertiles' % self.n_expected_sts
+        print 'M: Generating %d supertiles' % self.n_expected_sts
         
         x_tiles_ideal = 1.0 * self.width() / self.tw
         x_tiles = math.ceil(x_tiles_ideal)
@@ -856,18 +870,26 @@ class Tiler:
         y_tiles = math.ceil(y_tiles_ideal)
         self.net_expected_tiles = x_tiles * y_tiles
         ideal_tiles = x_tiles_ideal * y_tiles_ideal
-        print 'Ideal tiles: %0.3f x, %0.3f y tiles => %0.3f net' % (
+        print 'M: Ideal tiles: %0.3f x, %0.3f y tiles => %0.3f net' % (
                 x_tiles_ideal, y_tiles_ideal, ideal_tiles)
-        print 'Expecting to generate x%d, y%d => %d basic tiles' % (
+        print 'M: Expecting to generate x%d, y%d => %d basic tiles' % (
                 x_tiles, y_tiles, self.net_expected_tiles)
         if self.merge:
             self.seed_merge()
 
-        print 'Initializing %d workers' % self.threads
+        print 'M: Initializing %d workers' % self.threads
+        self.workers = []
         for ti in xrange(self.threads):
             w = Worker(ti, self)
             self.workers.append(w)
             w.start()
+
+        print
+        print
+        print
+        print 'S' * 80
+        print 'M: Serial end'
+        print 'P' * 80
 
         try:
             #temp_file = 'partial.tif'
@@ -893,7 +915,7 @@ class Tiler:
     
                     if what == 'done':
                         (st_bounds, img) = out[1]
-                        print 'W%d: done w/ submit %d, complete %d' % (wi, pair_submit, pair_complete)
+                        print 'MW%d: done w/ submit %d, complete %d' % (wi, pair_submit, pair_complete)
                         self.process_image(img, st_bounds)
                     elif what == 'exception':
                         for worker in self.workers:
@@ -903,16 +925,16 @@ class Tiler:
                         
                         #(_task, e) = out[1]
                         print '!' * 80
-                        print 'ERROR: W%d failed w/ exception' % wi
+                        print 'M: ERROR: MW%d failed w/ exception' % wi
                         (_task, _e, estr) = out[1]
-                        print 'Stack trace:'
+                        print 'M: Stack trace:'
                         for l in estr.split('\n'):
                             print l
                         print '!' * 80
-                        raise Exception('Shutdown on worker failure')
+                        raise Exception('M: shutdown on worker failure')
                     else:
-                        print '%s' % (out,)
-                        raise Exception('Internal error: bad task type %s' % what)
+                        print 'M: %s' % (out,)
+                        raise Exception('M: internal error: bad task type %s' % what)
     
                 # Any workers need more work?
                 for wi, worker in enumerate(self.workers):
@@ -968,3 +990,4 @@ class Tiler:
             print 'Shutting down workers'
             for worker in self.workers:
                 worker.running.clear()
+            self.workers = None
