@@ -116,8 +116,10 @@ class PartialStitcher:
         # It is fine to go out of bounds, it will be black filled
         #pl.set_bounds(x, min(x + self.tw(), pto.right()), y, min(y + self.th(), pto.bottom()))
         pl.set_crop(self.bounds)
+        self.p('Preparing remapper...')
         remapper = Remapper(pto, out_name_prefix)
         remapper.args = self.nona_args
+        self.p('Starting remapper...')
         remapper.remap()
         
         '''
@@ -222,6 +224,9 @@ class Tiler:
                 raise Exception('Require uniform input images for size heuristic')
         
         self.pto = pto
+        # make absolutely sure that threads will only be doing read only operations
+        # pre-parse the project
+        self.pto.parse()
         self.out_dir = out_dir
         self.tw = tile_width
         self.th = tile_height
@@ -910,7 +915,6 @@ class Tiler:
                         continue
                     pair_complete += 1
                     what = out[0]
-                    print out
                     progress = True
     
                     if what == 'done':
@@ -945,20 +949,21 @@ class Tiler:
                             try:
                                 st_bounds = st_gen.next()
                             except StopIteration:
-                                print 'All tasks allocated'
+                                print 'M: all tasks allocated'
                                 all_allocated = True
                                 break
             
                             progress = True
 
                             [x0, x1, y0, y1] = st_bounds
-                            print 'Checking supertile x(%d:%d) y(%d:%d)' % (x0, x1, y0, y1)
+                            print 'M: checking supertile x(%d:%d) y(%d:%d)' % (x0, x1, y0, y1)
                             if not self.should_try_supertile(x0, x1, y0, y1):
-                                print 'WARNING: skipping supertile %d as it would not generate any new tiles' % self.n_supertiles
+                                print 'M WARNING: skipping supertile %d as it would not generate any new tiles' % self.n_supertiles
                                 continue
                 
                             print '*' * 80
                             #print 'W%d: submit %s (%d / %d)' % (wi, repr(pair), pair_submit, n_pairs)
+                            self.n_supertiles += 1
                             print "Creating supertile %d / %d with x%d:%d, y%d:%d" % (self.n_supertiles, self.n_expected_sts, x0, x1, y0, y1)
                             print 'W%d: submit' % (wi,)
                 
@@ -971,19 +976,19 @@ class Tiler:
                 else:
                     # can take some time, but should be using smaller tiles now
                     if time.time() - last_progress > 4 * 60 * 60:
-                        print 'WARNING: server thread stalled'
+                        print 'M WARNING: server thread stalled'
                         last_progress = time.time()
                 
                 time.sleep(0.1)
             
     
             bench.stop()
-            print 'Processed %d supertiles to generate %d new (%d total) tiles in %s' % (self.n_expected_sts, self.this_tiles_done, self.tiles_done(), str(bench))
+            print 'M Processed %d supertiles to generate %d new (%d total) tiles in %s' % (self.n_expected_sts, self.this_tiles_done, self.tiles_done(), str(bench))
             tiles_s = self.this_tiles_done / bench.delta_s()
-            print '%f tiles / sec, %f pix / sec' % (tiles_s, tiles_s * self.tw * self.th)
+            print 'M %f tiles / sec, %f pix / sec' % (tiles_s, tiles_s * self.tw * self.th)
             
             if self.tiles_done() != self.net_expected_tiles:
-                print 'ERROR: expected to do %d basic tiles but did %d' % (self.net_expected_tiles, self.tiles_done())
+                print 'M ERROR: expected to do %d basic tiles but did %d' % (self.net_expected_tiles, self.tiles_done())
                 self.dump_open_list()
                 raise Exception('State mismatch')
         finally:
