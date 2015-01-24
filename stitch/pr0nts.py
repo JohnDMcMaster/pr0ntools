@@ -69,12 +69,12 @@ def mksize(s):
 
 def mem2pix(mem):
     # Rough heuristic from some of my trials (1 GB => 51 MP)
-    #return mem * 51 / 1000
+    return mem * 51 / 1000
     # Maybe too aggressive, think ran out at 678 MP / 18240 MB => 37 MP?
     # Maybe its a different error
+    # ahah: I think it was disk space and I had misinterpreted it as memory
+    # since the files got deleted after the run it wasn't obvious
     #return mem * 35 / 1000
-    #return mem * 33 / 1000
-    return mem * 15 / 1000
 
 def parser_add_bool_arg(yes_arg, default=False, **kwargs):
     dashed = yes_arg.replace('--', '')
@@ -121,7 +121,6 @@ if __name__ == "__main__":
     fn = args.pto[0]
     
     auto_size = not (args.stp or args.stm or args.stw or args.sth)
-    print auto_size
     
     print 'Assuming input %s is pto project to be stitched' % args.pto
     project = PTOProject.parse_from_file_name(args.pto)
