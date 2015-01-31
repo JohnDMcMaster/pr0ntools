@@ -105,10 +105,10 @@ class Blender:
         self.additional_args = []
         self._lock = lock
         self._lock_fp = None
+        self.out_prefix = lambda: datetime.datetime.utcnow().isoformat() + ': '
         def p(s=''):
             print '%s%s' % (self.out_prefix(), s)
         self.p = p
-        self.out_prefix = lambda: datetime.datetime.utcnow().isoformat() + ': '
         
     def lock(self):
         if not self._lock:
