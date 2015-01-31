@@ -106,6 +106,7 @@ class PartialStitcher:
         # without the slash they go into the parent directory with that prefix
         out_name_prefix = managed_temp_dir.file_name + "/"
         
+        self.p('Copying pto')
         pto = self.pto.copy()
         self.p('Making absolute')
         pto.make_absolute()
@@ -956,6 +957,7 @@ class Tiler:
                             progress = True
 
                             [x0, x1, y0, y1] = st_bounds
+                            self.n_supertiles += 1
                             print 'M: checking supertile x(%d:%d) y(%d:%d)' % (x0, x1, y0, y1)
                             if not self.should_try_supertile(x0, x1, y0, y1):
                                 print 'M WARNING: skipping supertile %d as it would not generate any new tiles' % self.n_supertiles
@@ -963,7 +965,6 @@ class Tiler:
                 
                             print '*' * 80
                             #print 'W%d: submit %s (%d / %d)' % (wi, repr(pair), pair_submit, n_pairs)
-                            self.n_supertiles += 1
                             print "Creating supertile %d / %d with x%d:%d, y%d:%d" % (self.n_supertiles, self.n_expected_sts, x0, x1, y0, y1)
                             print 'W%d: submit' % (wi,)
                 
