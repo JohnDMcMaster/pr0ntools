@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env python
 import argparse
 from pr0ntools.stitch.single import singlify
 
