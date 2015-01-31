@@ -1,6 +1,9 @@
 from PIL import Image
 import re
 
+class HugeJPEG(Exception):
+    pass
+
 def singlify(fns_in, fn_out):
     def coord(fn):
         '''Return (x, y) for filename'''
@@ -31,6 +34,9 @@ def singlify(fns_in, fn_out):
         h = im0.size[1] + ymax - ymin
         print 'Net size: %dw x %dh' % (w, h)
         dst = Image.new(im0.mode, (w, h))
+    
+    if w * h > 2**32:
+        raise HugeJPEG('Image exceeds maximum JPEG size')
     
     for fni, fn in enumerate(fns_in):
         print 'Merging %d/%d %s...' % (fni + 1, len(fns_in), fn)

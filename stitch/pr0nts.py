@@ -15,9 +15,11 @@ http://uvicrec.blogspot.com/2012/02/tile-stitch.html
 from pr0ntools.stitch.tiler import Tiler
 from pr0ntools.stitch.pto.project import PTOProject
 from pr0ntools.config import config
+from pr0ntools.stitch.single import singlify, HugeJPEG
 from pr0ntools.util import IOTimestamp, IOLog
 import argparse
 import multiprocessing
+import os
 import re
 import sys 
 
@@ -102,7 +104,9 @@ if __name__ == "__main__":
     parser.add_argument('--enblend-args')
     parser.add_argument('--ignore-errors', action="store_true", dest="ignore_errors", help='skip broken tile stitches (advanced)')
     parser.add_argument('--verbose', '-v', action="store_true", help='spew lots of info')
-    parser.add_argument('--st-dir', help='store intermediate supertiles to given dir')
+    parser.add_argument('--st-dir', default='st', help='store intermediate supertiles to given dir')
+    parser.add_argument('--single-dir', default='single', help='folder to put final output composite image')
+    parser.add_argument('--single-fn', default='out.jpg', help='file name to write in single dir')
     parser_add_bool_arg('--enblend-lock', default=False, help='use lock file to only enblend (memory intensive part) one at a time')
     parser.add_argument('--threads', type=int, default= multiprocessing.cpu_count())
     parser_add_bool_arg('--stampout', default=False, help='timestamp output')
@@ -145,8 +149,6 @@ if __name__ == "__main__":
     t = Tiler(project, 'out', stw=mksize(args.stw), sth=mksize(args.sth), stp=stp, clip_width=args.clip_width, clip_height=args.clip_height)
     t.threads = args.threads
     t.verbose = args.verbose
-    if args.st_dir is None:
-        args.st_dir = 'single'
     t.st_dir = args.st_dir
     t.force = args.force
     t.merge = args.merge
@@ -175,8 +177,18 @@ if __name__ == "__main__":
     if args.full:
         t.make_full()
     t.enblend_lock = args.enblend_lock
+
+    if args.single_dir and not os.path.exists(args.single_dir):
+        os.mkdir(args.single_dir)
         
     print 'Running tiler'
     t.run()
     print 'Tiler done!'
 
+    print 'Creating single image'
+    if args.single_dir:
+        args.single_fn = os.path.join(args.single_dir, args.single_fn)
+    try:
+        singlify(t.st_fns, args.single_fn)
+    except HugeJPEG:
+        print 'WARNING: skipping single: exceeds max jpeg size'

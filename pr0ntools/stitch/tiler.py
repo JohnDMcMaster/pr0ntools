@@ -212,6 +212,7 @@ class Tiler:
         self.enblend_args = []
         self.threads = 1
         self.workers = None
+        self.st_fns = []
         
         # TODO: this is a heuristic just for this, uniform input images aren't actually required
         for i in pto.get_image_lines():
@@ -583,6 +584,7 @@ class Tiler:
                 if self.st_dir:
                     # nah...tiff takes up too much space
                     dst = os.path.join(self.st_dir, 'st_%06dx_%06dy.jpg' % (x0, y0))
+                    self.st_fns.append(dst)
                     #shutil.copyfile(temp_file.file_name, dst)
                     (rc, _output) = Execute.with_output('convert',
                             ('-quality', '90', temp_file.file_name, dst))

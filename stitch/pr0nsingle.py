@@ -8,4 +8,5 @@ if __name__ == "__main__":
     parser.add_argument('fns_in', nargs='+', help='')
     args = parser.parse_args()
 
+    # Warning: will throw HugeJPEG if too big
     singlify(args.fns_in, args.fn_out)
