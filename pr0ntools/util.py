@@ -4,9 +4,10 @@ Misc utilities
 Copyright 2010 John McMaster <JohnDMcMaster@gmail.com>
 Licensed under a 2 clause BSD license, see COPYING for details
 '''
-import math
-import sys
 import datetime
+import math
+import os
+import sys
 
 def rjust_str(s, nchars):
     '''right justify string, space padded to nchars spaces'''
@@ -59,11 +60,17 @@ class IOTimestamp(object):
 
 # Log file descriptor to file
 class IOLog(object):
-    def __init__(self, obj=sys, name='stdout', out_fn=None, out_fd=None, mode='w'):
+    def __init__(self, obj=sys, name='stdout', out_fn=None, out_fd=None, mode='a'):
         if out_fd:
             self.out_fd = out_fd
         else:
+            hdr = mode == 'a' and os.path.exists(out_fn)
             self.out_fd = open(out_fn, mode)
+            if hdr:
+                self.out_fd.write('*' * 80 + '\n')
+                self.out_fd.write('*' * 80 + '\n')
+                self.out_fd.write('*' * 80 + '\n')
+                self.out_fd.write('Log rolled over\n')
         
         self.obj = obj
         self.name = name
