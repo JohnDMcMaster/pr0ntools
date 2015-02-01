@@ -108,10 +108,13 @@ class PartialStitcher:
         # without the slash they go into the parent directory with that prefix
         out_name_prefix = managed_temp_dir.file_name + "/"
         
+        '''
+        For large projects this was too slow
+        Instead, we simply copy the project and manually fix up the relevant portion
+        '''
+        
         self.p('Copying pto')
         pto = self.pto.copy()
-        self.p('Making absolute')
-        pto.make_absolute()
         
         self.p('Cropping...')
         #sys.exit(1)
@@ -185,6 +188,7 @@ class Worker(threading.Thread):
                 traceback.print_exc()
                 estr = traceback.format_exc()
                 self.qo.put(('exception', (task, e, estr)))
+        print 'w%d: exiting' % self.i
 
 
 # For managing the closed list        
@@ -231,6 +235,8 @@ class Tiler:
         # make absolutely sure that threads will only be doing read only operations
         # pre-parse the project
         self.pto.parse()
+        print 'Making absolute'
+        pto.make_absolute()
         self.out_dir = out_dir
         self.tw = tile_width
         self.th = tile_height
