@@ -78,7 +78,7 @@ class PartialStitcher:
         self.worki = worki
         self.work_run = work_run
         def p(s=''):
-            print 'w%d: %s' % (self.worki, s)
+            print '%s w%d: %s' % (datetime.datetime.utcnow().isoformat(), self.worki, s)
         self.p = p
         
     def run(self):
