@@ -582,7 +582,8 @@ class Tiler:
         if self.clip_height is None:
             self.clip_height = int(image_height * 1.5)
         
-    def gen_supertile_tiles(self, x0, x1, y0, y1):
+    def gen_supertile_tiles(self, st_bounds):
+        x0, x1, y0, y1 = st_bounds
         '''Yield UL coordinates in (y, x) pairs'''
         xt0 = ceil_mult(x0, self.tw, align=self.x0)
         xt1 = ceil_mult(x1, self.tw, align=self.x0)
@@ -659,7 +660,7 @@ class Tiler:
         #self.msg('x in xrange(%d, %d, %d)' % (xt0, xt1, self.tw), 3)
         #self.msg('y in xrange(%d, %d, %d)' % (yt0, yt1, self.th), 3)
     
-        for (y, x) in self.gen_supertile_tiles(x0, x1, y0, y1):    
+        for (y, x) in self.gen_supertile_tiles(st_bounds):    
             # If we made it this far the tile can be constructed with acceptable enblend artifacts
             row = self.y2row(y)
             col = self.x2col(x)
