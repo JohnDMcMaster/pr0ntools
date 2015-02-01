@@ -1,6 +1,10 @@
 from PIL import Image
 import re
 
+# /usr/local/lib/python2.7/dist-packages/PIL/Image.py:2210: DecompressionBombWarning: Image size (941782785 pixels) exceeds limit of 89478485 pixels, could be decompression bomb DOS attack.
+#   DecompressionBombWarning)
+Image.MAX_IMAGE_PIXELS = None
+
 class HugeJPEG(Exception):
     pass
 
