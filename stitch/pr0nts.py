@@ -18,6 +18,7 @@ from pr0ntools.config import config
 from pr0ntools.stitch.single import singlify, HugeJPEG
 from pr0ntools.util import IOTimestamp, IOLog
 import argparse
+import glob
 import multiprocessing
 import os
 import re
@@ -188,7 +189,15 @@ if __name__ == "__main__":
     print 'Creating single image'
     if args.single_dir:
         args.single_fn = os.path.join(args.single_dir, args.single_fn)
+    # sometimes I restitch with different supertile size
+    # this results in excessive merge, although really I should just delete the old files
+    if args.merge:
+        print 'Single: using glob strategy on merge'
+        s_fns = glob.glob(os.path.join(args.st_dir, 'st_*x_*y.jpg'))
+    else:
+        print 'Single: using output strategy'
+        s_fns = t.st_fns
     try:
-        singlify(t.st_fns, args.single_fn)
+        singlify(s_fns, args.single_fn)
     except HugeJPEG:
         print 'WARNING: skipping single: exceeds max jpeg size'
