@@ -19,6 +19,7 @@ import traceback
 import common_stitch
 #from pr0ntools.util import msg
 import time
+import datetime
 
 # FIXME: placeholder
 def msg(s=''):
@@ -34,6 +35,33 @@ class Worker(threading.Thread):
         self.running = threading.Event()
         self.generate_control_points_by_pair = None
         self.idle = True
+        
+        def p(sin):
+            self.pb += sin
+            pos = 0
+            dt_prefix = datetime.datetime.utcnow().isoformat() + ': '
+            while True:
+                posn = self.pb.find('\n', pos)
+                if posn >= 0:
+                    l = ''
+                    if not self.inline:
+                        self.f.write(dt_prefix)
+                    self.f.write(s[pos:posn + 1])
+                    pos = posn + 2
+                    self.inline = False
+                else:
+                    out = s[pos:]
+                    if len(out) and not self.inline:
+                        self.f.write(self.prefix())
+                        self.inline = True
+                    self.f.write(out)
+                    break
+
+        self.pq = Queue.Queue()
+        self.p = p
+        self.inline = False
+        self.pb = bytearray()
+
 
     def run(self):
         self.running.set()
@@ -92,6 +120,7 @@ class GridStitch(common_stitch.CommonStitch):
         self.skip_missing = False
         self.threads = 1
         self.workers = []
+        self.workers_p = []
         
     @staticmethod
     def from_tagged_file_names(image_file_names):
