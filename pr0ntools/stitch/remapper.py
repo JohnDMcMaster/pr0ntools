@@ -15,7 +15,7 @@ nona: stitch a panorama image
 nona version 2010.0.0.5045
 
  It uses the transform function from PanoTools, the stitching itself
- is quite simple, no seam feathering is done.
+ is quite simple, no seam feathering is done.execute
  only the non-antialiasing interpolators of panotools are supported
 
  The following output formats (n option of panotools p script line)
@@ -70,10 +70,13 @@ panotools wiki says that hugin should be able to output cropped but I don't see 
     nona  -z LZW -r ldr -m TIFF_m -o test -i 9 /tmp/huginpto_H3PO0O
 '''
 
-from pr0ntools.execute import Execute, CommandFailed
+#from pr0ntools.execute import Execute, CommandFailed
+from pr0ntools import execute
+import datetime
 import os
+import sys
 
-class RemapperFailed(CommandFailed):
+class RemapperFailed(execute.CommandFailed):
     pass
 
 def get_nona_files(output_prefix, max_images):
@@ -86,7 +89,7 @@ def get_nona_files(output_prefix, max_images):
             ret.add(fn)
     return ret
 
-class Remapper:
+class Nona:
     TIFF_SINGLE = "TIFF_m"
     TIFF_MULTILAYER = "TIFF_multilayer"
     
@@ -95,18 +98,30 @@ class Remapper:
             raise RemapperFailed('Bad output file base "%s"' % str(output_prefix))
         
         self.pto_project = pto_project
+        # if true assume pto project is already setup up correctly
+        # just use it
+        self.pto_fn = None
+        
         # this is taken from the pto
         #self.output_file_base = output_file_base
         #self.output_managed_temp_dir = ManagedTempDir(self.pto_project.get_a_file_name() + "__")
         #self.image_type = Remapper.TIFF_MULTILAYER
-        self.image_type = Remapper.TIFF_SINGLE
+        self.image_type = Nona.TIFF_SINGLE
         self.output_files = None
         # panotools wiki says enblend 2.4+ supports this
         self.output_cropped = True
         self.compression_opt = "c:LZW"
         self.output_prefix = output_prefix
         self.args = None
-        
+
+        def p(s=''):
+            print '%s: %s' % (datetime.datetime.utcnow().isoformat(), s)
+        self.p = p
+        self.pprefix = lambda: datetime.datetime.utcnow().isoformat() + ': '
+        self.stdout = sys.stdout
+        self.stderr = sys.stderr
+    
+    '''
     def run(self):
         project_name = self.pto_project.get_a_file_name()
         #print
@@ -118,76 +133,67 @@ class Remapper:
             raise RemapperFailed('Require project name')
         print 'Chose output prefix "%s"' % project_name
         self.remap(project_name)
+    '''
         
     def remap(self):
-        project = self.pto_project.copy()
         old_files = get_nona_files(self.output_prefix, len(self.pto_project.get_image_lines()))
         # For my purposes right now I think this will always be 0
         if len(old_files) != 0:
             print old_files
             raise RemapperFailed('Found some old files')
+
+        if self.pto_fn:
+            project = self.pto_project
+            project_fn = self.pto_fn
+        else:
+            project = self.pto_project.copy()
+            pl = project.get_panorama_line()
+            crop_opt = ""
+            if self.image_type == Nona.TIFF_SINGLE:
+                if self.output_cropped:
+                    #  p f0 w1000 h500 v120 n"TIFF_m c:LZW r:CROP"
+                    crop_opt = "r:CROP"
+            pl.set_variable("n", "%s %s %s" % (self.image_type, crop_opt, self.compression_opt))
+            project_fn = project.get_a_file_name()
         
-        args = list()
-        args.append("-m")
-        args.append(self.image_type)
-        pl = project.get_panorama_line()
-        crop_opt = ""
-        if self.image_type == Remapper.TIFF_SINGLE:
-            if self.output_cropped:
-                # FIXME: this needs to go into the n argument in the file, not a CLI option
-                #  p f0 w1000 h500 v120 n"TIFF_m c:LZW r:CROP"
-                #args.append("r:CROP")
-                #pl.set_variable("n", "TIFF_m %s ", self.compression_opt)
-                # will be saved when we get the file name
-                #pl.save()
-                crop_opt = "r:CROP"
-        pl.set_variable("n", "%s %s %s" % (self.image_type, crop_opt, self.compression_opt))
-        args.append("-verbose")
-        args.append("-z")
-        args.append("LZW")
-        #args.append("-g")
-        args.append("-o")
-        args.append(self.output_prefix)
+        args = ["nona",
+                "-m", self.image_type,
+                "-verbose",
+                "-z",
+                "LZW",
+                #"-g",
+                "-o", self.output_prefix,
+                ]
         for arg in self.args:
             args.append(arg)
         
-        args.append(project.get_a_file_name())
-        #(rc, output) = Execute.with_output("nona", args)
-        rc = Execute.show_output("nona", args)
+        args.append(project_fn)
+        # example:
+        # cmd in: nona "-m" "TIFF_m" "-verbose" "-z" "LZW" "-o" "/tmp/pr0ntools_7E296EA2D31827B4/0DF5034FE1CEE831/" "out.pto"
+        # p w2673 h2056 f0 v76 n"TIFF_m r:CROP c:LZW" E0.0 R0 S"276,2673,312,2056"
+        # m line unchanged
+        rc = execute.prefix(args, stdout=self.stdout, stderr=self.stderr, prefix=self.pprefix)
         if not rc == 0:
-            print
-            print
-            print
-            print 'Failed to remap'
-            print 'If you see "Write error at scanline..." you are out of scratch space'
-            print 'Clear up temp storage (ie in /tmp) or move it using .pr0nrc'
+            self.p()
+            self.p()
+            self.p()
+            self.p('Failed to remap')
+            self.p('If you see "Write error at scanline..." you are out of scratch space')
+            self.p('Clear up temp storage (ie in /tmp) or move it using .pr0nrc')
             #print output
             raise RemapperFailed('failed to remap')
         #project.reopen()
-        if self.image_type == Remapper.TIFF_MULTILAYER:
+        if self.image_type == Nona.TIFF_MULTILAYER:
             self.output_files = [self.output_prefix + '.tif']
-        elif self.image_type == Remapper.TIFF_SINGLE:
+        elif self.image_type == Nona.TIFF_SINGLE:
             self.output_files = list()
             # This algorithm breaks down once you start doing cropping
-            if 0:
-                # The images shouldn't change, use the old loaded project
-                for i in range(len(self.pto_project.get_image_lines())):
-                    fn = '%s%04d.tif' % (self.output_prefix, i)
-                    print 'Think we generated file %s' % fn
-                    if not os.path.exists(fn):
-                        raise RemapperFailed('Missing output file %s' % fn)
-                    self.output_files.append(fn)
-            new_files = get_nona_files(self.output_prefix, len(self.pto_project.get_image_lines()))
-            self.output_files = new_files.difference(old_files)
-            print 'Think nona just generated files (%d new - %d old = %d delta):' % (len(new_files), len(old_files), len(self.output_files))
             # it may be a set but lists have advantages trying to trace whats happening
-            self.output_files = sorted(list(self.output_files))
-            if 0:
-                for f in self.output_files:
-                    print '  %s' % f
+            self.output_files = sorted(list(get_nona_files(self.output_prefix, len(self.pto_project.get_image_lines()))))
+            self.p('Think nona just generated %d files' % (len(self.output_files),))
         else:
             raise RemapperFailed('bad image type')
     def get_output_files(self):
         return self.output_files
         
-    
+

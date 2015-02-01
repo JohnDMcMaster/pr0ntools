@@ -133,8 +133,6 @@ class PTOProject:
         self.file_name = None
         # If this is a temporary project, have it delete upon destruction
         self.temp_file = None
-        # Could be a mix of temp and non-temp, so don't make any ordering assumptions
-        self.temp_image_files = set()
         # Raw project text, None is not loaded
         self.text = None
         self.unparse()
@@ -181,6 +179,8 @@ class PTOProject:
         #return PTOProject.from_text(self.get_text())
         # maybe...not sure about this
         ret = copy.deepcopy(self)
+        ret.file_name = None
+        ret.temp_file = None
         #return self.to_str_core(False)
         return ret
     
@@ -593,7 +593,6 @@ m g1.0 i0 f0 m2
             
     def get_a_file_name(self, prefix = None, postfix = None):
         '''Return a file name that has current .pto contents'''
-        
         '''If doesn't have a real file, create a temp file'''
         if self.file_name:
             return self.file_name

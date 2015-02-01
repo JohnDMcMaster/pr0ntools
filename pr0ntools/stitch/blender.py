@@ -96,7 +96,7 @@ import datetime
 class BlenderFailed(CommandFailed):
     pass
 
-class Blender:
+class Enblend:
     def __init__(self, input_files, output_file, lock=False):
         self.input_files = input_files
         self.output_file = output_file
@@ -105,10 +105,12 @@ class Blender:
         self.additional_args = []
         self._lock = lock
         self._lock_fp = None
-        self.out_prefix = lambda: datetime.datetime.utcnow().isoformat() + ': '
         def p(s=''):
-            print '%s%s' % (self.out_prefix(), s)
+            print '%s: %s' % (datetime.datetime.utcnow().isoformat(), s)
         self.p = p
+        self.pprefix = lambda: datetime.datetime.utcnow().isoformat() + ': '
+        self.stdout = sys.stdout
+        self.stderr = sys.stderr
         
     def lock(self):
         if not self._lock:
@@ -138,36 +140,6 @@ class Blender:
         self._lock_fp.close()
         self._lock_fp = None
         
-    def old_merge(self):
-        '''
-        [mcmaster@gespenst 2X2-ordered]$ enblend -o my_prefix.tif my_prefix_000*
-        enblend: info: loading next image: my_prefix_0000.tif 1/1
-        enblend: info: loading next image: my_prefix_0001.tif 1/1
-
-        enblend: excessive overlap detected; remove one of the images
-        enblend: info: remove invalid output image "my_prefix.tif"
-        '''
-        args = list()
-        args.append("-m")
-        args.append("TIFF_m")
-        args.append("-z")
-        args.append("LZW")
-        #args.append("-g")
-        args.append("-o")
-        args.append(self.pto_project.get_a_file_name())
-        args.append(self.pto_project.get_a_file_name())
-        self.lock()
-        try:
-            (rc, _output) = Execute.with_output("enblend", args)
-            if not rc == 0:
-                raise BlenderFailed('failed to blend')
-            self.project.reopen()
-            self.p('enblend finished OK')
-        finally:
-            self.unlock()
-        self.p('Blender complete')
-
-        
     def run(self):
         args = ["enblend", "-o", self.output_file]
         if self.compression:
@@ -184,7 +156,7 @@ class Blender:
         
         self.lock()
                 
-        rc = execute.prefix(args, stdout=sys.stdout, stderr=sys.stderr, prefix=self.out_prefix)
+        rc = execute.prefix(args, stdout=self.stdout, stderr=self.stderr, prefix=self.pprefix)
         if not rc == 0:
             self.p('')
             self.p('')

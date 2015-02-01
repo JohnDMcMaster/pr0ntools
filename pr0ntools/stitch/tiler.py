@@ -41,8 +41,8 @@ At the end check that all times have been generated and throw an error if we are
 Greedy algorithm to generate a tile if its legal (and safe)
 '''
 
-from pr0ntools.stitch.remapper import Remapper
-from pr0ntools.stitch.blender import Blender
+from pr0ntools.stitch.remapper import Nona
+from pr0ntools.stitch.blender import Enblend
 from image_coordinate_map import ImageCoordinateMap
 from pr0ntools.execute import Execute
 from pr0ntools.config import config
@@ -69,8 +69,17 @@ import traceback
 class InvalidClip(Exception):
     pass
 
+'''
+# thread safe stdout/stderr file
+class ThreadedIO:
+    def __init__(self):
+        self.buff = bytearray()
+    
+    def write(self, s):
+'''
+
 class PartialStitcher:
-    def __init__(self, pto, bounds, out, worki, work_run):
+    def __init__(self, pto, bounds, out, worki, work_run, p, pprefix):
         self.pto = pto
         self.bounds = bounds
         self.out = out
@@ -79,9 +88,8 @@ class PartialStitcher:
         self.enblend_lock = False
         self.worki = worki
         self.work_run = work_run
-        def p(s=''):
-            print '%s w%d: %s' % (datetime.datetime.utcnow().isoformat(), self.worki, s)
         self.p = p
+        self.pprefix = pprefix
         
     def run(self):
         '''
@@ -112,9 +120,9 @@ class PartialStitcher:
         For large projects this was too slow
         Instead, we simply copy the project and manually fix up the relevant portion
         '''
-        
         self.p('Copying pto')
         pto = self.pto.copy()
+        #pto = self.mini_pto.copy()
         
         self.p('Cropping...')
         #sys.exit(1)
@@ -123,7 +131,9 @@ class PartialStitcher:
         #pl.set_bounds(x, min(x + self.tw(), pto.right()), y, min(y + self.th(), pto.bottom()))
         pl.set_crop(self.bounds)
         self.p('Preparing remapper...')
-        remapper = Remapper(pto, out_name_prefix)
+        remapper = Nona(pto, out_name_prefix)
+        remapper.p = self.p
+        remapper.pprefix = self.pprefix
         remapper.args = self.nona_args
         self.p('Starting remapper...')
         remapper.remap()
@@ -133,16 +143,10 @@ class PartialStitcher:
         '''
         self.p()
         self.p('Supertile phase 2: blending (enblend)')
-        blender = Blender(remapper.get_output_files(), self.out, lock=self.enblend_lock)
+        blender = Enblend(remapper.get_output_files(), self.out, lock=self.enblend_lock)
+        blender.p = self.p
+        blender.pprefix = self.pprefix
         blender.args = self.enblend_args
-        def out_prefix():
-            # hack: ocassionally get io
-            # use that to interrupt if need be
-            if not self.work_run:
-                raise Exception('not running')
-            return datetime.datetime.utcnow().isoformat() + ' w%d: ' % self.worki
-        
-        blender.out_prefix = out_prefix
         blender.run()
         # We are done with these files, they should be nuked
         if not config.keep_temp_files():
@@ -160,9 +164,24 @@ class Worker(threading.Thread):
         self.qo = Queue.Queue()
         self.running = threading.Event()
         self.tiler = tiler
-
+        self.exit = False
+    
+    def p(self, s=''):
+        if not self.running:
+            raise Exception('not running')
+        print '%s w%d: %s' % (datetime.datetime.utcnow().isoformat(), self.i, s)
+    
+    def pprefix(self):
+        # hack: ocassionally get io
+        # use that to interrupt if need be
+        if not self.running:
+            raise Exception('not running')
+        # TODO: put this into queue so we don't drop
+        return '%s w%d: ' % (datetime.datetime.utcnow().isoformat(), self.i)
+        
     def run(self):
         self.running.set()
+        self.exit = False
         while self.running.is_set():
             try:
                 task = self.qi.get(True, 0.1)
@@ -172,23 +191,94 @@ class Worker(threading.Thread):
             try:
                 (st_bounds,) = task
 
-                print
-                print
-                print
-                print
-                print
-                print '*' * 80
-                print 'w%d: task rx' % self.i
-                img = self.tiler.work(self.i, self.running, st_bounds)
+                self.p('')
+                self.p('')
+                self.p('')
+                self.p('')
+                self.p('*' * 80)
+                self.p('task rx')
+
+                try:
+                    img = self.try_supertile(st_bounds)
+                except CommandFailed:
+                    if self.tiler.ignore_errors:
+                        # We shouldn't be trying commands during dry but just in case should raise?
+                        self.p('WARNING: got exception trying supertile %d' % (self.tiler.n_supertiles))
+                        traceback.print_exc()
+                    else:
+                        raise
                 
                 self.qo.put(('done', (st_bounds, img)))
-                print 'w%d: task done' % self.i
+                self.p('task done')
                 
             except Exception as e:
                 traceback.print_exc()
                 estr = traceback.format_exc()
                 self.qo.put(('exception', (task, e, estr)))
-        print 'w%d: exiting' % self.i
+        self.p('exiting')
+        self.exit = True
+
+    def try_supertile(self, st_bounds):
+        '''x0/1 and y0/1 are global absolute coordinates'''
+        # First generate all of the valid tiles across this area to see if we can get any useful work done?
+        # every supertile should have at least one solution or the bounds aren't good
+        x0, x1, y0, y1 = st_bounds
+        
+        bench = Benchmark()
+        try:
+            temp_file = ManagedTempFile.get(None, '.tif')
+
+            #out_name_base = "%s/r%03d_c%03d" % (self.tiler.out_dir, row, col)
+            #print 'Working on %s' % out_name_base
+            stitcher = PartialStitcher(self.tiler.pto, st_bounds, temp_file.file_name, self.i, self.running, p=self.p, pprefix=self.pprefix)
+            stitcher.enblend_lock = self.tiler.enblend_lock
+            stitcher.nona_args = self.tiler.nona_args
+            stitcher.enblend_args = self.tiler.enblend_args
+
+            if self.tiler.dry:
+                self.p('dry: skipping partial stitch')
+                stitcher = None
+            else:
+                stitcher.run()
+        
+            self.p('')
+            self.p('phase 3: loading supertile image')
+            if self.tiler.dry:
+                self.p('dry: skipping loading PTO')
+                img = None
+            else:
+                if self.tiler.st_dir:
+                    # nah...tiff takes up too much space
+                    dst = os.path.join(self.tiler.st_dir, 'st_%06dx_%06dy.jpg' % (x0, y0))
+                    self.tiler.st_fns.append(dst)
+                    #shutil.copyfile(temp_file.file_name, dst)
+                    args = ['convert',
+                            '-quality', '90', 
+                            temp_file.file_name, dst]                    
+                    print 'going to execute: %s' % (args,)
+                    subp = subprocess.Popen(args, stdout=None, stderr=None, shell=False)
+                    subp.communicate()
+                    if subp.returncode != 0:
+                        raise Exception('Failed to copy stitched file')
+
+                    # having some problems that looks like file isn't getting written to disk
+                    # monitoring for such errors
+                    # remove if I can root cause the source of these glitches
+                    for i in xrange(30):
+                        if os.path.exists(dst):
+                            break
+                        if i == 0:
+                            print 'WARNING: soften missing strong blur dest file name %s, waiting a bit...' % (dst,)
+                        time.sleep(0.1)
+                    else:
+                        raise Exception('Missing soften strong blur output file name %s' % dst)
+
+                img = PImage.from_file(temp_file.file_name)
+                self.p('supertile width: %d, height: %d' % (img.width(), img.height()))
+            return img
+        except:
+            self.p('supertile failed at %s' % (bench,))
+            raise
 
 
 # For managing the closed list        
@@ -237,6 +327,9 @@ class Tiler:
         self.pto.parse()
         print 'Making absolute'
         pto.make_absolute()
+        
+        
+        
         self.out_dir = out_dir
         self.tw = tile_width
         self.th = tile_height
@@ -548,80 +641,7 @@ class Tiler:
                         print 'Rejecting tiles @ y%d, x%d: xh clip' % (y, x)
                     continue
                 yield (y, x)
-            
-    def work(self, worki, work_run, st_bounds):
-        try:
-            return self.try_supertile(worki, work_run, st_bounds)
-        except CommandFailed:
-            if self.ignore_errors:
-                # We shouldn't be trying commands during dry but just in case should raise?
-                print 'WARNING: got exception trying supertile %d' % (self.n_supertiles)
-                traceback.print_exc()
-            else:
-                raise
-
-    def try_supertile(self, worki, work_run, st_bounds):
-        '''x0/1 and y0/1 are global absolute coordinates'''
-        # First generate all of the valid tiles across this area to see if we can get any useful work done?
-        # every supertile should have at least one solution or the bounds aren't good
-        x0, x1, y0, y1 = st_bounds
-        
-        bench = Benchmark()
-        try:
-            temp_file = ManagedTempFile.get(None, '.tif')
-
-            #out_name_base = "%s/r%03d_c%03d" % (self.out_dir, row, col)
-            #print 'Working on %s' % out_name_base
-            stitcher = PartialStitcher(self.pto, st_bounds, temp_file.file_name, worki, work_run)
-            stitcher.enblend_lock = self.enblend_lock
-            stitcher.nona_args = self.nona_args
-            stitcher.enblend_args = self.enblend_args
-
-            if self.dry:
-                print 'w%d: dry: skipping partial stitch' % (worki,)
-                stitcher = None
-            else:
-                stitcher.run()
-        
-            print
-            print 'w%d: phase 3: loading supertile image' % (worki,)
-            if self.dry:
-                print 'w%d: dry: skipping loading PTO' % (worki,)
-                img = None
-            else:
-                if self.st_dir:
-                    # nah...tiff takes up too much space
-                    dst = os.path.join(self.st_dir, 'st_%06dx_%06dy.jpg' % (x0, y0))
-                    self.st_fns.append(dst)
-                    #shutil.copyfile(temp_file.file_name, dst)
-                    args = ['convert',
-                            '-quality', '90', 
-                            temp_file.file_name, dst]                    
-                    print 'going to execute: %s' % (args,)
-                    subp = subprocess.Popen(args, stdout=None, stderr=None, shell=False)
-                    subp.communicate()
-                    if subp.returncode != 0:
-                        raise Exception('Failed to copy stitched file')
-
-                    # having some problems that looks like file isn't getting written to disk
-                    # monitoring for such errors
-                    # remove if I can root cause the source of these glitches
-                    for i in xrange(30):
-                        if os.path.exists(dst):
-                            break
-                        if i == 0:
-                            print 'WARNING: soften missing strong blur dest file name %s, waiting a bit...' % (dst,)
-                        time.sleep(0.1)
-                    else:
-                        raise Exception('Missing soften strong blur output file name %s' % dst)
-
-                img = PImage.from_file(temp_file.file_name)
-                print 'w%d: supertile width: %d, height: %d' % (worki, img.width(), img.height())
-            return img
-        except:
-            print 'w%d: supertile failed at %s' % (worki, bench)
-            raise
-    
+                
     def process_image(self, img, st_bounds):
         '''
         A tile is valid if its in a safe location
@@ -811,17 +831,17 @@ class Tiler:
                 break
         print 'M: All supertiles generated'
         
-    def n_supertile_tiles(self, x0, x1, y0, y1):
-        return len(list(self.gen_supertile_tiles(x0, x1, y0, y1)))
+    def n_supertile_tiles(self, st_bounds):
+        return len(list(self.gen_supertile_tiles(st_bounds)))
         
-    def should_try_supertile(self, x0, x1, y0, y1):
+    def should_try_supertile(self, st_bounds):
         # If not merging always stitch
         if not self.merge:
             return True
         
-        print 'M: checking supertile for existing tiles with %d candidates' % (self.n_supertile_tiles(x0, x1, y0, y1))
+        print 'M: checking supertile for existing tiles with %d candidates' % (self.n_supertile_tiles(st_bounds))
         
-        for (y, x) in self.gen_supertile_tiles(x0, x1, y0, y1):
+        for (y, x) in self.gen_supertile_tiles(st_bounds):
             # If we made it this far the tile can be constructed with acceptable enblend artifacts
             row = self.y2row(y)
             col = self.x2col(x)
@@ -987,7 +1007,7 @@ class Tiler:
                             [x0, x1, y0, y1] = st_bounds
                             self.n_supertiles += 1
                             print 'M: checking supertile x(%d:%d) y(%d:%d)' % (x0, x1, y0, y1)
-                            if not self.should_try_supertile(x0, x1, y0, y1):
+                            if not self.should_try_supertile(st_bounds):
                                 print 'M WARNING: skipping supertile %d as it would not generate any new tiles' % self.n_supertiles
                                 continue
                 
@@ -1027,4 +1047,11 @@ class Tiler:
             print 'Shutting down workers'
             for worker in self.workers:
                 worker.running.clear()
+            print 'Waiting for workers to exit...'
+            for i, worker in enumerate(self.workers):
+                worker.join(1)
+                if worker.isAlive():
+                    print '  W%d: failed to join' % i
+                else:
+                    print '  W%d: stopped' % i
             self.workers = None
