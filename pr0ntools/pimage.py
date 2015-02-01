@@ -5,7 +5,7 @@ Copyright 2010 John McMaster <JohnDMcMaster@gmail.com>
 Licensed under a 2 clause BSD license, see COPYING for details
 '''
 
-import Image
+from PIL import Image
 import sys
 from temp_file import TempFile
 from temp_file import ManagedTempFile

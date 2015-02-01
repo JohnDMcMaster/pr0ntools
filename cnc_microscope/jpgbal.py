@@ -1,5 +1,5 @@
 import argparse        
-import Image
+from PIL import Image
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='spaghetti code')

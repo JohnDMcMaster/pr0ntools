@@ -37,7 +37,7 @@ import signal
 import sys
 import traceback
 import threading
-import Image
+from PIL import Image
 import StringIO
 
 gobject = None

@@ -17,7 +17,7 @@ pygst.require('0.10')
 import gst
 
 import StringIO
-import Image
+from PIL import Image
 
 '''
 Do not encode images in gstreamer context or it brings system to halt

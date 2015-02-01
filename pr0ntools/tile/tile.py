@@ -14,7 +14,7 @@ from pr0ntools.stitch.wander_stitch import WanderStitch
 from pr0ntools.stitch.grid_stitch import GridStitch
 from pr0ntools.stitch.fortify_stitch import FortifyStitch
 from pr0ntools.execute import Execute
-import Image
+from PIL import Image
 from pr0ntools.stitch.image_coordinate_map import ImageCoordinateMap
 import shutil
 import math
