@@ -908,6 +908,7 @@ class Tiler:
             last_progress = time.time()
             pair_submit = 0
             pair_complete = 0
+            idle = False
             while not (all_allocated and pair_complete == pair_submit):
                 progress = False
                 # Check for completed jobs
@@ -976,14 +977,17 @@ class Tiler:
     
                 if progress:
                     last_progress = time.time()
+                    idle = False
                 else:
+                    if not idle:
+                        print 'M Server thread idle'
+                    idle = True
                     # can take some time, but should be using smaller tiles now
                     if time.time() - last_progress > 4 * 60 * 60:
                         print 'M WARNING: server thread stalled'
                         last_progress = time.time()
-                
-                time.sleep(0.1)
-            
+                        time.sleep(0.1)
+
     
             bench.stop()
             print 'M Processed %d supertiles to generate %d new (%d total) tiles in %s' % (self.n_expected_sts, self.this_tiles_done, self.tiles_done(), str(bench))
