@@ -47,8 +47,6 @@ class TempFile:
 		return prefix + TempFile.rand_str(16) + suffix
 
 class ManagedTempFile:
-	file_name = None
-	
 	def __init__(self, file_name):
 		if file_name:
 			self.file_name = file_name
@@ -115,21 +113,3 @@ class ManagedTempDir(ManagedTempFile):
 		# Ignore if it was never created
 		except:
 			print 'WARNING: failed to delete temp dir: %s' % self.file_name
-
-class TempFileSet:
-	prefix = None
-	files = list()
-	
-	def get_file(self):
-		pass
-	
-	def get_dir(self):
-		pass
-
-	@staticmethod
-	def get(prefix = None):
-		if not prefix:
-			prefix = TempFile.default_prefix()
-		self.prefix = prefix
-
-
