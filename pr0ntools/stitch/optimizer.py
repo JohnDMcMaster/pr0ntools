@@ -1049,7 +1049,7 @@ if __name__ == "__main__":
         file_name_out = file_name_in
     
     print 'Loading raw project...'
-    project = PTOProject.parse_from_file_name(file_name_in)
+    project = PTOProject.from_file_name(file_name_in)
     print 'Creating optimizer...'
     optimizer = PTOptimizer(project)
     #self.assertTrue(project.text != None)

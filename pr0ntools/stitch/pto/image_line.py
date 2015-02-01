@@ -324,6 +324,8 @@ class ImageLine(line.Line):
         return self.get_variable('v')            
         
     def get_index(self):
+        if self.project.il2i:
+            return self.project.il2i[self]
         i = 0
         for line in self.project.image_lines:
             if line is self:

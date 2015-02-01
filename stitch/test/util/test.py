@@ -16,14 +16,14 @@ class StitchUtilTest(unittest.TestCase):
 		pass
 		
 	def test_center(self):
-		project = PTOProject.parse_from_file_name('in.pto')
+		project = PTOProject.from_file_name('in.pto')
 		center(project)
 		(ybar, xbar) = calc_center(project)
 		print 'Final xbar %f, ybar %f' % (ybar, xbar)
 		project.save()
 		
 	def test_center_anchor(self):
-		project = PTOProject.parse_from_file_name('in.pto')
+		project = PTOProject.from_file_name('in.pto')
 		center_anchor(project)
 		'''
 		Image 4 at (1, 1) is the correct answer

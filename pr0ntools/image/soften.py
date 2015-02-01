@@ -5,89 +5,81 @@ Licensed under a 2 clause BSD license, see COPYING for details
 '''
 
 from pr0ntools.temp_file import ManagedTempFile
-from pr0ntools.execute import Execute
-from pr0ntools import execute
 import os
 import time
+import subprocess
 import sys
 
-class Softener:
-    original_weight = None
-    blurred_weight = None
-    gaussian_size = None
-
-    def __init__(self, original_weight = 0.6, blurred_weight = 0.4, gaussian_size = 3):
-        self.original_weight = original_weight
-        self.blurred_weight = blurred_weight
-        self.gaussian_size = gaussian_size
-        
-    def run(self, source_file_name, dest_file_name = None):
-        '''
-        http://www.imagemagick.org/Usage/convolve/#soft_blur
-        
-        convert face.png -morphology Convolve Gaussian:0x3  face_strong_blur.png
-        convert face.png face_strong_blur.png \
-          -compose Blend -define compose:args=60,40% -composite \
-          face_soft_blur.png
-         
-        If dest_file_name is not given, done in place
-        '''
+def soften_gauss(src_fn, dst_fn):
+    '''
+    http://www.imagemagick.org/Usage/convolve/#soft_blur
     
-        sys.stdout.flush()
-        if not os.path.exists(source_file_name):
-            raise Exception('Soften input file name missing')
-            
-        strong_blur_mtemp_file = ManagedTempFile.from_same_extension(source_file_name)
+    convert face.png -morphology Convolve Gaussian:0x3  face_strong_blur.png
+    convert face.png face_strong_blur.png \
+      -compose Blend -define compose:args=60,40% -composite \
+      face_soft_blur.png
+     
+    If dest_file_name is not given, done in place
+    '''
 
-        args = ["convert"]
-        args.append(source_file_name)
-        args.append("-morphology")
-        args.append("Convolve")
-        args.append("Gaussian:0x3")
-        args.append(strong_blur_mtemp_file.file_name)
-        rc = execute.without_output(args)
-        if not rc == 0:
-            raise Exception('failed to form strong blur')
+    sys.stdout.flush()
+    if not os.path.exists(src_fn):
+        raise Exception('Soften input file name missing')
+        
+    args = ["convert"]
+    args.append(src_fn)
+    args.append("-morphology")
+    args.append("Convolve")
+    args.append("Gaussian:0x3")
+    args.append(dst_fn)
 
-        for i in xrange(30):
-            if os.path.exists(strong_blur_mtemp_file.file_name):
-                break
-            if i == 0:
-                print 'WARNING: soften missing strong blur dest file name %s, waiting a bit...' % (strong_blur_mtemp_file.file_name,)
-            time.sleep(0.1)
-        else:
-            raise Exception('Missing soften strong blur output file name %s' % strong_blur_mtemp_file.file_name)
-        
-        args = ["convert"]
-        args.append(source_file_name)
-        args.append(strong_blur_mtemp_file.file_name)
-        args.append("-compose")
-        args.append("Blend")
-        args.append("-define")
-        args.append("compose:args=60,40%")
-        args.append("-composite")
-        # If we got a dest file, use it
-        if dest_file_name:
-            args.append(dest_file_name)
-        # Otherwise, overwrite
-        else:
-            args.append(source_file_name)        
-        rc = execute.without_output(args)
-        if not rc == 0:
-            raise Exception('failed to form strong blur')
+    print 'going to execute: %s' % (args,)
+    # Specifying nothing completely throws away the output
+    subp = subprocess.Popen(args, stdout=None, stderr=None, shell=False)
+    subp.communicate()
 
-        # We're done! (nothing to return)
-        
-        # XXX: expierment to see if wait helps...probalby just need check
-        
-        '''
-        if dest_filE_name:
-            for i in xrange(30):
-                if os.path.exists(dest_file_name):
-                    break
-                if i == 0:
-                    print 'WARNING: soften missing dest file name %s, waiting a bit...' % (dest_file_name,)
-                time.sleep(0.1)
-            else:
-                raise Exception('Missing output file name %s' % dest_file_name)
-        '''
+    if not subp.returncode == 0:
+        raise Exception('soften failed')
+
+    # having some problems that looks like file isn't getting written to disk
+    # monitoring for such errors
+    # remove if I can root cause the source of these glitches
+    for i in xrange(30):
+        if os.path.exists(dst_fn):
+            break
+        if i == 0:
+            print 'WARNING: soften missing strong blur dest file name %s, waiting a bit...' % (dst_fn,)
+        time.sleep(0.1)
+    else:
+        raise Exception('Missing soften strong blur output file name %s' % dst_fn)
+    
+def soften_composite(src_fn, dst_fn):
+    tmp_file = ManagedTempFile.from_same_extension(src_fn)
+    soften_gauss(src_fn, tmp_file.file_name)
+
+    args = ["convert"]
+    args.append(tmp_file.file_name)
+    args.append(dst_fn)
+    args.append("-compose")
+    args.append("Blend")
+    args.append("-define")
+    args.append("compose:args=60,40%")
+    args.append("-composite")
+    # If we got a dest file, use it
+    args.append(dst_fn)
+    subp = subprocess.Popen(args, stdout=None, stderr=None, shell=False)
+    subp.communicate()
+    if not subp.returncode == 0:
+        raise Exception('failed to form strong blur')
+
+    # having some problems that looks like file isn't getting written to disk
+    # monitoring for such errors
+    # remove if I can root cause the source of these glitches
+    for i in xrange(30):
+        if os.path.exists(dst_fn):
+            break
+        if i == 0:
+            print 'WARNING: soften missing strong blur dest file name %s, waiting a bit...' % (dst_fn,)
+        time.sleep(0.1)
+    else:
+        raise Exception('Missing soften strong blur output file name %s' % dst_fn)

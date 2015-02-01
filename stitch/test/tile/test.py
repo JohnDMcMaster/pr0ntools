@@ -65,7 +65,7 @@ class PtoTileTest(unittest.TestCase):
 		a 3 x 3 grid allows testing edge boundary conditions as well as internal
 		The reference fully stitched image is 3377 x 2581
 		'''
-		project = PTOProject.parse_from_file_name('in.pto')
+		project = PTOProject.from_file_name('in.pto')
 		print 'Creating tiler'
 		t = Tiler(project, 'out', st_scalar_heuristic=2)
 		#iw = 1632
@@ -86,7 +86,7 @@ class PtoTileTest(unittest.TestCase):
 		t.run()
 
 	def test_tile_real(self):
-		project = PTOProject.parse_from_file_name('in.pto')
+		project = PTOProject.from_file_name('in.pto')
 		print 'Creating tiler'
 		t = Tiler(project, 'out', st_scalar_heuristic=2)
 		self.assertEqual(len(list(t.gen_supertiles())), 4)

@@ -21,7 +21,7 @@ class RemapperTest(unittest.TestCase):
 			
 	def test_single(self):
 		print 'Single test'
-		project = PTOProject.parse_from_file_name('in.pto')
+		project = PTOProject.from_file_name('in.pto')
 		remapper = Remapper(project)
 		remapper.image_type = Remapper.TIFF_SINGLE
 		remapper.run()	
@@ -29,7 +29,7 @@ class RemapperTest(unittest.TestCase):
 	
 	def test_multi(self):
 		print 'Multi test'
-		project = PTOProject.parse_from_file_name('in.pto')
+		project = PTOProject.from_file_name('in.pto')
 		remapper = Remapper(project)
 		remapper.image_type = Remapper.TIFF_SINGLE
 		remapper.run()	

@@ -6,16 +6,18 @@ Licensed under a 2 clause BSD license, see COPYING for details
 Common code for various stitching strategies
 '''
 
-from pr0ntools.image.soften import Softener
+from pr0ntools.image.soften import soften_composite
 import pr0ntools.stitch.control_point
 from pr0ntools.stitch.control_point import get_cp_engine, ajpto2pto_text, pto_unsub
 from pr0ntools.stitch.pto.project import PTOProject
-from pr0ntools.stitch.pto.util import *
-from pr0ntools.stitch.remapper import Remapper
+from pr0ntools.stitch.pto.util import optimize_xy_only, fixup_i_lines, fixup_p_lines
+from pr0ntools.pimage import PImage
 from pr0ntools.temp_file import ManagedTempFile
 from pr0ntools.benchmark import Benchmark
-import sys
+
 import json
+import os
+import sys
 import traceback
 
 '''
@@ -360,8 +362,6 @@ class CommonStitch:
         print 'Soften fn0: %s' % soften_image_file_0_managed.file_name
         print 'Soften fn1: %s' % soften_image_file_1_managed.file_name
 
-        softener = Softener()
-
         for i in xrange(soften_iterations):
             self.soften_try[i] += 1
 
@@ -373,11 +373,11 @@ class CommonStitch:
             print 'Attempting soften %d / %d' % (i + 1, soften_iterations)
 
             if i == 0:
-                softener.run(image_fn_pair[0], soften_image_file_0_managed.file_name)
-                softener.run(image_fn_pair[1], soften_image_file_1_managed.file_name)
+                soften_composite(image_fn_pair[0], soften_image_file_0_managed.file_name)
+                soften_composite(image_fn_pair[1], soften_image_file_1_managed.file_name)
             else:
-                softener.run(soften_image_file_0_managed.file_name)
-                softener.run(soften_image_file_1_managed.file_name)            
+                soften_composite(soften_image_file_0_managed.file_name)
+                soften_composite(soften_image_file_1_managed.file_name)            
             
             pair_soften_image_file_names = (soften_image_file_0_managed.file_name, soften_image_file_1_managed.file_name)
             ret_project = self.try_control_points_with_position(pair, pair_soften_image_file_names)

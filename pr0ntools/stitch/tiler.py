@@ -54,11 +54,13 @@ from pr0ntools.benchmark import Benchmark
 from pr0ntools.geometry import ceil_mult
 from pr0ntools.execute import CommandFailed
 from pr0ntools.stitch.pto.util import dbg
+
 import datetime
 import math
 import os
 import Queue
 import shutil
+import subprocess
 import sys
 import threading
 import time
@@ -586,10 +588,27 @@ class Tiler:
                     dst = os.path.join(self.st_dir, 'st_%06dx_%06dy.jpg' % (x0, y0))
                     self.st_fns.append(dst)
                     #shutil.copyfile(temp_file.file_name, dst)
-                    (rc, _output) = Execute.with_output('convert',
-                            ('-quality', '90', temp_file.file_name, dst))
-                    if not rc == 0:
+                    args = ['convert',
+                            '-quality', '90', 
+                            temp_file.file_name, dst]                    
+                    print 'going to execute: %s' % (args,)
+                    subp = subprocess.Popen(args, stdout=None, stderr=None, shell=False)
+                    subp.communicate()
+                    if subp.returncode != 0:
                         raise Exception('Failed to copy stitched file')
+
+                    # having some problems that looks like file isn't getting written to disk
+                    # monitoring for such errors
+                    # remove if I can root cause the source of these glitches
+                    for i in xrange(30):
+                        if os.path.exists(dst):
+                            break
+                        if i == 0:
+                            print 'WARNING: soften missing strong blur dest file name %s, waiting a bit...' % (dst,)
+                        time.sleep(0.1)
+                    else:
+                        raise Exception('Missing soften strong blur output file name %s' % dst)
+
                 img = PImage.from_file(temp_file.file_name)
                 print 'w%d: supertile width: %d, height: %d' % (worki, img.width(), img.height())
             return img

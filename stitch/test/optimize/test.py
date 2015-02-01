@@ -11,18 +11,18 @@ class OptimizeTest(unittest.TestCase):
 		shutil.copyfile('source.pto', 'in.pto')
 		
     def test_load(self):
-		project = PTOProject.parse_from_file_name('in.pto')
+		project = PTOProject.from_file_name('in.pto')
 		#self.assertTrue(project.text != None)
 		self.assertEqual(len(project.image_lines), 4)
     
     def test_optimize_conversion(self):
-		project = PTOProject.parse_from_file_name('in.pto')
+		project = PTOProject.from_file_name('in.pto')
 		pt = project.copy()
 		#self.assertTrue(pt.text)
 		
     def test_optimize(self):
 		print 'Loading raw project...'
-		project = PTOProject.parse_from_file_name('in.pto')
+		project = PTOProject.from_file_name('in.pto')
 		print 'Creating optimizer...'
 		optimizer = PTOptimizer(project)
 		#self.assertTrue(project.text != None)

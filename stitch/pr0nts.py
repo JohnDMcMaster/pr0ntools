@@ -128,7 +128,7 @@ if __name__ == "__main__":
     auto_size = not (args.stp or args.stm or args.stw or args.sth)
     
     print 'Assuming input %s is pto project to be stitched' % args.pto
-    project = PTOProject.parse_from_file_name(args.pto)
+    project = PTOProject.from_file_name(args.pto)
     print 'Creating tiler'
     stp = None
     if args.stp:
