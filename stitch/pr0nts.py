@@ -120,7 +120,7 @@ if __name__ == "__main__":
     if args.stampout:
         _outdate = IOTimestamp(sys, 'stdout')
         _errdate = IOTimestamp(sys, 'stderr')
-    _outlog = IOLog(obj=sys, name='stdout', out_fn='pr0nts.log')
+    _outlog = IOLog(obj=sys, name='stdout', out_fn='pr0nts.log', shift=True)
     _errlog = IOLog(obj=sys, name='stderr', out_fd=_outlog.out_fd)
 
     fn = args.pto[0]

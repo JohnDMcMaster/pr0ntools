@@ -7,6 +7,7 @@ Licensed under a 2 clause BSD license, see COPYING for details
 import datetime
 import math
 import os
+import shutil
 import sys
 
 def rjust_str(s, nchars):
@@ -60,10 +61,20 @@ class IOTimestamp(object):
 
 # Log file descriptor to file
 class IOLog(object):
-    def __init__(self, obj=sys, name='stdout', out_fn=None, out_fd=None, mode='a'):
+    def __init__(self, obj=sys, name='stdout', out_fn=None, out_fd=None, mode='a', shift=False):
         if out_fd:
             self.out_fd = out_fd
         else:
+            # instead of jamming logs together, shift last to log.txt.1, etc
+            if shift and os.path.exists(out_fn):
+                i = 0
+                while True:
+                    dst = out_fn + '.' + str(i)
+                    if os.path.exists(dst):
+                        continue
+                    shutil.move(out_fn, dst)
+                    break
+            
             hdr = mode == 'a' and os.path.exists(out_fn)
             self.out_fd = open(out_fn, mode)
             if hdr:
