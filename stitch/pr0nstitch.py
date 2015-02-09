@@ -69,7 +69,7 @@ if __name__ == "__main__":
     parser_add_bool_arg('--stampout', default=True, help='timestamp output')
     args = parser.parse_args()
     
-    _outlog = IOLog(obj=sys, name='stdout', out_fn='pr0nstitch.log')
+    _outlog = IOLog(obj=sys, name='stdout', out_fn='pr0nstitch.log', shift=True)
     _errlog = IOLog(obj=sys, name='stderr', out_fd=_outlog.out_fd)
     
     if args.stampout:
