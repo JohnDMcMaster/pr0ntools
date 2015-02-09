@@ -93,7 +93,7 @@ class Nona:
     TIFF_SINGLE = "TIFF_m"
     TIFF_MULTILAYER = "TIFF_multilayer"
     
-    def __init__(self, pto_project, output_prefix="nonaout"):
+    def __init__(self, pto_project, output_prefix="nonaout", start_hook=None):
         if output_prefix is None or len(output_prefix) == 0 or output_prefix == '.' or output_prefix == '..':
             raise RemapperFailed('Bad output file base "%s"' % str(output_prefix))
         
@@ -120,6 +120,7 @@ class Nona:
         self.pprefix = lambda: datetime.datetime.utcnow().isoformat() + ': '
         self.stdout = sys.stdout
         self.stderr = sys.stderr
+        self.start_hook = start_hook
     
     '''
     def run(self):
@@ -168,6 +169,9 @@ class Nona:
             args.append(arg)
         
         args.append(project_fn)
+        
+        if self.start_hook:
+            self.start_hook()
         # example:
         # cmd in: nona "-m" "TIFF_m" "-verbose" "-z" "LZW" "-o" "/tmp/pr0ntools_7E296EA2D31827B4/0DF5034FE1CEE831/" "out.pto"
         # p w2673 h2056 f0 v76 n"TIFF_m r:CROP c:LZW" E0.0 R0 S"276,2673,312,2056"

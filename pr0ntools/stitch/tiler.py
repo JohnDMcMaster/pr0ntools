@@ -79,7 +79,7 @@ class ThreadedIO:
 '''
 
 class PartialStitcher:
-    def __init__(self, pto, bounds, out, worki, work_run, p, pprefix):
+    def __init__(self, pto, bounds, out, worki, work_run, p, pprefix, lock):
         self.pto = pto
         self.bounds = bounds
         self.out = out
@@ -90,6 +90,7 @@ class PartialStitcher:
         self.work_run = work_run
         self.p = p
         self.pprefix = pprefix
+        self.lock = lock
         
     def run(self):
         '''
@@ -131,7 +132,10 @@ class PartialStitcher:
         #pl.set_bounds(x, min(x + self.tw(), pto.right()), y, min(y + self.th(), pto.bottom()))
         pl.set_crop(self.bounds)
         self.p('Preparing remapper...')
-        remapper = Nona(pto, out_name_prefix)
+        def hook():
+            self.p('Prep done, releasing lock')
+            self.lock.release()
+        remapper = Nona(pto, out_name_prefix, start_hook=hook)
         remapper.p = self.p
         remapper.pprefix = self.pprefix
         remapper.args = self.nona_args
@@ -223,6 +227,10 @@ class Worker(threading.Thread):
         # First generate all of the valid tiles across this area to see if we can get any useful work done?
         # every supertile should have at least one solution or the bounds aren't good
         x0, x1, y0, y1 = st_bounds
+
+        self.p('Waiting for worker lock...')
+        self.tiler.gil_sucks.acquire()
+        self.p('Glot lock')
         
         bench = Benchmark()
         try:
@@ -230,13 +238,14 @@ class Worker(threading.Thread):
 
             #out_name_base = "%s/r%03d_c%03d" % (self.tiler.out_dir, row, col)
             #print 'Working on %s' % out_name_base
-            stitcher = PartialStitcher(self.tiler.pto, st_bounds, temp_file.file_name, self.i, self.running, p=self.p, pprefix=self.pprefix)
+            stitcher = PartialStitcher(self.tiler.pto, st_bounds, temp_file.file_name, self.i, self.running, p=self.p, pprefix=self.pprefix, lock=self.tiler.gil_sucks)
             stitcher.enblend_lock = self.tiler.enblend_lock
             stitcher.nona_args = self.tiler.nona_args
             stitcher.enblend_args = self.tiler.enblend_args
 
             if self.tiler.dry:
                 self.p('dry: skipping partial stitch')
+                self.tiler.gil_sucks.release()
                 stitcher = None
             else:
                 stitcher.run()
@@ -280,7 +289,6 @@ class Worker(threading.Thread):
             self.p('supertile failed at %s' % (bench,))
             raise
 
-
 # For managing the closed list        
 
 class Tiler:
@@ -309,6 +317,18 @@ class Tiler:
         self.threads = 1
         self.workers = None
         self.st_fns = []
+        '''
+        When running lots of threads, we get stuck trying to get something mapping
+        I think this is due to GIL contention
+        To work around this, workers do pre-map stuff single threaded (as if they were in the server thread)
+        '''
+        self.gil_sucks =  threading.Lock()
+        print 'test1'
+        self.gil_sucks.acquire()
+        print 'test2'
+        self.gil_sucks.release()
+        print 'test3'
+        
         
         # TODO: this is a heuristic just for this, uniform input images aren't actually required
         for i in pto.get_image_lines():
