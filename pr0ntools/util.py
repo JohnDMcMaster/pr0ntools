@@ -71,6 +71,7 @@ class IOLog(object):
                 while True:
                     dst = out_fn + '.' + str(i)
                     if os.path.exists(dst):
+                        i += 1
                         continue
                     shutil.move(out_fn, dst)
                     break
