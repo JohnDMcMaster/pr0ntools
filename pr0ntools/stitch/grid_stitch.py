@@ -20,6 +20,7 @@ import common_stitch
 #from pr0ntools.util import msg
 import time
 import datetime
+import shutil
 
 # FIXME: placeholder
 def msg(s=''):
@@ -207,7 +208,10 @@ class GridStitch(common_stitch.CommonStitch):
                     
                     if what == 'done':
                         (_task, final_pair_project) = out[1]
-                        msg('W%d: done w/ submit %d, complete %d' % (wi, pair_submit, pair_complete))
+                        prog = 'complete %d/%d' % (pair_complete, n_pairs)
+                        msg('W%d: done w/ submit %d, %s' % (wi, pair_submit, prog))
+                        open('pr0nstitch_stat.txt.tmp', 'w').write(prog + '\n')
+                        shutil.move('pr0nstitch_stat.txt.tmp', 'pr0nstitch_stat.txt')
                         # May have failed
                         if final_pair_project:
                             final_pair_projects.append(final_pair_project)
