@@ -25,11 +25,11 @@ REG_NOP =    0x03
 REG_ACK =   0x02
 
 XYZ_STATUS =        0x00
-XYZ_CONTROL =    0x01     
+XYZ_CONTROL =        0x01     
 # Set the step register to value (2's compliment)
-XYZ_STEP_SET =    0x02
+XYZ_STEP_SET =      0x02
 # Adjust the step register by argument
-XYZ_STEP_ADD =    0x03
+XYZ_STEP_ADD =      0x03
 # Adjust the step register by argument
 # #define XYZ_STEP_ADD    0x04
 # Minimum velocity in steps/second     
@@ -37,9 +37,10 @@ XYZ_VELMIN =        0x05
 # Maximum velocity in steps/second
 XYZ_VELMAX =        0x06
 # Acceleration/decceleration in steps/second**2 
-XYZ_ACL =        0x07
-XYZ_HSTEP_DLY =  0x08
-XYZ_NET_STEP =   0x09
+XYZ_ACL =           0x07
+XYZ_HSTEP_C =       0x08
+XYZ_NET_STEP =      0x09
+#XYZ_USTEP           0x0A
 XYZ_BASE = {'X':0x20, 'Y':0x40, 'Z':0x60}
 
 '''
@@ -161,6 +162,10 @@ class Indexer:
         # Send and make sure we get an ack
         self.reg_write(REG_NOP, 0)
 
+        hstep_c = 7.4e5
+        self.reg_write(0x20 + XYZ_HSTEP_C, hstep_c)
+
+
     def try_open(self, device):
         self.device = device
         self.serial = serial.Serial(port=self.device, baudrate=38400, timeout=1, writeTimeout=1)    
@@ -223,49 +228,53 @@ class Indexer:
                     raise e
                 print 'WARNING: timed out read'
     
-    def packet_write(self, reg, value, retries=1):
-        for retry in xrange(retries):
-            #print 'Packet write reg=0x%02X, value=0x%08X' % (reg, value)
-            packet = struct.pack('<BBi', self.seq, reg, value)
-            packet = chr(checksum(packet)) + packet
-            out = slip(packet)
-            self.seq = (self.seq + 1) % 0x100
-            
-            if self.debug:
-                print 'pr0ndexer DEBUG: packet: %s' % (binascii.hexlify(packet),)
-                print 'pr0ndexer DEBUG: sending: %s' % (binascii.hexlify(out),)
-                #if self.serial.inWaiting():
-                #    raise Exception('At send %d chars waiting' % self.serial.inWaiting())
-            
-            self.serial.write(out)
-            self.serial.flush()
-            
-            if self.wait_ack:
-                try:
-                    _ack_packet = self.packet_read()
-                except BadChecksum as e:
-                    pass
-                    # poorly assume if we get any response back that the write succeeded
-                    # since we are throwing the reply away anyway
-                    '''
-                    if i == retries-1:
-                        raise e
-                    print 'WARNING: bad checksum on read: %s' % (e,)
-                    continue
-                    '''
-            return
+    def packet_write(self, reg, value, retries=3):
+        #print 'Packet write reg=0x%02X, value=0x%08X' % (reg, value)
+        packet = struct.pack('<BBi', self.seq, reg, value)
+        packet = chr(checksum(packet)) + packet
+        out = slip(packet)
+        self.seq = (self.seq + 1) % 0x100
 
-            '''
-                ack_packet = self.packet_read()
-                if ack_packet.seq != self.seq:
-                    
-                if ack_packet.opcode != reg:
-                    # Maybe due to previously sent packets?
-                    raise Exception("Replied wrong reg.  Expected 0x%02X but got 0x%02X", reg, reply_packet.opcode)
-            else:
-                raise AckException("Didn't get ack in %d packets" % retries)
-            '''
-        raise Exception('Internal error')
+        if self.debug:
+            print 'pr0ndexer DEBUG: packet: %s' % (binascii.hexlify(packet),)
+            print 'pr0ndexer DEBUG: sending: %s' % (binascii.hexlify(out),)
+            #if self.serial.inWaiting():
+            #    raise Exception('At send %d chars waiting' % self.serial.inWaiting())
+        for retry in xrange(retries):
+            try:
+                self.serial.flushInput()
+                self.serial.write(out)
+                self.serial.flush()
+                
+                if self.wait_ack:
+                    try:
+                        _ack_packet = self.packet_read()
+                    except BadChecksum as e:
+                        pass
+                        # poorly assume if we get any response back that the write succeeded
+                        # since we are throwing the reply away anyway
+                        '''
+                        if i == retries-1:
+                            raise e
+                        print 'WARNING: bad checksum on read: %s' % (e,)
+                        continue
+                        '''
+                return
+
+                '''
+                    ack_packet = self.packet_read()
+                    if ack_packet.seq != self.seq:
+                        
+                    if ack_packet.opcode != reg:
+                        # Maybe due to previously sent packets?
+                        raise Exception("Replied wrong reg.  Expected 0x%02X but got 0x%02X", reg, reply_packet.opcode)
+                else:
+                    raise AckException("Didn't get ack in %d packets" % retries)
+                '''
+            except Timeout:
+                print 'WARNING: retry %s timed out' % retry
+                continue
+        raise Timeout('Failed to write packet after %d retries' % retries)
         
     def packet_read(self):
         # Now read response
@@ -299,12 +308,13 @@ class Indexer:
         
         self.reg_write(XYZ_BASE[axis] + XYZ_STEP_SET, n)
         if wait:
-            wait_timeout = 1.1 * abs(n) / 371.0 + 1.0
+            wait_timeout = 11. * abs(n) / 371.0 + 1.
             self.wait_idle(axis, wait_timeout)
         
     def steps_a_second(self):
         # for delay register of 2000
-        return 370
+        #return 370
+        return 3700
     
     def step_rel(self, axis, n, wait=True, wait_timeout_rel=False):
         if self.invert_step:
@@ -316,7 +326,7 @@ class Indexer:
             # we can't make a reasonable wait timeout
             wait_timeout = None
             if wait_timeout_rel:
-                wait_timeout = 1.1 * abs(n) / 371.0 + 1.0
+                wait_timeout = 11. * abs(n) / 371.0 + 1.
             self.wait_idle(axis, wait_timeout)
 
     def wait_idle(self, axis, wait_timeout):
@@ -350,15 +360,6 @@ def str2bool(arg_value):
 
 
 if __name__ == "__main__":
-    if 0:
-        inp = bytearray(binascii.unhexlify('c071032978ecffffc0'))
-        ds = deslip(inp)
-        if ds is None:
-            print 'Failed to decode'
-        outp = binascii.hexlify(ds)
-        print outp
-        sys.exit(1)
-    
     parser = argparse.ArgumentParser(description="Test utility to drive serial port")
     parser.add_argument('--debug', action="store_true", default=False, help='Debug')
     parser.add_argument('port', nargs='?', default=None, help='Serial port to open. Default: snoop around')
@@ -366,70 +367,9 @@ if __name__ == "__main__":
 
     indexer = Indexer(device=args.port, debug=args.debug)
     
-    if 0:
-        print 'X+'
-        indexer.wait_ack = False
-        indexer.step('X', 1000, wait=False)
-    
-    '''
-    half step delay of 2000 takes 10 seconds to do 10,000 steps
-    10,000/10 = 1000 steps/second
-    '''
-    if 1:
-        print 'X forward'
-        # 8 => 35 = 27
-        # 48 => 15 = 27
-        # 10000 / 27 = 370 steps/second
-        # 
-        print 'X+'
-        indexer.step('X', 1000, wait=False)
-        print 'net step: %d' % indexer.net_tostep('X')
-        time.sleep(3)
-        print 'net step: %d' % indexer.net_tostep('X')
-        
-        print
-        
-        print 'X-'
-        indexer.step('X', -1000, wait=False)
-        print 'net step: %d' % indexer.net_tostep('X')
-        time.sleep(3)
-        print 'net step: %d' % indexer.net_tostep('X')
-        
-        print
-        
-        print 'Y+'
-        indexer.step('Y', 1000, wait=True)
-        time.sleep(1)
-        print 'Y-'
-        indexer.step('Y', -1000, wait=True)
-        time.sleep(1)
-    
-    if 0:
-        for dly in (1800, 2000, 2200):
-            print 'Delay %d' % dly
-            indexer.reg_write(0x20 + XYZ_HSTEP_DLY, dly)
-            indexer.step('X', -10000)
-            time.sleep(10)
-        
-    if 0:
-        print 'X reverse'
-        indexer.step('X', -50)
-        print 'Y forward'
-        indexer.step('Y', 50)
-        print 'Y reverse'
-        indexer.step('Y', -50)
-
-
-    print
-    print
-    print
-    print 'Checkout for debug output'
-    while True:
-        r = indexer.serial.read(1024)
-        print 'Read %d bytes' % len(r)
-        if not r:
-            break
-        print r
-        print binascii.hexlify(r)
-
+    # default: 7.4e5
+    hstep_c = 7.4e7
+    print 'Delay %d' % hstep_c
+    indexer.reg_write(0x20 + XYZ_HSTEP_C, hstep_c)
+    indexer.step('X', 200)
 

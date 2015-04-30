@@ -793,11 +793,8 @@ class Planner:
             r1 = exclusion.get('r1', float('-inf'))
             c0 = exclusion.get('c0', float('inf'))
             c1 = exclusion.get('c1', float('-inf'))
-            if cur_row >= r0 and cur_row <= r1:
-                self._log('Excluding r%d, c%d on r0: %s, r1: %s' % (cur_row, cur_col, r0, r1))
-                return True
-            if cur_col >= c0 and cur_col <= c1:
-                self._log('Excluding r%d, c%d on c0: %s, r1: %s' % (cur_row, cur_col, c0, c1))
+            if cur_row >= r0 and cur_row <= r1 and cur_col >= c0 and cur_col <= c1:
+                self._log('Excluding r%d, c%d on r%s:%s, c%s:%s' % (cur_row, cur_col, r0, r1, c0, c1))
                 return True
         return False
     

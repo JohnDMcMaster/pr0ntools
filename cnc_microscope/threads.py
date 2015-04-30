@@ -5,6 +5,7 @@ import time
 from controller import Controller
 from planner import Planner
 from pr0ntools.benchmark import Benchmark
+import os
 
 def dbg(*args):
     if len(args) == 0:
@@ -177,8 +178,10 @@ class PlannerThread(QThread):
         QThread.__init__(self, parent)
         self.rconfig = rconfig
         self.planner = None
+        self.log_buff = bytearray()
         
     def log(self, msg):
+        self.log_buff += str(msg) + '\n'
         self.emit(SIGNAL('log'), msg)
     
     def setRunning(self, running):
@@ -196,6 +199,11 @@ class PlannerThread(QThread):
             self.planner.run(start_hook=start_hook)
             b.stop()
             self.log('Planner done!  Took : %s' % str(b))
+            log_fn = os.path.join(self.planner.out_dir(), 'log.txt')
+            if self.rconfig.dry:
+                self.log('DRY: write %d byte log to %s' % (len(self.log_buff), log_fn))
+            else:
+                open(log_fn, 'w').write(self.log_buff)
             self.plannerDone.emit()
         except Exception as e:
             self.log('WARNING: planner thread crashed: %s' % str(e))
