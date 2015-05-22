@@ -1278,6 +1278,7 @@ class ControllerPlanner(Planner):
         pass
     
     def absolute_move(self, x, y, z = None):
+        self._log('Absolute move to (%s, %s, %s)' % (str(x), str(y), str(z)))
         if not x is None:
             self.controller.x.set_pos(x)
             self.x_pos = x
@@ -1298,6 +1299,7 @@ class ControllerPlanner(Planner):
             self.controller.y.jog(y)
         if z:
             self.controller.z.jog(z)
+        self._log('Relative move to (%s, %s, %s)' % (str(x), str(y), str(z)))
 
     def focus_camera(self):
         # no z axis control right now
@@ -1351,7 +1353,7 @@ class DryControllerPlanner(ControllerPlanner):
         if z is not None:
             rt_move += self.get_steps(abs(z - self.z_pos)) / self.steps_per_sec
             self.z_pos = z
-        self._log('DRY %s: absolute move to (%s, %s, %s)' % (format_t(rt_move), str(x), str(y), str(z)), 3)
+        self._log('DRY %s: absolute move to (%s, %s, %s)' % (format_t(rt_move), str(x), str(y), str(z)))
         self.rt_move += rt_move
 
     def relative_move(self, x, y, z = None):
@@ -1365,7 +1367,7 @@ class DryControllerPlanner(ControllerPlanner):
         if z is None:
             z = 0.0
         rt_move += self.get_steps(abs(z)) / self.steps_per_sec
-        self._log('DRY %s: relative move to (%f, %f, %f)' % (format_t(rt_move), x, y, z))
+        self._log('DRY %s: relative move to (%0.3f, %0.3f, %0.3f)' % (format_t(rt_move), x, y, z))
         self.rt_move += rt_move
 
     def take_picture(self, img_fn):

@@ -899,10 +899,15 @@ class CNCGUI(QMainWindow):
         dbg("Waiting for previous movement (if any) to cease")
         self.cnc_ipc.wait_idle()
         
-        self.pt = PlannerThread(self, rconfig)
+        def start_hook(out_dir):
+            if not self.dry_cb.isChecked():
+                self.log_fd = open(os.path.join(out_dir, 'log.txt'), 'w')
+        self.pt = PlannerThread(self, rconfig, start_hook=start_hook)
         self.connect(self.pt, SIGNAL('log'), self.log)
         self.pt.plannerDone.connect(self.plannerDone)
         self.setControlsEnabled(False)
+        
+        '''
         #eeeee not working as well as I hoped
         # tracked it down to python video capture library operating on windows GUI frame buffer
         # now that switching over to Linux should be fine to be multithreaded
@@ -916,6 +921,9 @@ class CNCGUI(QMainWindow):
                 if not self.dry_cb.isChecked():
                     self.log_fd = open(os.path.join(out_dir, 'log.txt'), 'w')
             self.pt.run(start_hook=start_hook)
+        '''
+        dbg("Running multithreaded")
+        self.pt.start()
     
     def setControlsEnabled(self, yes):
         self.go_pb.setEnabled(yes)
@@ -926,6 +934,7 @@ class CNCGUI(QMainWindow):
     def plannerDone(self):
         self.log('RX planner done')
         # Cleanup camera objects
+        self.log_fd = None
         self.pt = None
         self.setControlsEnabled(True)
         if config['cnc']['startup_run_exit']:

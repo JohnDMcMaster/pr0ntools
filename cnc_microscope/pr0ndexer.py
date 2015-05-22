@@ -131,7 +131,11 @@ def deslip(bytes):
 
 class Indexer:
     # wtf is acm
-    def __init__(self, device=None, debug=False):
+    def __init__(self, device=None, debug=False, log=None):
+        if log is None:
+            def log(s):
+                print s
+        self._log = log
         self.serial = None
         self.debug = debug
         self.wait_ack = True
@@ -156,7 +160,7 @@ class Indexer:
         
         # Clear old data
         if self.debug:
-            print 'Flushing %d chars' % self.serial.inWaiting()
+            self._log('Flushing %d chars' % self.serial.inWaiting())
         self.serial.flushInput()
         
         # Send and make sure we get an ack
@@ -217,16 +221,19 @@ class Indexer:
                 
                 reply_packet = self.packet_read()
                 if reply_packet.opcode != reg:
-                    raise Exception("Replied wrong reg.  Expected 0x%02X but got 0x%02X", reg, reply_packet.opcode)
+                    self._log("WARNING: Replied wrong reg.  Expected 0x%02X but got 0x%02X" % (reg, reply_packet.opcode))
+                    # try to flush out
+                    time.sleep(0.1)
+                    continue
                 return reply_packet.value
             except BadChecksum as e:
                 if i == retries-1:
                     raise e
-                print 'WARNING: bad checksum on read: %s' % (e,)
+                self._log('WARNING: bad checksum on read: %s' % (e,))
             except Timeout as e:
                 if i == retries-1:
                     raise e
-                print 'WARNING: timed out read'
+                self._log('WARNING: timed out read')
     
     def packet_write(self, reg, value, retries=3):
         #print 'Packet write reg=0x%02X, value=0x%08X' % (reg, value)
@@ -236,8 +243,7 @@ class Indexer:
         self.seq = (self.seq + 1) % 0x100
 
         if self.debug:
-            print 'pr0ndexer DEBUG: packet: %s' % (binascii.hexlify(packet),)
-            print 'pr0ndexer DEBUG: sending: %s' % (binascii.hexlify(out),)
+            self._log('pr0ndexer DEBUG: packet: %s, sending: %s' % (binascii.hexlify(packet), binascii.hexlify(out)))
             #if self.serial.inWaiting():
             #    raise Exception('At send %d chars waiting' % self.serial.inWaiting())
         for retry in xrange(retries):
@@ -250,7 +256,9 @@ class Indexer:
                     try:
                         _ack_packet = self.packet_read()
                     except BadChecksum as e:
-                        pass
+                        self._log('WARNING: bad rx checksum')
+                        continue
+                        
                         # poorly assume if we get any response back that the write succeeded
                         # since we are throwing the reply away anyway
                         '''
@@ -272,7 +280,7 @@ class Indexer:
                     raise AckException("Didn't get ack in %d packets" % retries)
                 '''
             except Timeout:
-                print 'WARNING: retry %s timed out' % retry
+                self._log('WARNING: retry %s timed out' % retry)
                 continue
         raise Timeout('Failed to write packet after %d retries' % retries)
         
@@ -304,7 +312,7 @@ class Indexer:
             n = -n
             
         if self.debug:
-            print 'pr0ndexer DEBUG: stepping %d' % (n,)
+            self._log('pr0ndexer DEBUG: %s stepping %d' % (axis, n))
         
         self.reg_write(XYZ_BASE[axis] + XYZ_STEP_SET, n)
         if wait:
@@ -319,6 +327,9 @@ class Indexer:
     def step_rel(self, axis, n, wait=True, wait_timeout_rel=False):
         if self.invert_step:
             n = -n
+        
+        if self.debug:
+            self._log('pr0ndexer DEBUG: %s stepping rel %d' % (axis, n))
         
         self.reg_write(XYZ_BASE[axis] + XYZ_STEP_ADD, n)
         if wait:

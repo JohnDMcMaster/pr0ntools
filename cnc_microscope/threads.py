@@ -174,14 +174,16 @@ class ControllerThread(QThread, Controller):
 class PlannerThread(QThread):
     plannerDone = pyqtSignal()
 
-    def __init__(self,parent, rconfig):
+    def __init__(self,parent, rconfig, start_hook):
         QThread.__init__(self, parent)
         self.rconfig = rconfig
         self.planner = None
-        self.log_buff = bytearray()
+        #self.log_buff = bytearray()
+        self.start_hook = start_hook
         
     def log(self, msg):
-        self.log_buff += str(msg) + '\n'
+        #print 'emitting log %s' % msg
+        #self.log_buff += str(msg) + '\n'
         self.emit(SIGNAL('log'), msg)
     
     def setRunning(self, running):
@@ -189,21 +191,24 @@ class PlannerThread(QThread):
         if planner:
             planner.setRunning(running)
         
-    def run(self, start_hook=None):
+    def run(self):
         try:
             self.log('Initializing planner!')
     
             self.planner = Planner.get(self.rconfig, self.log)
             self.log('Running planner')
             b = Benchmark()
-            self.planner.run(start_hook=start_hook)
+            self.planner.run(start_hook=self.start_hook)
             b.stop()
             self.log('Planner done!  Took : %s' % str(b))
+            
+            '''
             log_fn = os.path.join(self.planner.out_dir(), 'log.txt')
             if self.rconfig.dry:
                 self.log('DRY: write %d byte log to %s' % (len(self.log_buff), log_fn))
             else:
                 open(log_fn, 'w').write(self.log_buff)
+            '''
             self.plannerDone.emit()
         except Exception as e:
             self.log('WARNING: planner thread crashed: %s' % str(e))

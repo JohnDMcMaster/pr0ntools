@@ -13,7 +13,7 @@ class PDC(Controller):
     def __init__(self, debug=False, log=None):
         Controller.__init__(self, debug=False)
         
-        self.indexer = Indexer(debug=debug)
+        self.indexer = Indexer(debug=debug, log=log)
         if self.indexer.serial is None:
             raise Exception("USBIO missing serial")
         
