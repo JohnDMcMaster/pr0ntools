@@ -38,8 +38,15 @@ class DummyAxis(Axis):
     def home(self):
         self.log('Dummy axis %s: home' % (self.name,))
 
-    def forever_neg(self):
+    def forever_neg(self, done, progress_notify):
         self.log('Dummy axis %s: forever_neg' % (self.name,))
+        while not done.is_set():
+            done.wait(0.05)
+            progress_notify() if progress_notify() else None
           
-    def forever_pos(self):
+    def forever_pos(self, done, progress_notify=None):
         self.log('Dummy axis %s: forever_pos' % (self.name,))
+        while not done.is_set():
+            done.wait(0.05)
+            progress_notify() if progress_notify() else None
+
