@@ -323,12 +323,8 @@ class Tiler:
         To work around this, workers do pre-map stuff single threaded (as if they were in the server thread)
         '''
         self.gil_sucks =  threading.Lock()
-        print 'test1'
         self.gil_sucks.acquire()
-        print 'test2'
         self.gil_sucks.release()
-        print 'test3'
-        
         
         # TODO: this is a heuristic just for this, uniform input images aren't actually required
         for i in pto.get_image_lines():
