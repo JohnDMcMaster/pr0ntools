@@ -166,9 +166,35 @@ class Indexer:
         # Send and make sure we get an ack
         self.reg_write(REG_NOP, 0)
 
-        hstep_c = 7.4e5
-        self.reg_write(0x20 + XYZ_HSTEP_C, hstep_c)
-
+    def configure(self, acl=None, velmin=None, velmax=None, hstep_c=None):
+        '''
+        WARNING: do not update parameters while motor is moving, it may create an acceleration discontinuity
+        
+        These appear as per axis but are actually currently global
+        Defaults
+        "acl': 325,
+            acceleration, basically how many clock cycles to adjust each subsequent pulse
+            more detailed: how much to adjust axis->velocity each step
+        "velmin': 10,
+            minimum pulse width loop value
+        "velmax': 9250,
+            maximum pulse width loop value
+        "hstep_c': 740000
+            scales velocity
+            smaller values linearly creates smaller pulses => move motor faster
+            from k2 code: hstep_c = 7.4e5
+            
+        
+        actual pulse width: g_hstep_c / axis->velocity NOP high/low loops
+        '''
+        if acl:
+            self.reg_write(0x20 + XYZ_ACL, acl)
+        if velmin:
+            self.reg_write(0x20 + XYZ_VELMIN, velmin)
+        if velmax:
+            self.reg_write(0x20 + XYZ_VELMAX, velmax)
+        if hstep_c:
+            self.reg_write(0x20 + XYZ_HSTEP_C, hstep_c)
 
     def try_open(self, device):
         self.device = device

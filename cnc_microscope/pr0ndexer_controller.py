@@ -10,12 +10,17 @@ from axis import Axis
 from pr0ndexer import Indexer
 
 class PDC(Controller):
-    def __init__(self, debug=False, log=None):
+    def __init__(self, debug=False, log=None, config=None):
         Controller.__init__(self, debug=False)
         
         self.indexer = Indexer(debug=debug, log=log)
         if self.indexer.serial is None:
             raise Exception("USBIO missing serial")
+        
+        config = config['cnc']['pr0ndexer']
+        self.indexer.configure(acl=int(config.get('acl', '325')),
+                velmin=int(config.get('velmin', '10')), velmax=int(config.get('velmax', '9250')),
+                hstep_c=int(config.get('hstep_c', '740000')))
         
         self.x = PDCAxis('X', self.indexer)
         self.y = PDCAxis('Y', self.indexer)

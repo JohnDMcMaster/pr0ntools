@@ -77,13 +77,13 @@ def get_cnc(log):
     # pr0ndexer (still on MicroControle hardware though)
     elif engine == 'PDC':
         try:
-            return PDC(debug=False, log=log)
+            return PDC(debug=False, log=log, config=config)
         except IOError:
             print 'Failed to open PD device'
             raise
     elif engine == 'auto':
         try:
-            return PDC(debug=False, log=log)
+            return PDC(debug=False, log=log, config=config)
         except IOError:
             pass
         
