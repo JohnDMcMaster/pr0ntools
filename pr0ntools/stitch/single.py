@@ -38,8 +38,12 @@ def singlify(fns_in, fn_out):
         h = im0.size[1] + ymax - ymin
         print 'Net size: %dw x %dh' % (w, h)
         dst = Image.new(im0.mode, (w, h))
+
+    if w >= 2**16 or h >= 2**16:
+        raise HugeJPEG('Image exceeds maximum JPEG w/h')
     
-    if w * h > 2**32:
+    # think this was tiff, not jpg...?
+    if w * h >= 2**32:
         raise HugeJPEG('Image exceeds maximum JPEG size')
     
     for fni, fn in enumerate(fns_in):
@@ -47,6 +51,6 @@ def singlify(fns_in, fn_out):
         (x, y) = coord(fn)
         im = Image.open(fn)
         dst.paste(im, (x - xmin, y - ymin))
-    print 'Saving...'
+    print 'Saving %s...' % fn_out
     dst.save(fn_out, quality=90)
     print 'Done!'
