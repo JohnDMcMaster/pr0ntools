@@ -988,10 +988,12 @@ class Tiler:
                         print 'MW%d: done w/ submit %d, complete %d' % (wi, pair_submit, pair_complete)
                         self.process_image(img, st_bounds)
                     elif what == 'exception':
-                        for worker in self.workers:
-                            worker.running.clear()
-                        # let stdout clear up
-                        time.sleep(1)
+                        if not self.tiler.ignore_errors:
+                            for worker in self.workers:
+                                worker.running.clear()
+                            # let stdout clear up
+                            # (only moderately effective)
+                            time.sleep(1)
                         
                         #(_task, e) = out[1]
                         print '!' * 80
@@ -1001,7 +1003,9 @@ class Tiler:
                         for l in estr.split('\n'):
                             print l
                         print '!' * 80
-                        raise Exception('M: shutdown on worker failure')
+                        if self.tiler.ignore_errors:
+                            raise Exception('M: shutdown on worker failure')
+                        print 'M WARNING: continuing despite worker failure'
                     else:
                         print 'M: %s' % (out,)
                         raise Exception('M: internal error: bad task type %s' % what)
