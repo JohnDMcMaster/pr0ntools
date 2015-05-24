@@ -32,19 +32,25 @@ def singlify(fns_in, fn_out):
     
     print 'X: %d:%d' % (xmin, xmax)
     print 'Y: %d:%d' % (ymin, ymax)
-    with Image.open(fns_in[0]) as im0:
+    #with Image.open(fns_in[0]) as im0:
+    im0 = Image.open(fns_in[0])
+    if 1:
         print 'Base size: %dw x %dh' % (im0.size[0], im0.size[1])
         w = im0.size[0] + xmax - xmin
         h = im0.size[1] + ymax - ymin
         print 'Net size: %dw x %dh' % (w, h)
         dst = Image.new(im0.mode, (w, h))
 
-    if w >= 2**16 or h >= 2**16:
-        raise HugeJPEG('Image exceeds maximum JPEG w/h')
+    if fn_out.find('.jpg') >= 0:
+        if w >= 2**16 or h >= 2**16:
+            raise HugeJPEG('Image exceeds maximum JPEG w/h')
     
-    # think this was tiff, not jpg...?
-    if w * h >= 2**32:
-        raise HugeJPEG('Image exceeds maximum JPEG size')
+        # think this was tiff, not jpg...?
+        if w * h >= 2**32:
+            raise HugeJPEG('Image exceeds maximum JPEG size')
+    elif fn_out.find('.tif') >= 0:
+        if w * h >= 2**32:
+            raise HugeJPEG('Image exceeds maximum tif size')
     
     for fni, fn in enumerate(fns_in):
         print 'Merging %d/%d %s...' % (fni + 1, len(fns_in), fn)
