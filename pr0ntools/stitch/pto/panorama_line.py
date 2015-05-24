@@ -40,6 +40,11 @@ class PanoramaLine(line.Line):
 	def set_crop(self, crop):
 		self.set_variable('S', '%d,%d,%d,%d' % tuple(crop))
 	
+	def get_crop_ez(self):
+		'''Return (left, right, top, bottom), returning full canvas if not set'''
+		ret = self.get_crop()
+		return ret if ret else [0, self.getv('w'), 0, self.getv('h')]
+		
 	def get_crop(self):
 		'''Return (left, right, top, bottom) or None'''
 		c = self.get_variable('S')
@@ -49,8 +54,7 @@ class PanoramaLine(line.Line):
 		c  = c.split(',')
 		if len(c) != 4:
 			raise Exception('Malformed S line')
-		ret = [int(i) for i in c]
-		return ret
+		return [int(i) for i in c]
 		
 	def width(self):
 		c = self.get_crop()

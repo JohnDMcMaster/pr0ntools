@@ -418,3 +418,22 @@ def img_cpls(pto, img_i):
         if n == img_i or N == img_i:
             cpls.append(cpl)
     return cpls
+
+def rm_red_img(pto):
+    '''Remove redundant images given crop selection'''
+    pl = pto.panorama_line
+    (c_left, c_right, c_top, c_bottom) = pl.get_crop_ez()
+    to_rm = []
+    for il in pto.image_lines:
+        im_left = il.left()
+        im_right = il.right()
+        im_top = il.top()
+        im_bottom = il.bottom()
+        
+        print 'check w/ crop [%s, %s, %s, %s] vs im [%s, %s, %s, %s]' % (c_left, c_right, c_top, c_bottom, im_left, im_right, im_top, im_bottom)
+        # if they don't overlap, just ignore it entire
+        if not (c_left < im_right and c_right > im_left and c_top < im_bottom and c_bottom > im_top):
+            print 'Removing w/ crop [%s, %s, %s, %s] vs im [%s, %s, %s, %s]' % (c_left, c_right, c_top, c_bottom, im_left, im_right, im_top, im_bottom)
+            to_rm.append(il)
+            continue
+    print 'Removing images: %s' % sys.exit(1)

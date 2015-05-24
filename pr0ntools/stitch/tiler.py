@@ -204,15 +204,15 @@ class Worker(threading.Thread):
 
                 try:
                     img = self.try_supertile(st_bounds)
-                except CommandFailed:
-                    if self.tiler.ignore_errors:
-                        # We shouldn't be trying commands during dry but just in case should raise?
-                        self.p('WARNING: got exception trying supertile %d' % (self.tiler.n_supertiles))
-                        traceback.print_exc()
-                    else:
+                    self.qo.put(('done', (st_bounds, img)))
+                except CommandFailed as e:
+                    if not self.tiler.ignore_errors:
                         raise
-                
-                self.qo.put(('done', (st_bounds, img)))
+                    # We shouldn't be trying commands during dry but just in case should raise?
+                    self.p('WARNING: got exception trying supertile %d' % (self.tiler.n_supertiles))
+                    traceback.print_exc()
+                    estr = traceback.format_exc()
+                    self.qo.put(('exception', (task, e, estr)))
                 self.p('task done')
                 
             except Exception as e:
