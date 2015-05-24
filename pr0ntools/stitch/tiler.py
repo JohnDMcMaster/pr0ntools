@@ -1012,7 +1012,7 @@ class Tiler:
                         for l in estr.split('\n'):
                             print l
                         print '!' * 80
-                        if self.ignore_errors:
+                        if not self.ignore_errors:
                             raise Exception('M: shutdown on worker failure')
                         print 'M WARNING: continuing despite worker failure'
                     else:
