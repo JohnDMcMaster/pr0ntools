@@ -997,7 +997,7 @@ class Tiler:
                         print 'MW%d: done w/ submit %d, complete %d' % (wi, pair_submit, pair_complete)
                         self.process_image(img, st_bounds)
                     elif what == 'exception':
-                        if not self.tiler.ignore_errors:
+                        if not self.ignore_errors:
                             for worker in self.workers:
                                 worker.running.clear()
                             # let stdout clear up
@@ -1012,7 +1012,7 @@ class Tiler:
                         for l in estr.split('\n'):
                             print l
                         print '!' * 80
-                        if self.tiler.ignore_errors:
+                        if self.ignore_errors:
                             raise Exception('M: shutdown on worker failure')
                         print 'M WARNING: continuing despite worker failure'
                     else:
