@@ -107,7 +107,7 @@ if __name__ == "__main__":
     parser.add_argument('--verbose', '-v', action="store_true", help='spew lots of info')
     parser.add_argument('--st-dir', default='st', help='store intermediate supertiles to given dir')
     parser.add_argument('--single-dir', default='single', help='folder to put final output composite image')
-    parser.add_argument('--single-fn', default='out.jpg', help='file name to write in single dir')
+    parser.add_argument('--single-fn', default=None, help='file name to write in single dir')
     parser_add_bool_arg('--enblend-lock', default=False, help='use lock file to only enblend (memory intensive part) one at a time')
     parser.add_argument('--threads', type=int, default= multiprocessing.cpu_count())
     parser_add_bool_arg('--stampout', default=False, help='timestamp output')
@@ -187,8 +187,11 @@ if __name__ == "__main__":
     print 'Tiler done!'
 
     print 'Creating single image'
+    single_fn = args.single_fn
+    if single_fn is None:
+        single_fn = 'out.jpg'
     if args.single_dir:
-        args.single_fn = os.path.join(args.single_dir, args.single_fn)
+        single_fn = os.path.join(args.single_dir, single_fn)
     # sometimes I restitch with different supertile size
     # this results in excessive merge, although really I should just delete the old files
     if args.merge:
@@ -197,7 +200,13 @@ if __name__ == "__main__":
     else:
         print 'Single: using output strategy'
         s_fns = t.st_fns
+
+    single_fn_alt = None
+    if args.single_fn is None:
+        single_fn_alt = single_fn.replace('.jpg', '.tif')
+
     try:
-        singlify(s_fns, args.single_fn)
+        singlify(s_fns, single_fn, single_fn_alt)
     except HugeJPEG:
-        print 'WARNING: skipping single: exceeds max jpeg size'
+        print 'WARNING: single: exceeds max image size'
+
