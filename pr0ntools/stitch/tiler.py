@@ -234,6 +234,16 @@ class Worker(threading.Thread):
         
         bench = Benchmark()
         try:
+            if self.tiler.st_dir:
+                # nah...tiff takes up too much space
+                dst = os.path.join(self.tiler.st_dir, 'st_%06dx_%06dy.jpg' % (x0, y0))
+                if os.path.exists(dst):
+                    self.tiler.gil_sucks.release()
+                    # normally this is a .tif so slight loss in quality
+                    img = PImage.from_file(dst)
+                    self.p('supertile short circuit on already existing: %s' % (dst,))
+                    return img
+                
             temp_file = ManagedTempFile.get(None, '.tif')
 
             #out_name_base = "%s/r%03d_c%03d" % (self.tiler.out_dir, row, col)
@@ -257,8 +267,6 @@ class Worker(threading.Thread):
                 img = None
             else:
                 if self.tiler.st_dir:
-                    # nah...tiff takes up too much space
-                    dst = os.path.join(self.tiler.st_dir, 'st_%06dx_%06dy.jpg' % (x0, y0))
                     self.tiler.st_fns.append(dst)
                     #shutil.copyfile(temp_file.file_name, dst)
                     args = ['convert',
@@ -698,6 +706,7 @@ class Tiler:
         if gen_tiles == 0:
             raise Exception("Didn't generate any tiles")
         # temp_file should be automatically deleted upon exit
+        # WARNING: not all are tmp files, some may be recycled supertiles
     
     def get_name(self, row, col):
         out_dir = ''

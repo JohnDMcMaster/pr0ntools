@@ -210,8 +210,8 @@ class ImageCoordinateMap:
 		
 		if rows is None or cols is None:
 			print 'Row / col hints insufficient, guessing row / col layout from file names'
-			row_parts = set()
-			col_parts = set()			
+			row_parts = set([0])
+			col_parts = set([0])
 			
 			for fn in file_names:
 				(row, col) = get_row_col(fn)
