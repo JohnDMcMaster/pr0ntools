@@ -108,6 +108,7 @@ if __name__ == "__main__":
     parser.add_argument('--ignore-errors', action="store_true", dest="ignore_errors", help='skip broken tile stitches (advanced)')
     parser.add_argument('--verbose', '-v', action="store_true", help='spew lots of info')
     parser.add_argument('--st-dir', default='st', help='store intermediate supertiles to given dir')
+    parser.add_argument('--st-limit', default='inf', help='debug (exit after # supertiles, typically --st-limit 1 --threads 1)')
     parser.add_argument('--single-dir', default='single', help='folder to put final output composite image')
     parser.add_argument('--single-fn', default=None, help='file name to write in single dir')
     parser_add_bool_arg('--enblend-lock', default=False, help='use lock file to only enblend (memory intensive part) one at a time')
@@ -158,6 +159,7 @@ if __name__ == "__main__":
     t.out_extension = args.out_ext
     t.ignore_errors = args.ignore_errors
     t.ignore_crop = args.ignore_crop
+    t.st_limit = float(args.st_limit)
 
     # TODO: make this more proper?
     if args.nona_args:

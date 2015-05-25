@@ -113,7 +113,7 @@ class PartialStitcher:
 
         # Scope of these files is only here
         # We only produce the single output file, not the intermediates
-        managed_temp_dir = ManagedTempDir.get()
+        managed_temp_dir = ManagedTempDir.get2(prefix_mangle='st_%06dx_%06dy_' % (self.bounds[0], self.bounds[1]))
         # without the slash they go into the parent directory with that prefix
         out_name_prefix = managed_temp_dir.file_name + "/"
         
@@ -248,7 +248,8 @@ class Worker(threading.Thread):
                     self.p('supertile short circuit on already existing: %s' % (dst,))
                     return img
                 
-            temp_file = ManagedTempFile.get(None, '.tif')
+            # st_081357x_000587y.jpg
+            temp_file = ManagedTempFile.get(None, '.tif', prefix_mangle='st_%06dx_%06dy_' % (x0, y0))
 
             #out_name_base = "%s/r%03d_c%03d" % (self.tiler.out_dir, row, col)
             #print 'Working on %s' % out_name_base
@@ -330,6 +331,7 @@ class Tiler:
         self.threads = 1
         self.workers = None
         self.st_fns = []
+        self.st_limit = float('inf')
         '''
         When running lots of threads, we get stuck trying to get something mapping
         I think this is due to GIL contention
@@ -1023,6 +1025,11 @@ class Tiler:
                     else:
                         print 'M: %s' % (out,)
                         raise Exception('M: internal error: bad task type %s' % what)
+                    
+                    self.st_limit -= 1
+                    if self.st_limit == 0:
+                        print 'Breaking on ST limit reached'
+                        break
     
                 # Any workers need more work?
                 for wi, worker in enumerate(self.workers):
