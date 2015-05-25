@@ -448,14 +448,15 @@ def rm_red_img(pto):
     c_right = canvas_w/2 - c_right_
     c_top = canvas_h/2 - c_top_
     c_bottom = canvas_h/2 - c_bottom_
+    print 'Canvas: %dw X %dh' % (canvas_w, canvas_h)
     print 'Crop [%s, %s, %s, %s] => [%s, %s, %s, %s]' % (c_left_, c_right_, c_top_, c_bottom_, c_left, c_right, c_top, c_bottom)
     
     to_rm = []
     for il in pto.image_lines:
-        im_left = il.left()
-        im_right = il.right()
-        im_top = il.top()
-        im_bottom = il.bottom()
+        im_left = il.right()
+        im_right = il.left()
+        im_top = il.bottom()
+        im_bottom = il.top()
         
         if 0:
             print 'check w/ crop [%s, %s, %s, %s] vs im [%s, %s, %s, %s]' % (c_left, c_right, c_top, c_bottom, im_left, im_right, im_top, im_bottom)
@@ -471,17 +472,25 @@ def rm_red_img(pto):
         overlap_thresh = 0.1
         il_w = il.width()
         il_h = il.height()
-        if (    c_left - il.right() < il_w * overlap_thresh or 
-                il.left() - c_right < il_w * overlap_thresh or
-                c_top - il.bottom() < il_h * overlap_thresh or
-                c_bottom - il.top() < il_h * overlap_thresh):
+        if 0:
+            print 'check %s [%s, %s, %s, %s]' % (il.get_name(), im_left, im_right, im_top, im_bottom)
+            print '  %s < %s' % (c_left - im_right, il_w * overlap_thresh)
+            print '  %s < %s' % (im_left - c_right, il_w * overlap_thresh)
+            print '  %s < %s' % (c_top - im_bottom, il_h * overlap_thresh)
+            print '  %s < %s' % (im_top - c_bottom, il_h * overlap_thresh)
+        if (    c_left - im_right < il_w * overlap_thresh or 
+                im_left - c_right < il_w * overlap_thresh or
+                c_top - im_bottom < il_h * overlap_thresh or
+                im_top - c_bottom < il_h * overlap_thresh):
             #print 'Removing %s' % il
-            #print 'rm %s [%s, %s, %s, %s]' % (il.get_name(), il.left(), il.right(), il.top(), il.bottom())
+            if 0:
+                print 'rm %s [%s, %s, %s, %s]' % (il.get_name(), im_left, im_right, im_top, im_bottom)
             to_rm.append(il)
         
     print 'Removing %d / %d images' % (len(to_rm), len(pto.image_lines))
+    if len(to_rm) == len(pto.image_lines):
+        raise Exception("Removed all images.  remapper will fail")
     pto.del_images(to_rm)
     print 'Remaining'
     for il in pto.image_lines:
         print '  %s w/ [%s, %s, %s, %s]' % (il.get_name(), il.left(), il.right(), il.top(), il.bottom())
-
