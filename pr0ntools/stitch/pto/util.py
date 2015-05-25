@@ -4,6 +4,20 @@ Copyright 2011 John McMaster <JohnDMcMaster@gmail.com>
 Licensed under a 2 clause BSD license, see COPYING for details
 '''
 
+'''
+WARNING: beware coordinate system madness
+
+Crop origin upper left, x/y increases right/down
+    why...?!?!
+    based on projection, not on images
+Image origin center, x/y increaes left/up
+
+Also:
+-c lines are relative to images, not absolute coordinates
+-i lines determinte the image position
+-an i line coordinate is from the center of an image
+'''
+
 import math
 from pr0ntools.stitch.image_coordinate_map import ImageCoordinateMap
 import os
@@ -58,10 +72,7 @@ def image_fl(img):
 def center(pto):
     '''Center images in a pto about the origin'''
     '''
-    Note the following:
-    -c lines are relative to images, not absolute coordinates
-    -i lines determinte the image position
-    -an i line coordinate is from the center of an image
+    Note coordinate warnings at top
     '''
     dbg('Centering pto')
     try:
@@ -421,8 +432,24 @@ def img_cpls(pto, img_i):
 
 def rm_red_img(pto):
     '''Remove redundant images given crop selection'''
+    # see coordinate warnings at top
+    print 'Removing redundant images'
     pl = pto.panorama_line
-    (c_left, c_right, c_top, c_bottom) = pl.get_crop_ez()
+    (c_left_, c_right_, c_top_, c_bottom_) = pl.get_crop_ez()
+    # translate crop coordinates into image coordinates
+    # p f0 w2673 h2056 v76  E0 R0 S322,1612,351,1890 n"TIFF_m c:LZW"
+    canvas_w = pl.width2()
+    canvas_h = pl.height2()
+    # say 100 w
+    # 0 => 50
+    # 50 => 0
+    # 100 => -50
+    c_left = canvas_w/2 - c_left_
+    c_right = canvas_w/2 - c_right_
+    c_top = canvas_h/2 - c_top_
+    c_bottom = canvas_h/2 - c_bottom_
+    print 'Crop [%s, %s, %s, %s] => [%s, %s, %s, %s]' % (c_left_, c_right_, c_top_, c_bottom_, c_left, c_right, c_top, c_bottom)
+    
     to_rm = []
     for il in pto.image_lines:
         im_left = il.left()
@@ -430,10 +457,31 @@ def rm_red_img(pto):
         im_top = il.top()
         im_bottom = il.bottom()
         
-        print 'check w/ crop [%s, %s, %s, %s] vs im [%s, %s, %s, %s]' % (c_left, c_right, c_top, c_bottom, im_left, im_right, im_top, im_bottom)
-        # if they don't overlap, just ignore it entire
-        if not (c_left < im_right and c_right > im_left and c_top < im_bottom and c_bottom > im_top):
-            print 'Removing w/ crop [%s, %s, %s, %s] vs im [%s, %s, %s, %s]' % (c_left, c_right, c_top, c_bottom, im_left, im_right, im_top, im_bottom)
+        if 0:
+            print 'check w/ crop [%s, %s, %s, %s] vs im [%s, %s, %s, %s]' % (c_left, c_right, c_top, c_bottom, im_left, im_right, im_top, im_bottom)
+            # if they don't overlap, just ignore it entire
+            if not (c_left < im_right and c_right > im_left and c_top < im_bottom and c_bottom > im_top):
+                print 'Removing w/ crop [%s, %s, %s, %s] vs im [%s, %s, %s, %s]' % (c_left, c_right, c_top, c_bottom, im_left, im_right, im_top, im_bottom)
+                to_rm.append(il)
+                continue
+        # try simple heuristic first
+        # seems to mostly care when they aren't really overlapping at all
+        # should have at least 30% overlap, maybe as low as 20% if severe errors
+        # filter out anything that doesn't have at least 15% overlap into this supertile
+        overlap_thresh = 0.1
+        il_w = il.width()
+        il_h = il.height()
+        if (    c_left - il.right() < il_w * overlap_thresh or 
+                il.left() - c_right < il_w * overlap_thresh or
+                c_top - il.bottom() < il_h * overlap_thresh or
+                c_bottom - il.top() < il_h * overlap_thresh):
+            #print 'Removing %s' % il
+            #print 'rm %s [%s, %s, %s, %s]' % (il.get_name(), il.left(), il.right(), il.top(), il.bottom())
             to_rm.append(il)
-            continue
-    print 'Removing images: %s' % sys.exit(1)
+        
+    print 'Removing %d / %d images' % (len(to_rm), len(pto.image_lines))
+    pto.del_images(to_rm)
+    print 'Remaining'
+    for il in pto.image_lines:
+        print '  %s w/ [%s, %s, %s, %s]' % (il.get_name(), il.left(), il.right(), il.top(), il.bottom())
+

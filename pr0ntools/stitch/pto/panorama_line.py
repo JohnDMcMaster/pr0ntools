@@ -60,6 +60,12 @@ class PanoramaLine(line.Line):
 		c = self.get_crop()
 		return c[0] - c[1]
 	
+	def width2(self):
+	    return self.getv('w')
+	
+	def height2(self):
+	    return self.getv('h')
+
 	def left(self):
 		c = self.get_crop()
 		if c is None:

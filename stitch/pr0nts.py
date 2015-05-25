@@ -17,12 +17,14 @@ from pr0ntools.stitch.pto.project import PTOProject
 from pr0ntools.config import config
 from pr0ntools.stitch.single import singlify, HugeJPEG
 from pr0ntools.util import IOTimestamp, IOLog
+
 import argparse
 import glob
 import multiprocessing
 import os
 import re
-import sys 
+import sys
+import time
 
 def size2str(d):
     if d < 1000:
@@ -183,7 +185,13 @@ if __name__ == "__main__":
         os.mkdir(args.single_dir)
         
     print 'Running tiler'
-    t.run()
+    try:
+        t.run()
+    except KeyboardInterrupt:
+        if t.stale_worker:
+            print 'WARNING: forcing exit on stuck worker'
+            time.sleep(0.5)
+            os._exit(1)
     print 'Tiler done!'
 
     print 'Creating single image'

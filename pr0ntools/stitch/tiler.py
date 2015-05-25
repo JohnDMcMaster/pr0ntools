@@ -53,7 +53,7 @@ from pr0ntools.pimage import PImage
 from pr0ntools.benchmark import Benchmark
 from pr0ntools.geometry import ceil_mult
 from pr0ntools.execute import CommandFailed
-from pr0ntools.stitch.pto.util import dbg
+from pr0ntools.stitch.pto.util import dbg, rm_red_img
 
 import datetime
 import math
@@ -127,10 +127,14 @@ class PartialStitcher:
         
         self.p('Cropping...')
         #sys.exit(1)
-        pl = pto.get_panorama_line()
+        pl = pto.panorama_line
         # It is fine to go out of bounds, it will be black filled
         #pl.set_bounds(x, min(x + self.tw(), pto.right()), y, min(y + self.th(), pto.bottom()))
         pl.set_crop(self.bounds)
+        # try to fix remapper errors due to excessive overlap
+        rm_red_img(pto)
+        #print 'debug break' ; sys.exit(1)
+        
         self.p('Preparing remapper...')
         def hook():
             self.p('Prep done, releasing lock')
@@ -310,6 +314,7 @@ class Tiler:
         self.img_width = None
         self.img_height = None
         self.dry = dry
+        self.stale_worker = False
         self.st_scalar_heuristic = st_scalar_heuristic
         self.ignore_errors = False
         self.ignore_crop = False
@@ -1082,6 +1087,7 @@ class Tiler:
                 worker.join(1)
                 if worker.isAlive():
                     print '  W%d: failed to join' % i
+                    self.stale_worker = True
                 else:
                     print '  W%d: stopped' % i
             self.workers = None
