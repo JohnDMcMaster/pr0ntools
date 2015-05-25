@@ -786,8 +786,13 @@ class Tiler:
     
     def dump_open_list(self):
         print 'Open list:'
+        i = 0
         for (row, col) in self.gen_open_list():
             print '  r%d c%d' % (row, col)
+            i += 1
+            if i > 10:
+                print 'Break on large open list'
+                break
             
     def rows(self):
         return int(math.ceil(self.height() / self.th))
