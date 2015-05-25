@@ -173,15 +173,23 @@ class PTOProject:
         self.ensure_text_loaded()
         self.file_name = None
     
-    def copy(self):
+    def copy(self, control_points=True):
         '''Return an unsaved but identical project'''
         # slow
         #return PTOProject.from_text(self.get_text())
         # maybe...not sure about this
+        cp_tmp = self.control_point_lines
+        cp_tmp_abs = self.absolute_control_point_lines
+        if not control_points:
+            self.control_point_lines = []
+            self.absolute_control_point_lines = []
         ret = copy.deepcopy(self)
         ret.file_name = None
         ret.temp_file = None
         #return self.to_str_core(False)
+        if not control_points:
+            self.control_point_lines = cp_tmp
+            self.absolute_control_point_lines = cp_tmp_abs
         return ret
     
     def i2img(self, index):

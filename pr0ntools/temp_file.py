@@ -106,7 +106,7 @@ class ManagedTempDir(ManagedTempFile):
             # seed default prefix if not created
             TempFile.default_prefix()
             prefix = g_default_prefix + prefix_mangle
-        ret = ManagedTempDir(prefix)
+        ret = ManagedTempDir(TempFile.get(prefix, suffix))
         os.mkdir(ret.file_name)
         return ret
 

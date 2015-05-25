@@ -122,7 +122,7 @@ class PartialStitcher:
         Instead, we simply copy the project and manually fix up the relevant portion
         '''
         self.p('Copying pto')
-        pto = self.pto.copy()
+        pto = self.pto.copy(control_points=False)
         #pto = self.mini_pto.copy()
         
         self.p('Cropping...')
