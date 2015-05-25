@@ -453,18 +453,28 @@ def rm_red_img(pto):
     
     to_rm = []
     for il in pto.image_lines:
-        im_left = il.right()
-        im_right = il.left()
-        im_top = il.bottom()
-        im_bottom = il.top()
+        #im_left = il.right()
+        #im_right = il.left()
+        #im_top = il.bottom()
+        #im_bottom = il.top()
+        r = il.rotation()
+        rr = r * 3.14159 / 180
         
-        if 0:
-            print 'check w/ crop [%s, %s, %s, %s] vs im [%s, %s, %s, %s]' % (c_left, c_right, c_top, c_bottom, im_left, im_right, im_top, im_bottom)
-            # if they don't overlap, just ignore it entire
-            if not (c_left < im_right and c_right > im_left and c_top < im_bottom and c_bottom > im_top):
-                print 'Removing w/ crop [%s, %s, %s, %s] vs im [%s, %s, %s, %s]' % (c_left, c_right, c_top, c_bottom, im_left, im_right, im_top, im_bottom)
-                to_rm.append(il)
-                continue
+        x = il.x()
+        y = il.y()
+        # rotate x/y rr radians
+        xp = x * math.cos(rr) - y * math.sin(rr)
+        yp = x * math.sin(rr) + y * math.cos(rr)
+        
+        im_left = xp - il.width() / 2.0
+        im_right = xp + il.width() / 2.0
+        if im_left < im_right:
+            (im_left, im_right) = (im_right, im_left)
+        im_top = yp - il.height() / 2.0
+        im_bottom = yp + il.height() / 2.0
+        if im_top < im_bottom:
+            (im_top, im_bottom) = (im_bottom, im_top)
+        
         # try simple heuristic first
         # seems to mostly care when they aren't really overlapping at all
         # should have at least 30% overlap, maybe as low as 20% if severe errors
@@ -474,6 +484,8 @@ def rm_red_img(pto):
         il_h = il.height()
         if 0:
             print 'check %s [%s, %s, %s, %s]' % (il.get_name(), im_left, im_right, im_top, im_bottom)
+            print '  x %0.1f => %0.1f' % (x, xp)
+            print '  y %0.1f => %0.1f' % (y, yp)
             print '  %s < %s' % (c_left - im_right, il_w * overlap_thresh)
             print '  %s < %s' % (im_left - c_right, il_w * overlap_thresh)
             print '  %s < %s' % (c_top - im_bottom, il_h * overlap_thresh)

@@ -337,3 +337,6 @@ class ImageLine(line.Line):
         if self.image is None:
             self.image = PImage.from_file(self.get_name())
         return self.image
+
+    def rotation(self):
+        return self.get_variable('r')
