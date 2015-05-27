@@ -479,7 +479,8 @@ def rm_red_img(pto):
         # seems to mostly care when they aren't really overlapping at all
         # should have at least 30% overlap, maybe as low as 20% if severe errors
         # filter out anything that doesn't have at least 15% overlap into this supertile
-        overlap_thresh = 0.1
+        # this means that an image n
+        overlap_thresh = 0.25
         il_w = il.width()
         il_h = il.height()
         if 0:
