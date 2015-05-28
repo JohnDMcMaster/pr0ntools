@@ -222,7 +222,6 @@ class MCAxis(Axis):
             self.usbio.set_gpio(self.step_pin, False)
 
         self.net += steps
-        #print '%s net %f um (%d steps)' % (self.name, self.net / self.steps_per_unit, self.net)    
 
     def forward(self, is_forward = True):
         if self.is_forward == is_forward:

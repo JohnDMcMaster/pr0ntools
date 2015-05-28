@@ -1315,10 +1315,6 @@ class DryControllerPlanner(ControllerPlanner):
     def __init__(self, *args, **kwargs):
         ControllerPlanner.__init__(self, *args, **kwargs)
         '''
-        Took 100 seconds to move 10 mm
-        self.steps_per_unit = 8.510
-        um / s * step / um
-        
         FIXME: adjusted below to try to match actual times
         There is a large descrepency, possibly due to acceleration
         '''
@@ -1338,8 +1334,7 @@ class DryControllerPlanner(ControllerPlanner):
         self.rt_sleep += sec
 
     def get_steps(self, um):
-        steps_per_unit = 8.510
-        return um * steps_per_unit
+        return um * config['cnc']['steps_per_um']
 
     def absolute_move(self, x, y, z = None):
         rt_move = 0.0

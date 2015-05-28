@@ -11,7 +11,6 @@ class MockController(Controller):
 class DummyAxis(Axis):
     def __init__(self, name = 'dummy', log=None):
         Axis.__init__(self, name, log=log)
-        self.steps_per_unit = 1
         self.net = 0
     
     def jog(self, units):

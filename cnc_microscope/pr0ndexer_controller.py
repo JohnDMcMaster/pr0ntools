@@ -17,14 +17,14 @@ class PDC(Controller):
         if self.indexer.serial is None:
             raise Exception("USBIO missing serial")
         
-        config = config['cnc']['pr0ndexer']
-        self.indexer.configure(acl=int(config.get('acl', '325')),
-                velmin=int(config.get('velmin', '10')), velmax=int(config.get('velmax', '9250')),
-                hstep_c=int(config.get('hstep_c', '740000')))
+        c = config['cnc']['pr0ndexer']
+        self.indexer.configure(acl=int(c.get('acl', '325')),
+                velmin=int(c.get('velmin', '10')), velmax=int(c.get('velmax', '9250')),
+                hstep_c=int(c.get('hstep_c', '740000')))
         
-        self.x = PDCAxis('X', self.indexer)
-        self.y = PDCAxis('Y', self.indexer)
-        self.z = PDCAxis('Z', self.indexer)
+        self.x = PDCAxis('X', self.indexer, config=config)
+        self.y = PDCAxis('Y', self.indexer, config=config)
+        self.z = PDCAxis('Z', self.indexer, config=config)
         
         self.axes = [self.x, self.y, self.z]
         # enforce some initial state?
@@ -35,8 +35,8 @@ class PDC(Controller):
         self.off()
 
 class PDCAxis(Axis):
-    def __init__(self, name, indexer):
-        Axis.__init__(self, name)
+    def __init__(self, name, indexer, config=None):
+        Axis.__init__(self, name, steps_per_um=config['cnc']['steps_per_um'])
         self.indexer = indexer
         if self.indexer.serial is None:
             raise Exception("Indexer missing serial")

@@ -19,20 +19,13 @@ For now units are in um
 Currently assumes stepper control (even for mock), further subclass as needed
 '''
 class Axis(object):
-    def __init__(self, name, log=None):
+    def __init__(self, name, log=None, steps_per_um=None):
         if log is None:
             def log(s):
                 print s
         self.log = log
-        
         self.name = name
-
-        # Active stepping
-        self.steps_per_unit = 1
-        # NeoSPlan 5X calibration
-        # shouldn't change with objective though as its independent of microscope
-        # per um
-        self.steps_per_unit = 8.510
+        self.steps_per_um = steps_per_um
         self.net = 0
     
     def __str__(self):
@@ -46,13 +39,13 @@ class Axis(object):
         self.UNIT = Unit.UM
     
     def get_steps(self, units):
-        return int(units * self.steps_per_unit)
+        return int(units * self.steps_per_um)
     
     def get_mm(self):
         return self.get_um() / 1000.0
     
     def get_um(self):
-        return self.net / self.steps_per_unit
+        return self.net / self.steps_per_um
         
     def home(self):
         self.set_pos(0.0)
