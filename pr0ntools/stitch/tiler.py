@@ -491,6 +491,11 @@ class Tiler:
         if self.sth is None:
             self.sth = self.img_height * self.st_scalar_heuristic
         
+        if self.stw <= w:
+            self.clip_width = 0
+        if self.sth <= h:
+            self.clip_height = 0
+        
         self.recalc_step()        
         # We build this in run
         self.map = None
@@ -498,13 +503,13 @@ class Tiler:
         print 'Clip height: %d' % self.clip_width
         print 'ST width: %d' % self.stw
         print 'ST height: %d' % self.sth
-        if self.stw <= 2 * self.clip_width and not self.stw < w:
+        if self.stw <= 2 * self.clip_width and self.stw >= w:
             print 'Failed'
             print '  STW: %d' % self.stw
             print '  Clip W: %d' % self.clip_width
             print '  W: %d (%d - %d)' % (w, self.right(), self.left())
             raise InvalidClip('Clip width %d exceeds supertile width %d after adj: reduce clip or increase ST size' % (self.clip_width, self.stw))
-        if self.sth <= 2 * self.clip_height and not self.stw < h:
+        if self.sth <= 2 * self.clip_height and self.sth >= h:
             raise InvalidClip('Clip height %d exceeds supertile height %d after adj: reduce clip or increase ST size' % (self.clip_height, self.sth))
         
     def msg(self, s, l):
