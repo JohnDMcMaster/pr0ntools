@@ -5,10 +5,12 @@ pre-stitched means non-overlapping
 They can be either a single large input image or the bottom level tiles
 '''
 
+from pr0ntools.tile.map import Map, ImageMapSource, TileMapSource
+
 import argparse		
 import datetime
+import multiprocessing
 import os
-from pr0ntools.tile.map import Map, ImageMapSource, TileMapSource
 
 std_c_mc = '&copy;%d John McMaster, CC BY' % datetime.datetime.now().year
 std_c_dig = '&copy;%d Digshadow, CC BY' % datetime.datetime.now().year
@@ -29,6 +31,7 @@ if __name__ == "__main__":
 	parser.add_argument('--copyright', '-c', help='Set copyright message (default: none)')
 	parser.add_argument('--c-mc', '-M', action='store_true', help='Set copyright "%s"' % std_c_mc)
 	parser.add_argument('--c-dig', '-D', action='store_true', help='Set copyright "%s"' % std_c_dig)
+	parser.add_argument('--threads', type=int, default= multiprocessing.cpu_count())
 	args = parser.parse_args()
 	
 	if args.c_mc:

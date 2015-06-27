@@ -13,8 +13,10 @@ import shutil
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='create tiles from unstitched images')
+    parser.add_argument('--border', default='1', help='border size')
     parser.add_argument('pto', default='out.pto', nargs='?', help='pto project')
     args = parser.parse_args()
+    args.border = int(args.border, 0)
     
     pto_orig = PTOProject.from_file_name(args.pto)
     img_fns = []
@@ -27,8 +29,8 @@ if __name__ == "__main__":
     # Delete all lines not in the peripheral
     pto_orig.build_image_fn_map()
     ils_del = []
-    for y in xrange(1, icm.height() - 1):
-        for x in xrange(1, icm.width() - 1):
+    for y in xrange(args.border, icm.height() - args.border):
+        for x in xrange(args.border, icm.width() - args.border):
             im = icm.get_image(x, y)
             if im is None:
                 continue

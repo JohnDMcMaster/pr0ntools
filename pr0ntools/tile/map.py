@@ -18,15 +18,6 @@ class MapSource:
 	def set_out_extension(self, s):
 		self.out_extension = s
 	
-	if 0:
-		def get(self):
-			'''Return a generator that gives (x, y, img object) tuples'''
-			pass
-	
-		def fold(self):
-			'''Go the next zoom level down'''
-			pass
-
 	def width(self):
 		return None
 
