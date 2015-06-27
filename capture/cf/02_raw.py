@@ -1,52 +1,15 @@
 #!/usr/bin/env python
 
 '''
-Try to cut up image into a grid and threshold each square to see if metal is there
-Seems to be reasonably successful
-All tests ran with grayscale slice (average)
+Improves on 01 by operating on a raw image
 
-90_110 result
-4 hard errors
-    1 possibly caused by dust
-    3 due to via being slightly darker than usual
-        some of these look just as dark as passes to me
-        looks like they were promoted
-        idea: after final pass re-eval adjacent threshold more aggressively
-2 soft errors
-    metal sort of halfway present
-    stitching artifact?
-1 flagged area remains
-    false positive
-    seems acceptable to me
-No extra metal added
-    Any candidates were marked as warnings
-    Most were filtered out as spurious
-Final counts
-  m: 1809
-  v: 3591
-  u: 6
-106c x 51r => 5406 tiles
-    overall: 2 errors =>    99.93% accuracy
-    metal: 2 errors =>      99.4% accuracy
-Seems acceptable for human to fix up and/or DRC it
+Primary goals:
+-Determine grid layout
+-Don't consider items not in grid
 
-80
-    finds 3/4 of the soft errors
-
-
-TODO:
-Better flag false decoding
-    at least 1 bad mistake in test set due to dust
-Try with real camera frames: do correction etc
-Collect more data
-Write a tool to quickly fixup
-    Write it with collaboration in mind
-    Do client/server
-    Adapt to web tech later if possible
-
-circles
-maybe look at this?
-http://coding-experiments.blogspot.co.at/2011/05/ellipse-detection-in-image-by-using.html
+Secondary:
+-Automaticly detect rotation
+    Okay manually passing this for now
 '''
 
 #from cv2 import cv
