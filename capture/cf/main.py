@@ -35,6 +35,7 @@ class GridCap:
         # rotated and cropped
         self.preproc_fn = None
         self.preproc_im = None
+        self.edges = None
         # Must be within 3 signas of mean to be confident
         self.thresh_sig = 3.0
         self.step = None
@@ -55,8 +56,8 @@ class GridCap:
         (ym, yb) = self.grid_ylin[1]
         '''
         self.grid_lins = None
-        self.rows = None
-        self.cols = None
+        # 0: cols, 1: rows
+        self.crs = [None, None]
         
         '''
         [c][r] to tile state
@@ -75,23 +76,36 @@ class GridCap:
         self.means_rc = None
         
     def run(self):
+        print 'run()'
         self.step = 0
         self.sstep = 0
+
+        print
         
         # Straighten, cropping image slightly
         self.step += 1
+        print 'straighten()'
         self.straighten()
+
+        print
 
         # Find grid
         self.step += 1
+        print 'gridify()'
         self.gridify()
+
+        print
 
         # Figure out thresholds based on grid
         self.step += 1
+        print 'autothresh()'
         self.autothresh()
+
+        print
 
         # Use computed thresholds on grid to guess materials
         self.step += 1
+        print 'capture()'
         self.capture()
 
     def straighten(self):
@@ -140,13 +154,17 @@ class GridCap:
         matplotlib.pyplot.clf()
         pylab.hist(thetas_keep, bins=100)
         self.sstep += 1
-        pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_dist.png' % (self.step, self.sstep)))
+        pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_theta_dist.png' % (self.step, self.sstep)))
         
         angle = sum(thetas_keep) / len(thetas_keep)
-        print 'Mean angle: %f' % (angle,)
+        angled = angle * 180. / np.pi
+        print 'Mean angle: %f rad (%f deg)' % (angle, angled)
 
         im = Image.open(self.fn)
-        im = im.rotate(angle, resample=Image.BICUBIC)
+        # In radians
+        # Positive values cause CCW rotation, same convention as above theta
+        # but we want to correct it so go opposite direction
+        im = im.rotate(-angle, resample=Image.BICUBIC)
         self.sstep += 1
         im.save(os.path.join(self.outdir, 's%02d-%02d_rotate.png' % (self.step, self.sstep)))
         
@@ -159,84 +177,40 @@ class GridCap:
         im_crop = im.crop((sx, sy, imw - sx, imh - sy))
         
         self.sstep += 1
-        self.preproc_fn = self.outdir, 's%02d-%02d_shrink.png' % (self.step, self.sstep)
+        self.preproc_fn = os.path.join(self.outdir, 's%02d-%02d_crop.png' % (self.step, self.sstep))
         self.preproc_im = im_crop
-        im_crop.save(os.path.join(self.outdir, 's%02d-%02d_crop.png' % (self.step, self.sstep)))
+        im_crop.save(self.preproc_fn)
 
-    def gridify_cluster(self):
-        img = cv2.imread(self.preproc_fn)
-        self.sstep += 1
-        cv2.imwrite(os.path.join(self.outdir, 's%02d-%02d_orig.png' % (self.step, self.sstep)), img)
+
+    def regress_axis(self, order, x0s, x0sd_roi):
+        '''
+        order
+            0: use x positions to slice columns
+            1: use y positions to slice rows
+        '''
         
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        self.sstep += 1
-        cv2.imwrite(os.path.join(self.outdir, 's%02d-%02d_cvtColor.png' % (self.step, self.sstep)), gray)
+        print 'WARNING: no y lines.  Switching to column detection mode'
         
-        edges = cv2.Canny(gray, 50, 150, apertureSize=3)
-        self.sstep += 1
-        cv2.imwrite(os.path.join(self.outdir, 's%02d-%02d_canny.png' % (self.step, self.sstep)), edges)
-
-        lines = cv2.HoughLines(edges, 1, np.pi/1800., 400)
-        x0s = []
-        y0s = []
-        for rho,theta in lines[0]:
-            a = np.cos(theta)
-            b = np.sin(theta)
-            x0 = a * rho
-            y0 = b * rho
-
-            scal = 2000
-            x1 = int(x0 + scal * -b)
-            y1 = int(y0 + scal *  a)
-            x2 = int(x0 - scal * -b)
-            y2 = int(y0 - scal *  a)
+        m = self.gridify_pitch(np.array(x0sd_roi))
+        grid_xlin, self.crs[0] = self.gridify_axis(order, m, x0s)
+        self.grid_lins = (grid_xlin, None)
+        self.dbg_grid()
+        
+        print 'Cols: %d' % self.crs[order]
+        for i in xrange(3):
+            print '  %d: %s' % (i, grid_xlin[0] * i + grid_xlin[1])
+        print '  ...'
+        
+        for col in self.crs[0]:
+            (xm, xb) = self.grid_lins[0]
+            x0 = int(xm * col + xb)
+            x1 = int(xm * (col + 1) + xb)
             
-            # only keep vertical lines for now
-            # these will have thetas close to 0 or pi
-            d = 0.1
-            if theta > 0 - d and theta < 0 + d or theta > np.pi - d and theta < np.pi + d:
-                x0s.append(abs(rho))
-                cv2.line(img, (x1,y1),(x2,y2),(0, 0, 255),2)
-            elif theta > np.pi/2 - d and theta < np.pi/2 + d or theta > 3 * np.pi / 2 - d and theta < 3 * np.pi / 2 + d:
-                y0s.append(abs(rho))
-            else:
-                cv2.line(img, (x1,y1),(x2,y2),(0, 255, 0),2)
-                continue
-
-        self.sstep += 1
-        cv2.imwrite(os.path.join(self.outdir, 's%02d-%02d_lines.png' % (self.step, self.sstep)), img)
-
-        # Sweep over all line pairs, generating set of all line distances
-        def gen_diffs(xys):
-            diffs_all = []
-            diffs_roi = []
-        
-            for i in xrange(len(xys)):
-                for j in xrange(i):
-                    d = abs(xys[i] - xys[j])
-                    diffs_all.append(d)
-                    if d < self.clust_thresh:
-                        diffs_roi.append(d)
-            return diffs_all, diffs_roi
-        x0sd_all, x0sd_roi = gen_diffs(x0s)
-        y0sd_all, y0sd_roi = gen_diffs(y0s)
-        print 'x0s: %d' % len(x0s)
-
-        
-        # attempt to auto-cluster
-        # try to find the largest clusters along the same level of detail
-        
-        matplotlib.pyplot.clf()
-        pylab.hist(x0sd_all, bins=100)
-        self.sstep += 1
-        pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_tresh_all.png' % (self.step, self.sstep)), img)
-
-        matplotlib.pyplot.clf()
-        pylab.hist(x0sd_roi, bins=100)
-        self.sstep += 1
-        pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_tresh_roi.png' % (self.step, self.sstep)), img)
-        
-        return (x0s, x0sd_all, x0sd_roi, y0s, y0sd_all, y0sd_roi)
+            # TODO: look into using mask
+            # I suspect this is faster though
+            edges = self.edges.crop((x0, 0, x1, self.edges[1]))
+            x0s_crop, y0s_crop = self.lines(edges, None)
+            
 
     def gridify_pitch(self, data2_np):
         '''
@@ -253,8 +227,10 @@ class GridCap:
         Therefore need at least 3 for a meaningful result
         '''
         for clusters in xrange(3, 20):
-            print
-            print clusters
+            verbose = 0
+            if verbose:
+                print
+                print clusters
             # computing K-Means with K = 2 (2 clusters)
             centroids,_ = kmeans(data2_np, clusters)
             centroids_sort = sorted(centroids)
@@ -263,26 +239,31 @@ class GridCap:
             # assign each sample to a cluster
             idx,_ = vq(data2_np, centroids)
             errs = []
-            print 'Errors'
+            if verbose:
+                print 'Errors'
             for v, i in zip(data2_np, idx):
                 #print '  %s, %s' % (v, centroids[i])
                 errs.append((v - centroids[i]) ** 2)
             err = sum(errs) / len(errs)
-            print 'RMS error: %s' % (err,)
+            if verbose:
+                print 'RMS error: %s' % (err,)
             clustersm[clusters] = err
             
             centroidsd = [b - a for a, b in zip(centroids_sort, centroids_sort[1:])]
             avg = 1.0 * sum(centroidsd) / len(centroidsd)
             clustersm_d[clusters] = avg
-            print 'Centroidsd (%s)' % avg
+            if verbose:
+                print 'Centroidsd (%s)' % avg
             errs = []
             for c in centroidsd:
                 e = (c - avg) ** 2
-                print '  %s => %s' % (c, e)
+                if verbose:
+                    print '  %s => %s' % (c, e)
                 errs.append(e)
             err = sum(errs) / len(errs)
             clustersm_c[clusters] = err
-            print 'Derritive error: %s' % err
+            if verbose:
+                print 'Derritive error: %s' % err
             
             
         print clustersm
@@ -314,20 +295,23 @@ class GridCap:
         im = self.preproc_im.copy()
         draw = ImageDraw.Draw(im)
         # +1: draw right bounding box
-        for c in xrange(self.cols + 1):
-            (m, b) = self.grid_lins[0]
-            x = int(m * c + b)
-            draw.line((x, 0, x, im.size[1]), fill=128)
-        for r in xrange(self.rows + 1):
-            (m, b) = self.grid_lins[1]
-            y = int(m * r + b)
-            draw.line((0, y, im.size[0], y), fill=128)
+        (m, b) = self.grid_lins[0]
+        if b is not None:
+            for c in xrange(self.crs[0] + 1):
+                x = int(m * c + b)
+                draw.line((x, 0, x, im.size[1]), fill=128)
+        (m, b) = self.grid_lins[1]
+        if b is not None:
+            for r in xrange(self.crs[1] + 1):
+                y = int(m * r + b)
+                draw.line((0, y, im.size[0], y), fill=128)
         del draw
         self.sstep += 1
         im.save(os.path.join(self.outdir, 's%02d-%02d_grid.png' % (self.step, self.sstep)))
         del im
     
-    def gridify_offsets(self, m, x0s, y0s):
+    def gridify_axis(self, order, m, xy0s):
+        '''grid_xylin => m x + b coefficients '''
         '''
         Now that we know the line pitch need to fit it back to the original x and y data
         Pitch is known, just play with offsets
@@ -346,33 +330,148 @@ class GridCap:
                 err.append(xd % 1)
             return err
         
-        imw, imh = self.preproc_im.size
+        print 'order %d: regressing %d lines' % (order, len(xy0s))
+        (xyres, _cov_xy) = leastsq(res, [m/2], args=(xy0s,))
+        print 'Optimal X offset: %s' % xyres[0]
+        grid_xylin = (m, xyres[0])
+        rowcols = int((self.preproc_im.size[order] - grid_xylin[1])/grid_xylin[0])
+
+        return grid_xylin, rowcols
+
+    def lines(self, edges, dbg_img):
+        lines = cv2.HoughLines(edges, 1, np.pi/1800., 400)
+        x0s = []
+        y0s = []
+        for rho,theta in lines[0]:
+            a = np.cos(theta)
+            b = np.sin(theta)
+            x0 = a * rho
+            y0 = b * rho
+
+            scal = 2000
+            x1 = int(x0 + scal * -b)
+            y1 = int(y0 + scal *  a)
+            x2 = int(x0 - scal * -b)
+            y2 = int(y0 - scal *  a)
+            
+            # only keep vertical lines for now
+            # these will have thetas close to 0 or pi
+            d = 0.1
+            if theta > 0 - d and theta < 0 + d or theta > np.pi - d and theta < np.pi + d:
+                x0s.append(abs(rho))
+                if dbg_img:
+                    cv2.line(dbg_img, (x1,y1),(x2,y2),(0, 0, 255),2)
+            elif theta > np.pi/2 - d and theta < np.pi/2 + d or theta > 3 * np.pi / 2 - d and theta < 3 * np.pi / 2 + d:
+                y0s.append(abs(rho))
+            else:
+                if dbg_img:
+                    cv2.line(dbg_img, (x1,y1),(x2,y2),(0, 255, 0),2)
+                continue
         
-        (xres, _cov_x) = leastsq(res, [m/2], args=(x0s,))
-        print 'Optimal X offset: %s' % xres[0]
-        grid_xlin = (m, xres[0])
-        self.cols = int((imw - grid_xlin[1])/grid_xlin[0])
-        
-        (yres, _cov_y) = leastsq(res, [m/2], args=(y0s,))
-        print 'Optimal Y offset: %s' % yres[0]
-        grid_ylin = (m, yres[0])
-        self.rows = int((imh - grid_ylin[1])/grid_ylin[0])
-        
-        self.grid_lins = (grid_xlin, grid_ylin)
-        
-        self.dbg_grid()
+        if dbg_img:
+            self.sstep += 1
+            cv2.imwrite(os.path.join(self.outdir, 's%02d-%02d_lines.png' % (self.step, self.sstep)), dbg_img)
+        return x0s, y0s
 
     def gridify(self):
-        '''Final output to self.grid_lins, self.rows, self.cols'''
+        '''Final output to self.grid_lins, self.crs[1], self.crs[0]'''
         
         # Find lines and compute x/y distances between them
-        (x0s, _x0sd_all, x0sd_roi, y0s, _y0sd_all, _y0sd_roi) = self.gridify_cluster()
-        # Cluster differences to find distance between them
-        # XXX: should combine x and y set?
-        m = self.gridify_pitch(x0sd_roi)
-        # Take now known grid pitch and find offsets
-        # by doing regression against original positions
-        self.gridify_offsets(m, x0s, y0s)
+        img = cv2.imread(self.preproc_fn)
+        self.sstep += 1
+        cv2.imwrite(os.path.join(self.outdir, 's%02d-%02d_orig.png' % (self.step, self.sstep)), img)
+        
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        self.sstep += 1
+        cv2.imwrite(os.path.join(self.outdir, 's%02d-%02d_cvtColor.png' % (self.step, self.sstep)), gray)
+        
+        '''
+        http://stackoverflow.com/questions/6070530/how-to-choose-thresold-values-for-edge-detection-in-opencv
+        
+        Firstly Canny Uses two Thresholds for hysteris and Nonmaxima Suppression, one low threshold and one high threshold. 
+        Its generally preferred that high threshold is chosen to be double of low threshold .
+
+        Lower Threshold -- Edges having Magnitude less than that will be suppressed
+        
+        Higher Threshhold -- Edges having Magnitude greater than will be retained
+        
+        and Edges between Low and High will be retained only if if lies/connects to a high thresholded edge point.
+        '''
+        self.edges = cv2.Canny(gray, 50, 150, apertureSize=3)
+        self.sstep += 1
+        cv2.imwrite(os.path.join(self.outdir, 's%02d-%02d_canny.png' % (self.step, self.sstep)), self.edges)
+
+        x0s, y0s = self.lines(self.edges, img)
+
+        # Sweep over all line pairs, generating set of all line distances
+        def gen_diffs(xys):
+            diffs_all = []
+            diffs_roi = []
+        
+            for i in xrange(len(xys)):
+                for j in xrange(i):
+                    d = abs(xys[i] - xys[j])
+                    diffs_all.append(d)
+                    if d < self.clust_thresh:
+                        diffs_roi.append(d)
+            return diffs_all, diffs_roi
+
+        self.grid_lins = [None, None]
+
+        print 'x0s: %d' % len(x0s)
+        if len(x0s) != 0:
+            x0sd_all, x0sd_roi = gen_diffs(x0s)
+            
+            matplotlib.pyplot.clf()
+            pylab.hist(x0sd_all, bins=100)
+            self.sstep += 1
+            pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_pairx_all.png' % (self.step, self.sstep)))
+    
+            matplotlib.pyplot.clf()
+            pylab.hist(x0sd_roi, bins=100)
+            self.sstep += 1
+            pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_pairx_small.png' % (self.step, self.sstep)))
+
+        print 'y0s: %d' % len(x0s)
+        if len(y0s) != 0:
+            y0sd_all, y0sd_roi = gen_diffs(y0s)
+            
+            matplotlib.pyplot.clf()
+            pylab.hist(y0sd_all, bins=100)
+            self.sstep += 1
+            pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_pairy_all.png' % (self.step, self.sstep)))
+    
+            matplotlib.pyplot.clf()
+            pylab.hist(y0sd_roi, bins=100)
+            self.sstep += 1
+            pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_pairy_small.png' % (self.step, self.sstep)))
+
+        if len(x0s) != 0 and len(y0s):
+            print 'Grid detection: using global x/y lines'
+            
+            # attempt to auto-cluster
+            # try to find the largest clusters along the same level of detail
+            
+            #return (x0s, x0sd_all, x0sd_roi, y0s, y0sd_all, y0sd_roi)
+
+            # Cluster differences to find distance between them
+            # XXX: should combine x and y set?
+            m = self.gridify_pitch(np.array(x0sd_roi))
+            # Take now known grid pitch and find offsets
+            # by doing regression against original positions
+
+            self.grid_lins[0], self.crs[0] = self.gridify_axis(0, m, x0s)
+            self.grid_lins[1], self.crs[1] = self.gridify_axis(1, m, y0s)
+            
+            self.dbg_grid()
+            
+        elif len(x0s) != 0:
+            self.regress_axis(0, x0s, x0sd_roi)
+        elif len(y0s) != 0:
+            raise Exception("FIXME")
+            self.regress_axis(1, y0s, y0sd_roi)
+        else:
+            raise Exception("Failed to detect grid.  Adjust thresholds?")
 
 
 
@@ -382,25 +481,25 @@ class GridCap:
 
 
     def cr(self):
-        for c in xrange(self.cols + 1):
-            for r in xrange(self.rows + 1):
+        for c in xrange(self.crs[0] + 1):
+            for r in xrange(self.crs[1] + 1):
                 yield (c, r)
 
     def xy(self):
         '''Generate (x0, y0) upper left and (x1, y1) lower right (inclusive) tile coordinates'''
-        for c in xrange(self.cols + 1):
+        for c in xrange(self.crs[0] + 1):
             (xm, xb) = self.grid_lins[0]
             x = int(xm * c + xb)
-            for r in xrange(self.rows + 1):
+            for r in xrange(self.crs[1] + 1):
                 (ym, yb) = self.grid_lins[1]
                 y = int(ym * r + yb)
                 yield (x, y), (x + xm, y + ym)
 
     def xy_cr(self):
-        for c in xrange(self.cols + 1):
+        for c in xrange(self.crs[0] + 1):
             (xm, xb) = self.grid_lins[0]
             x = int(xm * c + xb)
-            for r in xrange(self.rows + 1):
+            for r in xrange(self.crs[1] + 1):
                 (ym, yb) = self.grid_lins[1]
                 y = int(ym * r + yb)
                 yield ((x, y), (x + xm, y + ym)), (c, r)
@@ -424,7 +523,7 @@ class GridCap:
             #print 'x%0.4d y%0.4d:     % 8.3f % 8.3f % 8.3f % 8.3f % 8.3f' % (x, y, mean[0], mean[1], mean[2], mean[3], mmean)
 
         for c, d in means.iteritems():
-            open(os.path.join(outdir, 'stat_%s.txt' % c), 'w').write(repr(d))
+            open(os.path.join(self.outdir, 'stat_%s.txt' % c), 'w').write(repr(d))
             matplotlib.pyplot.clf()
             #pylab.plot(h,fit,'-o')
             pylab.hist(d, bins=50)
