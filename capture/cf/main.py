@@ -14,6 +14,7 @@ from scipy import fftpack
 import random
 from scipy.optimize import leastsq
 import matplotlib.pyplot as plt
+import math
 
 
 def drange(start, stop=None, step=1.0):
@@ -27,6 +28,10 @@ def drange(start, stop=None, step=1.0):
 class GridCap:
     def __init__(self, fn):
         self.fn = fn
+        self.outdir = os.path.splitext(args.fn_in)[0]
+        if not os.path.exists(self.outdir):
+            os.mkdir(self.outdir)
+        
         # rotated and cropped
         self.preproc_fn = None
         self.preproc_im = None
@@ -105,6 +110,7 @@ class GridCap:
         cv2.imwrite(os.path.join(self.outdir, 's%02d-%02d_canny.png' % (self.step, self.sstep)), edges)
 
         lines = cv2.HoughLines(edges, 1, np.pi/1800., 400)
+        # In radians
         thetas_keep = []
         for rho,theta in lines[0]:
             a = np.cos(theta)
@@ -118,10 +124,10 @@ class GridCap:
             x2 = int(x0 - scal * -b)
             y2 = int(y0 - scal *  a)
             
-            theta = theta * 180. / np.pi
+            thetad = theta * 180. / np.pi
             # take out outliers
             # I usually snap to < 1.5 (tyipcally < 0.2) so this should be plenty of margin
-            if theta < 3.0:
+            if thetad < 3.0:
                 #print 'Theta: %g, rho: %g' % (theta, rho)
                 thetas_keep.append(theta)
                 cv2.line(img, (x1,y1),(x2,y2),(0, 0, 255),2)
@@ -136,7 +142,7 @@ class GridCap:
         self.sstep += 1
         pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_dist.png' % (self.step, self.sstep)))
         
-        angle = sum(d) / len(d)
+        angle = sum(thetas_keep) / len(thetas_keep)
         print 'Mean angle: %f' % (angle,)
 
         im = Image.open(self.fn)
@@ -145,16 +151,19 @@ class GridCap:
         im.save(os.path.join(self.outdir, 's%02d-%02d_rotate.png' % (self.step, self.sstep)))
         
         imw, imh = im.size
-        sy = abs(imw * math.sin(angle))
-        sx = abs(imh * math.cos(angle))
-        im_crop = im.crop((sx, sy, imw - sx, imh - sy)
-
+        print 'Image size: %dw x %dh' % (imw, imh)
+        sy = int(abs(imw * math.sin(angle)))
+        sx = int(abs(imh * math.sin(angle)))
+        print 'x crop: %d' % sx
+        print 'y crop: %d' % sy
+        im_crop = im.crop((sx, sy, imw - sx, imh - sy))
+        
         self.sstep += 1
-        self.preproc_fn = self.outdir, 's%02d-%02d_shrink.png' % (self.step, self.sstep))
+        self.preproc_fn = self.outdir, 's%02d-%02d_shrink.png' % (self.step, self.sstep)
         self.preproc_im = im_crop
         im_crop.save(os.path.join(self.outdir, 's%02d-%02d_crop.png' % (self.step, self.sstep)))
 
-    def gridify(self):
+    def gridify_cluster(self):
         img = cv2.imread(self.preproc_fn)
         self.sstep += 1
         cv2.imwrite(os.path.join(self.outdir, 's%02d-%02d_orig.png' % (self.step, self.sstep)), img)
@@ -197,15 +206,20 @@ class GridCap:
         self.sstep += 1
         cv2.imwrite(os.path.join(self.outdir, 's%02d-%02d_lines.png' % (self.step, self.sstep)), img)
 
-        x0sd_all = []
-        x0sd_roi = []
         # Sweep over all line pairs, generating set of all line distances
-        for i in xrange(len(x0s)):
-            for j in xrange(i):
-                d = abs(x0s[i] - x0s[j])
-                x0sd_all.append(d)
-                if d < self.clust_thresh:
-                    x0sd_roi.append(d)
+        def gen_diffs(xys):
+            diffs_all = []
+            diffs_roi = []
+        
+            for i in xrange(len(xys)):
+                for j in xrange(i):
+                    d = abs(xys[i] - xys[j])
+                    diffs_all.append(d)
+                    if d < self.clust_thresh:
+                        diffs_roi.append(d)
+            return diffs_all, diffs_roi
+        x0sd_all, x0sd_roi = gen_diffs(x0s)
+        y0sd_all, y0sd_roi = gen_diffs(y0s)
         print 'x0s: %d' % len(x0s)
 
         
@@ -221,8 +235,10 @@ class GridCap:
         pylab.hist(x0sd_roi, bins=100)
         self.sstep += 1
         pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_tresh_roi.png' % (self.step, self.sstep)), img)
+        
+        return (x0s, x0sd_all, x0sd_roi, y0s, y0sd_all, y0sd_roi)
 
-
+    def gridify_pitch(self, data2_np):
         '''
         The pitch of the clusters should be constant
         Find the mean pitch and penalize when clusters stray from it
@@ -277,8 +293,9 @@ class GridCap:
         print
         clust_opt = min(clustersm_c, key=clustersm_c.get)
         print 'Optimal cluster size: %s' % clust_opt
-        cluster_d = clustersm_d[cluster_opt]
+        cluster_d = clustersm_d[clust_opt]
         print 'Cluster pitch: %s' % cluster_d
+        '''
         if 0:
             centroids = clustersm_centroids[clust_opt]
             m, b, rval, pval, std_err = stats.linregress(range(len(centroids)), centroids)
@@ -288,42 +305,9 @@ class GridCap:
             print '  rval: %s' % rval
             print '  pval: %s' % pval
             print '  std_err: %s' % std_err
-        
+        '''
+        return cluster_d
 
-        '''
-        Now that we know the line pitch need to fit it back to the original x and y data
-        Pitch is known, just play with offsets
-        Try to snap points to offset and calculate the error
-        
-        Calcualte regression on pixels to get row/col pixel offset for grid lines
-        xline = col * m + b
-        '''
-        points = sorted(x0s)
-        
-        m = cluster_d
-        def res(p, points):
-            (b,) = p
-            err = []
-            for x in points:
-                xd = (x - b) / m
-                err.append(xd % 1)
-            return err
-        
-        imw, imh = self.preproc_im.size
-        
-        (xres, cov_x) = leastsq(res, [m/2], args=(x0s,))
-        print 'Optimal X offset: %s' % xres[0]
-        grid_xlin = (cluster_d, xres[0])
-        self.cols = int((imw - grid_xlin[1])/grid_xlin[0])
-        
-        (yres, cov_y) = leastsq(res, [m/2], args=(y0s,))
-        print 'Optimal Y offset: %s' % yres[0]
-        grid_ylin = (cluster_d, yres[0])
-        self.rows = int((imh - grid_ylin[1])/grid_ylin[0])
-        
-        self.grid_lins = (grid_xlin, grid_ylin)
-        
-        self.dbg_grid()
         
     def dbg_grid(self):
         '''Draw a grid onto the image to see that it lines up'''
@@ -334,15 +318,61 @@ class GridCap:
             (m, b) = self.grid_lins[0]
             x = int(m * c + b)
             draw.line((x, 0, x, im.size[1]), fill=128)
-        for c in xrange(self.rows + 1):
+        for r in xrange(self.rows + 1):
             (m, b) = self.grid_lins[1]
             y = int(m * r + b)
             draw.line((0, y, im.size[0], y), fill=128)
         del draw
         self.sstep += 1
-        im.save(os.path.join(self.outdir, 's%02d-%02d_grid.png' % (self.step, self.sstep))
+        im.save(os.path.join(self.outdir, 's%02d-%02d_grid.png' % (self.step, self.sstep)))
         del im
+    
+    def gridify_offsets(self, m, x0s, y0s):
+        '''
+        Now that we know the line pitch need to fit it back to the original x and y data
+        Pitch is known, just play with offsets
+        Try to snap points to offset and calculate the error
+        
+        Calcualte regression on pixels to get row/col pixel offset for grid lines
+        xline = col * m + b
+        '''
+        #points = sorted(x0s)
+        
+        def res(p, points):
+            (b,) = p
+            err = []
+            for x in points:
+                xd = (x - b) / m
+                err.append(xd % 1)
+            return err
+        
+        imw, imh = self.preproc_im.size
+        
+        (xres, _cov_x) = leastsq(res, [m/2], args=(x0s,))
+        print 'Optimal X offset: %s' % xres[0]
+        grid_xlin = (m, xres[0])
+        self.cols = int((imw - grid_xlin[1])/grid_xlin[0])
+        
+        (yres, _cov_y) = leastsq(res, [m/2], args=(y0s,))
+        print 'Optimal Y offset: %s' % yres[0]
+        grid_ylin = (m, yres[0])
+        self.rows = int((imh - grid_ylin[1])/grid_ylin[0])
+        
+        self.grid_lins = (grid_xlin, grid_ylin)
+        
+        self.dbg_grid()
 
+    def gridify(self):
+        '''Final output to self.grid_lins, self.rows, self.cols'''
+        
+        # Find lines and compute x/y distances between them
+        (x0s, _x0sd_all, x0sd_roi, y0s, _y0sd_all, _y0sd_roi) = self.gridify_cluster()
+        # Cluster differences to find distance between them
+        # XXX: should combine x and y set?
+        m = self.gridify_pitch(x0sd_roi)
+        # Take now known grid pitch and find offsets
+        # by doing regression against original positions
+        self.gridify_offsets(m, x0s, y0s)
 
 
 
@@ -380,10 +410,10 @@ class GridCap:
         means = {'r': [], 'g': [],'b': [],'u': []}
         self.means_rc = {}
         
-        for ((x0, x1), (x1, y1)), (c, r) in self.xy_cr():
+        for ((x0, y0), (x1, y1)), (c, r) in self.xy_cr():
             # TODO: look into using mask
             # I suspect this is faster though
-            imxy = im.crop((x0, y0, x1, y1))
+            imxy = self.preproc_im.crop((x0, y0, x1, y1))
             mean = ImageStat.Stat(imxy).mean
             mmean = sum(mean[0:3])/3.0
             means['r'].append(mean[0])
@@ -452,10 +482,10 @@ class GridCap:
             raise Exception("state mismatch")
         
         def norm(x, mean, sd):
-          norm = []
-          for i in range(x.size):
-            norm += [1.0/(sd*np.sqrt(2*np.pi))*np.exp(-(x[i] - mean)**2/(2*sd**2))]
-          return np.array(norm)
+            norm = []
+            for i in range(x.size):
+                norm += [1.0/(sd*np.sqrt(2*np.pi))*np.exp(-(x[i] - mean)**2/(2*sd**2))]
+            return np.array(norm)
 
         p = [clusters[0], clusters[1] - clusters[0], 15, 15, 1.0]
         m, dm, sd1, sd2, sc2 = p
@@ -527,21 +557,21 @@ class GridCap:
         matplotlib.pyplot.clf()
         plt.plot(x, y_real,         label='Real Data')
         self.sstep += 1
-        pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_real.png' % (self.step, self.sstep))
+        pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_real.png' % (self.step, self.sstep)))
         
         matplotlib.pyplot.clf()
         plt.plot(x, y_init, 'r.',   label='Starting Guess')
         self.sstep += 1
-        pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_start.png' % (self.step, self.sstep))
+        pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_start.png' % (self.step, self.sstep)))
         
         matplotlib.pyplot.clf()
         plt.plot(x, y_est, 'g.',    label='Fitted')
         self.sstep += 1
-        pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_fitted.png' % (self.step, self.sstep))
+        pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_fitted.png' % (self.step, self.sstep)))
        
         
-        self.threshl = g1_ + 3 * gl_std
-        self.threshh = g2_ - 3 * g2_std
+        self.threshl = g1_u + 3 * g1_std
+        self.threshh = g2_u - 3 * g2_std
         print 'Thresholds'
         print '  Void:  %s' % self.threshl
         print '  Metal: %s' % self.threshh
@@ -558,27 +588,31 @@ class GridCap:
 
         print 'capture_seed()'
 
-        bitmap = {}
-        for (c, r) in self.cr():
-            thresh = self.means_rc[(c, r)]
-            # The void
-            if thresh <= self.threshl:
-                bitmap[(c, r)] = 'v'
-            # Pretty metal
-            elif thresh >= self.threshh:
-                bitmap[(c, r)] = 'm'
-            # WTFBBQ
-            else:
-                bitmap[(c, r)] = 'u'
-
-
+        def gen_bitmap():
+            bitmap = {}
+            unk_open = set()
+            for (c, r) in self.cr():
+                thresh = self.means_rc[(c, r)]
+                # The void
+                if thresh <= self.threshl:
+                    bitmap[(c, r)] = 'v'
+                # Pretty metal
+                elif thresh >= self.threshh:
+                    bitmap[(c, r)] = 'm'
+                # WTFBBQ
+                else:
+                    bitmap[(c, r)] = 'u'
+                    unk_open.add((c, r))
+    
+            return (bitmap, unk_open)
+        (bitmap, unk_open) = gen_bitmap()
 
 
         print 'Initial counts'
         for c in 'mvu':
             print '  %s: %d' % (c, len(filter(lambda k: k == c, bitmap.values())))
         self.sstep += 1
-        bitmap_save(bitmap, os.path.join(self.outdir, 's%02d-%02d_bitmap_init.png' % (self.step, self.sstep)))
+        self.bitmap_save(bitmap, os.path.join(self.outdir, 's%02d-%02d_bitmap_init.png' % (self.step, self.sstep)))
 
         print
         
@@ -600,7 +634,7 @@ class GridCap:
         for c in 'mvu':
             print '  %s: %d' % (c, len(filter(lambda k: k == c, bitmap.values())))
         self.sstep += 1
-        bitmap_save(bitmap, os.path.join(self.outdir, 's%02d-%02d_lone.png' % (self.step, self.sstep)))
+        self.bitmap_save(bitmap, os.path.join(self.outdir, 's%02d-%02d_lone.png' % (self.step, self.sstep)))
 
         def has_around(bitmap, c, r, t, d='v'):
             return (bitmap.get((c - 1, r), d) == t or bitmap.get((c + 1, r), d) == t or
@@ -630,7 +664,7 @@ class GridCap:
         for c in 'mvu':
             print '  %s: %d' % (c, len(filter(lambda k: k == c, bitmap.values())))
         self.sstep += 1
-        bitmap_save(bitmap, os.path.join(self.outdir, 's%02d-%02d_contiguous.png' % (self.step, self.sstep)))
+        self.bitmap_save(bitmap, os.path.join(self.outdir, 's%02d-%02d_contiguous.png' % (self.step, self.sstep)))
         
         print
         
@@ -640,7 +674,7 @@ class GridCap:
         '''
         print 'prop_ag()'
         def prop_ag(bitmap, bitmap_ag):
-            for c, r in rowcol():
+            for c, r in self.cr():
                 # Skip if nothing is there
                 if bitmap_ag[(c, r)] == 'v':
                     continue
@@ -658,13 +692,13 @@ class GridCap:
         # keep at 9 for now as it stil has some margin
         bitmap_ag, _unk_open = gen_bitmap(self.threshl - 9, self.threshh)
         self.sstep += 1
-        bitmap_save(bitmap_ag, os.path.join(self.outdir, 'viz_drc_04-1_ag.png'))
+        self.bitmap_save(bitmap_ag, os.path.join(self.outdir, 'viz_drc_04-1_ag.png'))
         prop_ag(bitmap, bitmap_ag)
         print 'Aggressive counts'
         for c in 'mvu':
             print '  %s: %d' % (c, len(filter(lambda k: k == c, bitmap.values())))
         self.sstep += 1
-        bitmap_save(bitmap, os.path.join(self.outdir, 's%02d-%02d_aggressive.png' % (self.step, self.sstep)))
+        self.bitmap_save(bitmap, os.path.join(self.outdir, 's%02d-%02d_aggressive.png' % (self.step, self.sstep)))
         
         print
         print 'Final counts'
@@ -681,8 +715,8 @@ class GridCap:
                 'm':'blue',
                 'u':'orange',
                 }
-        for ((x0, x1), (x1, y1)), (c, r) in self.xy_cr():
-            draw.rectangle((x0, y0, x1, y1), fill=bitmap2fill[bitmap[(c, r)])
+        for ((x0, y0), (x1, y1)), (c, r) in self.xy_cr():
+            draw.rectangle((x0, y0, x1, y1), fill=bitmap2fill[bitmap[(c, r)]])
         viz.save(fn)
 
 
@@ -691,7 +725,5 @@ if __name__ == '__main__':
     parser.add_argument('fn_in', help='image file to process')
     args = parser.parse_args()
 
-    outdir = os.path.splitext(args.fn_in)[0]
-    if not os.path.exists(outdir):
-        os.mkdir(outdir)
-
+    gc = GridCap(args.fn_in)
+    gc.run()
