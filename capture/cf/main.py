@@ -295,16 +295,19 @@ class GridCap:
         im = self.preproc_im.copy()
         draw = ImageDraw.Draw(im)
         # +1: draw right bounding box
-        (m, b) = self.grid_lins[0]
-        if b is not None:
-            for c in xrange(self.crs[0] + 1):
-                x = int(m * c + b)
-                draw.line((x, 0, x, im.size[1]), fill=128)
-        (m, b) = self.grid_lins[1]
-        if b is not None:
-            for r in xrange(self.crs[1] + 1):
-                y = int(m * r + b)
-                draw.line((0, y, im.size[0], y), fill=128)
+        if self.grid_lins[0] is not None:
+            (m, b) = self.grid_lins[0]
+            if b is not None:
+                for c in xrange(self.crs[0] + 1):
+                    x = int(m * c + b)
+                    draw.line((x, 0, x, im.size[1]), fill=128)
+        
+        if self.grid_lins[1] is not None:
+            (m, b) = self.grid_lins[1]
+            if b is not None:
+                for r in xrange(self.crs[1] + 1):
+                    y = int(m * r + b)
+                    draw.line((0, y, im.size[0], y), fill=128)
         del draw
         self.sstep += 1
         im.save(os.path.join(self.outdir, 's%02d-%02d_grid.png' % (self.step, self.sstep)))
@@ -359,16 +362,16 @@ class GridCap:
             d = 0.1
             if theta > 0 - d and theta < 0 + d or theta > np.pi - d and theta < np.pi + d:
                 x0s.append(abs(rho))
-                if dbg_img:
+                if dbg_img is not None:
                     cv2.line(dbg_img, (x1,y1),(x2,y2),(0, 0, 255),2)
             elif theta > np.pi/2 - d and theta < np.pi/2 + d or theta > 3 * np.pi / 2 - d and theta < 3 * np.pi / 2 + d:
                 y0s.append(abs(rho))
             else:
-                if dbg_img:
+                if dbg_img is not None:
                     cv2.line(dbg_img, (x1,y1),(x2,y2),(0, 255, 0),2)
                 continue
         
-        if dbg_img:
+        if dbg_img is not None:
             self.sstep += 1
             cv2.imwrite(os.path.join(self.outdir, 's%02d-%02d_lines.png' % (self.step, self.sstep)), dbg_img)
         return x0s, y0s
