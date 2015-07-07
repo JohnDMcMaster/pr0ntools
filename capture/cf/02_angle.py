@@ -181,7 +181,7 @@ if __name__ == '__main__':
 
 
 
-    if 1:
+    if 0:
         print 'writing to %s' % outdir
         img = cv2.imread(args.fn_in)
         print type(img)
@@ -198,7 +198,7 @@ if __name__ == '__main__':
             sums.append(np.sum(row))
         matplotlib.pyplot.clf()
         plt.plot(sums)
-        pylab.savefig(os.path.join(outdir, 'reduce'))
+        pylab.savefig(os.path.join(outdir, 'reduce.png'))
         
         # Find the highest value and annotate image
         maxes = []
@@ -257,6 +257,35 @@ if __name__ == '__main__':
         sys.exit(1)
         
     
+    # works for one but not both axes
+    if 1:
+        print 'writing to %s' % outdir
+        img = cv2.imread(args.fn_in)
+        print type(img)
+        gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+        print type(gray)
+        edges = cv2.Canny(gray, 125, 250, apertureSize=3)
+        print type(edges)
+        
+        print 'Edges: %d' % len(edges)
+        sums = []
+        for row in edges:
+            sums.append(np.sum(row))
+        matplotlib.pyplot.clf()
+        plt.plot(sums)
+        pylab.savefig(os.path.join(outdir, 'reduce_r.png'))
+    
+    if 0:
+        print 'writing to %s' % outdir
+        img = cv2.imread(args.fn_in)
+        print type(img)
+        gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+        cv2.imwrite(os.path.join(outdir, 'reduce_01_gray.png'), gray)
+        print type(gray)
+        edges = cv2.Canny(gray, 125, 250, apertureSize=3)
+        print type(edges)
+        cv2.imwrite(os.path.join(outdir, 'reduce_02_edges.png'), edges)
+        
         #test = cv2.cvtColor(edges)
         test = cv2.cv.GetMat(edges)
         rowr = cv2.reduce(edges, 0, cv2.cv.CV_REDUCE_SUM)
@@ -267,9 +296,15 @@ if __name__ == '__main__':
         plt.plot(rowr)
         plt.subplot(212)
         plt.plot(colr)
-        pylab.savefig(os.path.join(outdir, 'reduce'))
+        pylab.savefig(os.path.join(outdir, 'reduce.png'))
         
+        matplotlib.pyplot.clf()
+        plt.plot(rowr)
+        pylab.savefig(os.path.join(outdir, 'reduce_r.png'))
 
+        matplotlib.pyplot.clf()
+        plt.plot(colr)
+        pylab.savefig(os.path.join(outdir, 'reduce_c.png'))
 
 
 

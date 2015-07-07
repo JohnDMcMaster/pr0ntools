@@ -15,7 +15,15 @@ import random
 from scipy.optimize import leastsq
 import matplotlib.pyplot as plt
 import math
+import glob
 
+def rms_err(d1, d2):
+    if len(d1) != len(d2):
+        raise ValueError("Must be equal length")
+    errs = []
+    for i1, i2 in zip(d1, d2):
+        errs.append((i1 - i2) ** 2)
+    return math.sqrt(sum(errs) / len(errs))
 
 def drange(start, stop=None, step=1.0):
     if stop is None:
@@ -55,7 +63,7 @@ class GridCap:
         (xm, xb) = self.grid_xlin[0]
         (ym, yb) = self.grid_ylin[1]
         '''
-        self.grid_lins = None
+        self.grid_lins = [None, None]
         # 0: cols, 1: rows
         self.crs = [None, None]
         
@@ -206,35 +214,16 @@ class GridCap:
         This is approximately the distance between grid lines
         '''
         
-        grid_xlin, self.crs[0] = self.leastsq_axis(order, x0s)
-        self.grid_lins = (grid_xlin, None)
+        m_est = self.lin_kmeans(np.array(x0sd_roi))
+        b_est = 0.0
+        
+        grid_xlin, self.crs[order] = self.leastsq_axis_iter(order, x0s, m_est, b_est)
+        self.grid_lins[order] = grid_xlin
         self.dbg_grid()
-        print 'Debug break'
-        import sys
-        sys.exit(1)
 
-        m = self.gridify_pitch(np.array(x0sd_roi))
-        grid_xlin, self.crs[0] = self.gridify_axis(order, m, x0s)
-        self.grid_lins = (grid_xlin, None)
-        self.dbg_grid()
-        
-        print 'Cols: %d' % self.crs[order]
-        for i in xrange(3):
-            print '  %d: %s' % (i, grid_xlin[0] * i + grid_xlin[1])
-        print '  ...'
-        
-        for col in self.crs[0]:
-            (xm, xb) = self.grid_lins[0]
-            x0 = int(xm * col + xb)
-            x1 = int(xm * (col + 1) + xb)
-            
-            # TODO: look into using mask
-            # I suspect this is faster though
-            edges = self.edges.crop((x0, 0, x1, self.edges[1]))
-            x0s_crop, y0s_crop = self.lines(edges, None)
             
 
-    def gridify_pitch(self, data2_np):
+    def lin_kmeans(self, data2_np):
         '''
         The pitch of the clusters should be constant
         Find the mean pitch and penalize when clusters stray from it
@@ -363,7 +352,75 @@ class GridCap:
 
         return grid_xylin, rowcols
 
-    def leastsq_axis(self, order, x0s):
+    def leastsq_axis_png(self, fn, detected, m, b):
+        '''
+        Want actual detected lines draw in red
+        Then draw the linear series onto the image
+        '''
+
+        im = self.preproc_im.copy()
+        draw = ImageDraw.Draw(im)
+        
+        for x in detected:
+            draw.line((x, 0, x, im.size[1]), fill='red')
+        
+        # +1: draw right bounding box
+        # just clpi it
+        cols = 200
+        for c in xrange(cols + 1):
+            x = int(m * c + b)
+            draw.line((x, 0, x, im.size[1]), fill='blue')
+        
+        del draw
+        im.save(fn)
+        del im
+    
+    def leastsq_axis_iter(self, order, x0s, m_est, b_est, png=0):
+        print
+        print
+        
+        x0s = sorted(x0s)
+        
+        if png:
+            log_dir = os.path.join(self.outdir, 'leastsq')
+            if os.path.exists(log_dir):
+                print 'Cleaning up old visuals'
+                for fn in glob.glob('%s/*' % log_dir):
+                    os.unlink(fn)
+            else:
+                os.mkdir(log_dir)
+        
+        itern = [0]
+        # 4 is somewhat arbitrary.  Can we get away with only 1 or 2?
+        for i in xrange(4, len(x0s)):
+            print
+            x0s_this = x0s[0:i+1]
+            mb, rowcols = self.leastsq_axis(order, x0s_this, m_est, b_est, png=0)
+            m_est, b_est = mb
+            print 'Iter % 6d x = %16.12f c + %16.12f' % (itern[0], m_est, b_est)
+            if png:
+                self.leastsq_axis_png(os.path.join(log_dir, 'iter_%04d_%0.6fm_%0.6fb.png' % (itern[0], m_est, b_est)), x0s_this, m_est, b_est)
+            itern[0] += 1
+        print
+        print 'Iter done'
+        print 'Result x = %16.12f c + %16.12f' % (m_est, b_est)
+        while b_est > m_est:
+            b_est -= m_est
+        while b_est < 0:
+            b_est += m_est
+        print 'Normalized x = %16.12f c + %16.12f' % (m_est, b_est)
+        return mb, rowcols
+    
+    def leastsq_axis(self, order, x0s, m_est, b_est, png=0):
+        if png:
+            log_dir = os.path.join(self.outdir, 'leastsq')
+            if os.path.exists(log_dir):
+                print 'Cleaning up old visuals'
+                for fn in glob.glob('%s/*' % log_dir):
+                    os.unlink(fn)
+            else:
+                os.mkdir(log_dir)
+        
         '''
         Return 
         (m, b), cols
@@ -371,11 +428,16 @@ class GridCap:
         Problem: if it choses a really large m then errors are minimized as x / m approaches 0
         '''
         maxx = max(x0s)
+        itern = [0]
+        verbose = False
+        silent = True
         def res(p):
             m, b = p
-            print 'Iter x = %16.12f c + %16.12f' % (m, b)
+            if not silent:
+                print 'Iter % 6d x = %16.12f c + %16.12f' % (itern[0], m, b)
             err = []
-            print '  Points'
+            if verbose:
+                print '  Points'
             for x in x0s:
                 # Find the closest column number
                 xd = (x - b) / m
@@ -386,10 +448,11 @@ class GridCap:
                     xd1c = xd1
                 else:
                     xd1c = 1.0 - xd1
-                print '    x:      %d' % x
-                print '      xd:   %16.12f' % xd
-                print '      xd1:  %16.12f' % xd1
-                print '      xd1c: %16.12f' % xd1c
+                if verbose:
+                    print '    x:      %d' % x
+                    print '      xd:   %16.12f' % xd
+                    print '      xd1:  %16.12f' % xd1
+                    print '      xd1c: %16.12f' % xd1c
 
                 
                 '''
@@ -405,17 +468,101 @@ class GridCap:
                 if m > maxx:
                     xd1c += m - maxx
                 '''
+                # penalize heavily if drifts from estimate which should be accurate within a few percent
+                #m_err = 
                 err.append(xd1c)
-            print '  Error: %0.6f' % sum(err)
+                
+            if png:
+                self.leastsq_axis_png(os.path.join(log_dir, 'iter_%04d_%0.6fm_%0.6fb.png' % (itern[0], m, b)), x0s, m, b)
+            
+            itern[0] += 1
+            if not silent:
+                print '  Error: %0.6f (%0.6f rms)' % (sum(err), math.sqrt(sum([x**2 for x in err]) / len(err)))
             return err
     
-        (mb, cov) = leastsq(res, [1.0, 0.0])
+        (mb, cov) = leastsq(res, [m_est, b_est])
         
-        print 'Covariance: %0.1f' % cov
-        print 'Calc x = %0.1f c + %0.1f' % (mb[0], mb[1])
+        if not silent:
+            print 'Covariance: %0.1f' % cov
+            print 'Calc x = %0.1f c + %0.1f' % (mb[0], mb[1])
         rowcols = int((self.preproc_im.size[order] - mb[1])/mb[0])
-        print 'Calc cols: %d' % rowcols
+        if not silent:
+            print 'Calc cols: %d' % rowcols
         return mb, rowcols
+
+    def max_axis_contrast(self, order, y0s):
+        '''
+        Using pre-calculated complimentary order, assume same m
+        Slide b across m until the maximum contrast is found
+        '''
+        if order != 1:
+            raise Exception("FIXME")
+        print 'max_axis_contrast()'
+        m = self.grid_lins[0][0]
+        print 'm: %0.6f' % m
+        
+        img = cv2.imread(self.preproc_fn)
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        # <type 'numpy.ndarray'>
+        edges = cv2.Canny(gray, 125, 250, apertureSize=3)
+        
+        # FIXME: this only works for order 1
+        # had problems with reduce
+        sums = []
+        for row in edges:
+            sums.append(np.sum(row))
+        
+        matplotlib.pyplot.clf()
+        plt.plot(sums)
+        self.sstep += 1
+        pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_sum.png' % (self.step, self.sstep)))
+        
+        smin = min(sums)
+        smax = max(sums)
+        
+        print 'Min: %0.1f' % smin
+        print 'Max: %0.1f' % smax
+        print 'Normalizing...'
+        for i in xrange(len(sums)):
+            sums[i] = (sums[i] - smin) / (smax - smin)
+
+        # avoid boundary conditions where truncating a data point on some makes the error go down
+        rows = int(self.preproc_im.size[1] / m) - 1
+        
+        # Brute force to avoid non-linear issues
+        print 'Sweeping b values...'
+        berrs = []
+        for b in xrange(int(m)):
+            print 'b = %d' % b
+            def res():
+                errs = []
+                for row in xrange(rows):
+                    # inclusive
+                    y0 = int(m * row + b)
+                    # not inclusive
+                    y1 = int(m * (row + 1) + b)
+                    avg = sum(sums[y0:y1]) / (y1 - y0)
+                    if avg < 0.5:
+                        err = avg
+                    else:
+                        err = 1.0 - avg
+                    errs.append(err**2)
+                return math.sqrt(sum(errs) / len(errs))
+            berrs.append(res())
+        emin = min(berrs)
+        print 'Min error: %0.6f' % emin
+        print 'Max error: %0.6f' % max(berrs)
+        b = berrs.index(emin)
+        print 'y = %16.12f r + %d' % (m, b)
+
+        # TODO: consider doing least squares to fine tune remaining error
+
+        self.grid_lins[order] = (m, b)
+        rowcols = int((self.preproc_im.size[order] - b)/m)
+        print 'Rows: %d' % rowcols
+        self.crs[order] = rowcols
+        
+        self.dbg_grid()
 
     def lines(self, edges, dbg_img):
         lines = cv2.HoughLines(edges, 1, np.pi/1800., 400)
@@ -526,6 +673,7 @@ class GridCap:
             pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_pairy_small.png' % (self.step, self.sstep)))
 
         if len(x0s) != 0 and len(y0s):
+            raise Exception("FIXME")
             print 'Grid detection: using global x/y lines'
             
             # attempt to auto-cluster
@@ -535,7 +683,7 @@ class GridCap:
 
             # Cluster differences to find distance between them
             # XXX: should combine x and y set?
-            m = self.gridify_pitch(np.array(x0sd_roi))
+            m = self.lin_kmeans(np.array(x0sd_roi))
             # Take now known grid pitch and find offsets
             # by doing regression against original positions
 
@@ -547,18 +695,14 @@ class GridCap:
         elif len(x0s) != 0:
             print 'WARNING: no y lines.  Switching to column detection mode'
             self.regress_axis(0, x0s, x0sd_roi)
+            # Using above, slide y b variable around to maximize contrast
+            self.max_axis_contrast(1, y0s)
         elif len(y0s) != 0:
             raise Exception("FIXME")
             self.regress_axis(1, y0s, y0sd_roi)
+            self.max_axis_contrast(0, x0s)
         else:
             raise Exception("Failed to detect grid.  Adjust thresholds?")
-
-
-
-
-
-
-
 
     def cr(self):
         for c in xrange(self.crs[0] + 1):
