@@ -113,7 +113,7 @@ class CVTest():
         im = Image.open(self.fn)
         print '%s: %dw x %dh' % (self.fn, im.size[0], im.size[1])
         print 'Grid pixel w/h: %s' % self.gridp
-        im = im.crop((9, 9, im.size[0], im.size[1]))
+        #im = im.crop((9, 9, im.size[0], im.size[1]))
         print im
         print 'crop: %dw x %dh' % (im.size[0], im.size[1])
 
@@ -131,10 +131,10 @@ class CVTest():
         print 'grid_lines()'
         im = im.copy()
         draw = ImageDraw.Draw(im)
-        for x in drange(0, im.size[0], self.gridp):
+        for x in drange(9, im.size[0], self.gridp):
             x = int(x)
             draw.line((x, 0, x, im.size[1]), fill=128)
-        for y in drange(0, im.size[1], self.gridp):
+        for y in drange(9, im.size[1], self.gridp):
             y = int(y)
             draw.line((0, y, im.size[0], y), fill=128)
         del draw
