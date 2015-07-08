@@ -7,6 +7,18 @@ import json
 
 from PIL import Image
 
+states = 'vmu'
+bitmap2fill = {
+        'v':'white',
+        'm':'blue',
+        'u':'orange',
+        }
+fill2bitmap = {
+        (255, 255, 255):'v',    # white
+        (0, 0, 255):    'm',    # blue
+        (255, 165, 0):  'u',    # orange
+        }
+
 class Test(QtGui.QWidget):
     def __init__(self):
         QtGui.QWidget.__init__(self)
@@ -32,10 +44,9 @@ class Test(QtGui.QWidget):
         u: unknown
         '''
         self.ts = {}
-        white = (255, 255, 255)
         for (c, r) in self.cr():
             p = self.bmp.getpixel((c, r))
-            self.ts[(c, r)] = p != white
+            self.ts[(c, r)] = fill2bitmap[p]
 
         self.initUI()
 
@@ -86,7 +97,11 @@ class Test(QtGui.QWidget):
         #self.points.append(event.pos())
         c, r = self.xy2cr(p.x(), p.y())
         #print 'c=%d, r=%d' % (c, r)
-        self.ts[(c, r)] = not self.ts[(c, r)]
+        # cycle to next state
+        old = self.ts[(c, r)]
+        oldi = states.index(old)
+        statep = states[(oldi + 1) % len(states)]
+        self.ts[(c, r)] = statep
         
         #self.repaint()
         self.update()
@@ -120,10 +135,7 @@ class Test(QtGui.QWidget):
         '''
         
         for ((x0, y0), (x1, y1)), (c, r) in self.xy_cr():
-            if self.ts[(c, r)]:
-                qp.setBrush(QtGui.QColor(255, 0, 0, 255))
-            else:
-                qp.setBrush(QtGui.QColor(0, 255, 0, 255))
+            qp.setBrush(QtGui.QColor(bitmap2fill[self.ts[(c, r)]]))
             qp.drawRect(x0, y0, x1 - x0, y1 - y0)
     
 if __name__ == '__main__':
