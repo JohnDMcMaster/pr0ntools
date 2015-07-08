@@ -16,6 +16,7 @@ from scipy.optimize import leastsq
 import matplotlib.pyplot as plt
 import math
 import glob
+import json
 
 from pr0ntools.util import add_bool_arg
 
@@ -65,7 +66,7 @@ class GridCap:
         (xm, xb) = self.grid_xlin[0]
         (ym, yb) = self.grid_ylin[1]
         '''
-        self.grid_lins = [None, None]
+        self.xy_mb = [None, None]
         # 0: cols, 1: rows
         self.crs = [None, None]
         
@@ -86,6 +87,9 @@ class GridCap:
         self.means_rc = None
         
         self.bitmap = None
+        
+        # Misc parameters to debug dump
+        self.paramsj = {}
         
     def run(self):
         print 'run()'
@@ -230,7 +234,7 @@ class GridCap:
         b_est = 0.0
         
         grid_xlin, self.crs[order] = self.leastsq_axis_iter(order, x0s, m_est, b_est)
-        self.grid_lins[order] = grid_xlin
+        self.xy_mb[order] = grid_xlin
         self.dbg_grid()
 
             
@@ -320,15 +324,15 @@ class GridCap:
         im = self.preproc_im.copy()
         draw = ImageDraw.Draw(im)
         # +1: draw right bounding box
-        if self.grid_lins[0] is not None:
-            (m, b) = self.grid_lins[0]
+        if self.xy_mb[0] is not None:
+            (m, b) = self.xy_mb[0]
             if b is not None:
                 for c in xrange(self.crs[0] + 1):
                     x = int(m * c + b)
                     draw.line((x, 0, x, im.size[1]), fill=128)
         
-        if self.grid_lins[1] is not None:
-            (m, b) = self.grid_lins[1]
+        if self.xy_mb[1] is not None:
+            (m, b) = self.xy_mb[1]
             if b is not None:
                 for r in xrange(self.crs[1] + 1):
                     y = int(m * r + b)
@@ -427,7 +431,7 @@ class GridCap:
         while b_est < 0:
             b_est += m_est
         print 'Normalized x = %16.12f c + %16.12f' % (m_est, b_est)
-        return mb, rowcols
+        return (m_est, b_est), rowcols
     
     def leastsq_axis(self, order, x0s, m_est, b_est, png=0):
         if png:
@@ -516,7 +520,7 @@ class GridCap:
         if order != 1:
             raise Exception("FIXME")
         print 'max_axis_contrast()'
-        m = self.grid_lins[0][0]
+        m = self.xy_mb[0][0]
         print 'm: %0.6f' % m
         
         img = cv2.imread(self.preproc_fn)
@@ -572,11 +576,17 @@ class GridCap:
         print 'Min error: %0.6f' % emin
         print 'Max error: %0.6f' % max(berrs)
         b = berrs.index(emin)
-        print 'y = %16.12f r + %d' % (m, b)
+        print 'Baseline y = %16.12f r + %d' % (m, b)
+
+        while b > m:
+            b -= m
+        while b < 0:
+            b += m
+        print 'Normalized y = %16.12f c + %d' % (m, b)
 
         # TODO: consider doing least squares to fine tune remaining error
 
-        self.grid_lins[order] = (m, b)
+        self.xy_mb[order] = (m, b)
         rowcols = int((self.preproc_im.size[order] - b)/m)
         print 'Rows: %d' % rowcols
         self.crs[order] = rowcols
@@ -621,7 +631,7 @@ class GridCap:
         return x0s, y0s
 
     def gridify(self):
-        '''Final output to self.grid_lins, self.crs[1], self.crs[0]'''
+        '''Final output to self.xy_mb, self.crs[1], self.crs[0]'''
         
         # Find lines and compute x/y distances between them
         img = cv2.imread(self.preproc_fn)
@@ -666,7 +676,7 @@ class GridCap:
                         diffs_roi.append(d)
             return diffs_all, diffs_roi
 
-        self.grid_lins = [None, None]
+        self.xy_mb = [None, None]
 
         print 'x0s: %d' % len(x0s)
         if len(x0s) != 0:
@@ -715,8 +725,8 @@ class GridCap:
             # Take now known grid pitch and find offsets
             # by doing regression against original positions
 
-            self.grid_lins[0], self.crs[0] = self.gridify_axis(0, m, x0s)
-            self.grid_lins[1], self.crs[1] = self.gridify_axis(1, m, y0s)
+            self.xy_mb[0], self.crs[0] = self.gridify_axis(0, m, x0s)
+            self.xy_mb[1], self.crs[1] = self.gridify_axis(1, m, y0s)
             
             self.dbg_grid()
             
@@ -740,19 +750,19 @@ class GridCap:
     def xy(self):
         '''Generate (x0, y0) upper left and (x1, y1) lower right (inclusive) tile coordinates'''
         for c in xrange(self.crs[0] + 1):
-            (xm, xb) = self.grid_lins[0]
+            (xm, xb) = self.xy_mb[0]
             x = int(xm * c + xb)
             for r in xrange(self.crs[1] + 1):
-                (ym, yb) = self.grid_lins[1]
+                (ym, yb) = self.xy_mb[1]
                 y = int(ym * r + yb)
                 yield (x, y), (x + xm, y + ym)
 
     def xy_cr(self):
         for c in xrange(self.crs[0] + 1):
-            (xm, xb) = self.grid_lins[0]
+            (xm, xb) = self.xy_mb[0]
             x = int(xm * c + xb)
             for r in xrange(self.crs[1] + 1):
-                (ym, yb) = self.grid_lins[1]
+                (ym, yb) = self.xy_mb[1]
                 y = int(ym * r + yb)
                 yield ((x, y), (int(x + xm), int(y + ym))), (c, r)
 
@@ -1080,6 +1090,26 @@ class GridCap:
         for (c, r) in self.cr():
             draw.rectangle((c, r, c, r), fill=bitmap2fill[self.bitmap[(c, r)]])
         im.save(os.path.join(self.outdir, 'out.png'))
+
+        # Critical parameters needed to fixup errors
+        axes = []
+        j = {
+            'img': os.path.basename(self.preproc_fn),
+            'axes': axes,
+            'params': self.paramsj,
+        }
+        for order in xrange(2):
+            ja = {
+                # number of rows/cols
+                'n': self.crs[order],
+                # pixels per row/col
+                'm': self.xy_mb[order][0],
+                # row/col offset
+                'b': self.xy_mb[order][1],
+            }
+            axes.append(ja)
+        js = json.dumps(j, sort_keys=True, indent=4, separators=(',', ': '))
+        open(os.path.join(self.outdir, 'out.json'), 'w').write(js)
 
     def bitmap_save(self, bitmap, fn):
         viz = self.preproc_im.copy()
