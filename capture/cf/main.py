@@ -1080,6 +1080,7 @@ class GridCap:
         self.bitmap = bitmap
 
     def save(self):
+        png_fn = os.path.join(self.outdir, 'out.png')
         im = Image.new("RGB", self.crs, "white")
         draw = ImageDraw.Draw(im)
         bitmap2fill = {
@@ -1089,12 +1090,13 @@ class GridCap:
                 }
         for (c, r) in self.cr():
             draw.rectangle((c, r, c, r), fill=bitmap2fill[self.bitmap[(c, r)]])
-        im.save(os.path.join(self.outdir, 'out.png'))
+        im.save(png_fn)
 
         # Critical parameters needed to fixup errors
         axes = []
         j = {
             'img': os.path.basename(self.preproc_fn),
+            'png': os.path.basename(png_fn),
             'axes': axes,
             'params': self.paramsj,
         }
