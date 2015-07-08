@@ -17,6 +17,8 @@ import matplotlib.pyplot as plt
 import math
 import glob
 
+from pr0ntools.util import add_bool_arg
+
 def rms_err(d1, d2):
     if len(d1) != len(d2):
         raise ValueError("Must be equal length")
@@ -83,6 +85,8 @@ class GridCap:
         
         self.means_rc = None
         
+        self.bitmap = None
+        
     def run(self):
         print 'run()'
         self.step = 0
@@ -92,7 +96,7 @@ class GridCap:
         
         # Straighten, cropping image slightly
         self.step += 1
-        if args.no_straighten:
+        if not args.straighten:
             self.preproc_fn = self.fn
             self.preproc_im = Image.open(self.fn)
         else:
@@ -120,6 +124,8 @@ class GridCap:
         print 'capture()'
         self.capture()
 
+        self.save()
+
     def straighten(self):
         self.sstep = 0
         if args.angle:
@@ -127,16 +133,19 @@ class GridCap:
             angle = float(args.angle)
         else:
             img = cv2.imread(self.fn)
-            self.sstep += 1
-            cv2.imwrite(os.path.join(self.outdir, 's%02d-%02d_orig.png' % (self.step, self.sstep)), img)
+            if args.debug:
+                self.sstep += 1
+                cv2.imwrite(os.path.join(self.outdir, 's%02d-%02d_orig.png' % (self.step, self.sstep)), img)
             
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            self.sstep += 1
-            cv2.imwrite(os.path.join(self.outdir, 's%02d-%02d_cvtColor.png' % (self.step, self.sstep)), gray)
+            if args.debug:
+                self.sstep += 1
+                cv2.imwrite(os.path.join(self.outdir, 's%02d-%02d_cvtColor.png' % (self.step, self.sstep)), gray)
             
             edges = cv2.Canny(gray, 50, 150, apertureSize=3)
-            self.sstep += 1
-            cv2.imwrite(os.path.join(self.outdir, 's%02d-%02d_canny.png' % (self.step, self.sstep)), edges)
+            if args.debug:
+                self.sstep += 1
+                cv2.imwrite(os.path.join(self.outdir, 's%02d-%02d_canny.png' % (self.step, self.sstep)), edges)
     
             lines = cv2.HoughLines(edges, 1, np.pi/1800., 400)
             # In radians
@@ -163,13 +172,15 @@ class GridCap:
                 else:
                     cv2.line(img, (x1,y1),(x2,y2),(0, 255, 0),2)
     
-            self.sstep += 1
-            cv2.imwrite(os.path.join(self.outdir, 's%02d-%02d_lines.png' % (self.step, self.sstep)), img)
+            if args.debug:
+                self.sstep += 1
+                cv2.imwrite(os.path.join(self.outdir, 's%02d-%02d_lines.png' % (self.step, self.sstep)), img)
     
-            matplotlib.pyplot.clf()
-            pylab.hist(thetas_keep, bins=100)
-            self.sstep += 1
-            pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_theta_dist.png' % (self.step, self.sstep)))
+            if args.debug:
+                matplotlib.pyplot.clf()
+                pylab.hist(thetas_keep, bins=100)
+                self.sstep += 1
+                pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_theta_dist.png' % (self.step, self.sstep)))
             
             angle = sum(thetas_keep) / len(thetas_keep)
             angled = angle * 180. / np.pi
@@ -181,8 +192,9 @@ class GridCap:
         # Positive values cause CCW rotation, same convention as above theta
         # but we want to correct it so go opposite direction
         im = im.rotate(-angle, resample=Image.BICUBIC)
-        self.sstep += 1
-        im.save(os.path.join(self.outdir, 's%02d-%02d_rotate.png' % (self.step, self.sstep)))
+        if args.debug:
+            self.sstep += 1
+            im.save(os.path.join(self.outdir, 's%02d-%02d_rotate.png' % (self.step, self.sstep)))
         
         imw, imh = im.size
         print 'Image size: %dw x %dh' % (imw, imh)
@@ -303,6 +315,8 @@ class GridCap:
         
     def dbg_grid(self):
         '''Draw a grid onto the image to see that it lines up'''
+        if not args.debug:
+            return
         im = self.preproc_im.copy()
         draw = ImageDraw.Draw(im)
         # +1: draw right bounding box
@@ -376,6 +390,8 @@ class GridCap:
         del im
     
     def leastsq_axis_iter(self, order, x0s, m_est, b_est, png=0):
+        verbose = False
+        
         print
         print
         
@@ -393,11 +409,13 @@ class GridCap:
         itern = [0]
         # 4 is somewhat arbitrary.  Can we get away with only 1 or 2?
         for i in xrange(4, len(x0s)):
-            print
+            if verbose:
+                print
             x0s_this = x0s[0:i+1]
             mb, rowcols = self.leastsq_axis(order, x0s_this, m_est, b_est, png=0)
             m_est, b_est = mb
-            print 'Iter % 6d x = %16.12f c + %16.12f' % (itern[0], m_est, b_est)
+            if verbose:
+                print 'Iter % 6d x = %16.12f c + %16.12f' % (itern[0], m_est, b_est)
             if png:
                 self.leastsq_axis_png(os.path.join(log_dir, 'iter_%04d_%0.6fm_%0.6fb.png' % (itern[0], m_est, b_est)), x0s_this, m_est, b_est)
             itern[0] += 1
@@ -512,10 +530,11 @@ class GridCap:
         for row in edges:
             sums.append(np.sum(row))
         
-        matplotlib.pyplot.clf()
-        plt.plot(sums)
-        self.sstep += 1
-        pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_sum.png' % (self.step, self.sstep)))
+        if args.debug:
+            matplotlib.pyplot.clf()
+            plt.plot(sums)
+            self.sstep += 1
+            pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_sum.png' % (self.step, self.sstep)))
         
         smin = min(sums)
         smax = max(sums)
@@ -565,6 +584,8 @@ class GridCap:
         self.dbg_grid()
 
     def lines(self, edges, dbg_img):
+        if not args.debug:
+            dbg_img = None
         lines = cv2.HoughLines(edges, 1, np.pi/1800., 400)
         x0s = []
         y0s = []
@@ -585,16 +606,16 @@ class GridCap:
             d = 0.1
             if theta > 0 - d and theta < 0 + d or theta > np.pi - d and theta < np.pi + d:
                 x0s.append(abs(rho))
-                if dbg_img is not None:
+                if dbg_img:
                     cv2.line(dbg_img, (x1,y1),(x2,y2),(0, 0, 255),2)
             elif theta > np.pi/2 - d and theta < np.pi/2 + d or theta > 3 * np.pi / 2 - d and theta < 3 * np.pi / 2 + d:
                 y0s.append(abs(rho))
             else:
-                if dbg_img is not None:
+                if dbg_img:
                     cv2.line(dbg_img, (x1,y1),(x2,y2),(0, 255, 0),2)
                 continue
         
-        if dbg_img is not None:
+        if dbg_img:
             self.sstep += 1
             cv2.imwrite(os.path.join(self.outdir, 's%02d-%02d_lines.png' % (self.step, self.sstep)), dbg_img)
         return x0s, y0s
@@ -604,12 +625,14 @@ class GridCap:
         
         # Find lines and compute x/y distances between them
         img = cv2.imread(self.preproc_fn)
-        self.sstep += 1
-        cv2.imwrite(os.path.join(self.outdir, 's%02d-%02d_orig.png' % (self.step, self.sstep)), img)
+        if args.debug:
+            self.sstep += 1
+            cv2.imwrite(os.path.join(self.outdir, 's%02d-%02d_orig.png' % (self.step, self.sstep)), img)
         
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        self.sstep += 1
-        cv2.imwrite(os.path.join(self.outdir, 's%02d-%02d_cvtColor.png' % (self.step, self.sstep)), gray)
+        if args.debug:
+            self.sstep += 1
+            cv2.imwrite(os.path.join(self.outdir, 's%02d-%02d_cvtColor.png' % (self.step, self.sstep)), gray)
         
         '''
         http://stackoverflow.com/questions/6070530/how-to-choose-thresold-values-for-edge-detection-in-opencv
@@ -624,8 +647,9 @@ class GridCap:
         and Edges between Low and High will be retained only if if lies/connects to a high thresholded edge point.
         '''
         self.edges = cv2.Canny(gray, 50, 150, apertureSize=3)
-        self.sstep += 1
-        cv2.imwrite(os.path.join(self.outdir, 's%02d-%02d_canny.png' % (self.step, self.sstep)), self.edges)
+        if args.debug:
+            self.sstep += 1
+            cv2.imwrite(os.path.join(self.outdir, 's%02d-%02d_canny.png' % (self.step, self.sstep)), self.edges)
 
         x0s, y0s = self.lines(self.edges, img)
 
@@ -648,29 +672,33 @@ class GridCap:
         if len(x0s) != 0:
             x0sd_all, x0sd_roi = gen_diffs(x0s)
             
-            matplotlib.pyplot.clf()
-            pylab.hist(x0sd_all, bins=100)
-            self.sstep += 1
-            pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_pairx_all.png' % (self.step, self.sstep)))
+            if args.debug:
+                matplotlib.pyplot.clf()
+                pylab.hist(x0sd_all, bins=100)
+                self.sstep += 1
+                pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_pairx_all.png' % (self.step, self.sstep)))
     
-            matplotlib.pyplot.clf()
-            pylab.hist(x0sd_roi, bins=100)
-            self.sstep += 1
-            pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_pairx_small.png' % (self.step, self.sstep)))
+            if args.debug:
+                matplotlib.pyplot.clf()
+                pylab.hist(x0sd_roi, bins=100)
+                self.sstep += 1
+                pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_pairx_small.png' % (self.step, self.sstep)))
 
         print 'y0s: %d' % len(x0s)
         if len(y0s) != 0:
             y0sd_all, y0sd_roi = gen_diffs(y0s)
             
-            matplotlib.pyplot.clf()
-            pylab.hist(y0sd_all, bins=100)
-            self.sstep += 1
-            pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_pairy_all.png' % (self.step, self.sstep)))
+            if args.debug:
+                matplotlib.pyplot.clf()
+                pylab.hist(y0sd_all, bins=100)
+                self.sstep += 1
+                pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_pairy_all.png' % (self.step, self.sstep)))
     
-            matplotlib.pyplot.clf()
-            pylab.hist(y0sd_roi, bins=100)
-            self.sstep += 1
-            pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_pairy_small.png' % (self.step, self.sstep)))
+            if args.debug:
+                matplotlib.pyplot.clf()
+                pylab.hist(y0sd_roi, bins=100)
+                self.sstep += 1
+                pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_pairy_small.png' % (self.step, self.sstep)))
 
         if len(x0s) != 0 and len(y0s):
             raise Exception("FIXME")
@@ -726,16 +754,17 @@ class GridCap:
             for r in xrange(self.crs[1] + 1):
                 (ym, yb) = self.grid_lins[1]
                 y = int(ym * r + yb)
-                yield ((x, y), (x + xm, y + ym)), (c, r)
+                yield ((x, y), (int(x + xm), int(y + ym))), (c, r)
 
     def autothresh(self):
-        print 'stat()'
+        print 'Collecting threshold statistics...'
         means = {'r': [], 'g': [],'b': [],'u': []}
         self.means_rc = {}
         
         for ((x0, y0), (x1, y1)), (c, r) in self.xy_cr():
             # TODO: look into using mask
             # I suspect this is faster though
+            #print x0, y0, x1, y1
             imxy = self.preproc_im.crop((x0, y0, x1, y1))
             mean = ImageStat.Stat(imxy).mean
             mmean = sum(mean[0:3])/3.0
@@ -746,13 +775,14 @@ class GridCap:
             self.means_rc[(c, r)] = mmean
             #print 'x%0.4d y%0.4d:     % 8.3f % 8.3f % 8.3f % 8.3f % 8.3f' % (x, y, mean[0], mean[1], mean[2], mean[3], mmean)
 
-        for c, d in means.iteritems():
-            open(os.path.join(self.outdir, 'stat_%s.txt' % c), 'w').write(repr(d))
-            matplotlib.pyplot.clf()
-            #pylab.plot(h,fit,'-o')
-            pylab.hist(d, bins=50)
-            self.sstep += 1
-            pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_stat_%c.png' % (self.step, self.sstep, c)))
+        if args.debug:
+            for c, d in means.iteritems():
+                open(os.path.join(self.outdir, 'stat_%s.txt' % c), 'w').write(repr(d))
+                matplotlib.pyplot.clf()
+                #pylab.plot(h,fit,'-o')
+                pylab.hist(d, bins=50)
+                self.sstep += 1
+                pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_stat_%c.png' % (self.step, self.sstep, c)))
     
         data2 = means['u']
         data2_np = np.array(data2)
@@ -841,7 +871,7 @@ class GridCap:
                 print '    errsum %s' % err2
             resi[0] += 1
             
-            if verbose:
+            if args.debug and verbose:
                 matplotlib.pyplot.clf()
                 plt.subplot(311)
                 plt.plot(x, y_real)
@@ -877,20 +907,23 @@ class GridCap:
 
         y_est = norm(x, g1_u, g1_std) + norm(x, g2_u, g2_std)
 
-        matplotlib.pyplot.clf()
-        plt.plot(x, y_real,         label='Real Data')
-        self.sstep += 1
-        pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_real.png' % (self.step, self.sstep)))
+        if args.debug:
+            matplotlib.pyplot.clf()
+            plt.plot(x, y_real,         label='Real Data')
+            self.sstep += 1
+            pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_real.png' % (self.step, self.sstep)))
         
-        matplotlib.pyplot.clf()
-        plt.plot(x, y_init, 'r.',   label='Starting Guess')
-        self.sstep += 1
-        pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_start.png' % (self.step, self.sstep)))
+        if args.debug:
+            matplotlib.pyplot.clf()
+            plt.plot(x, y_init, 'r.',   label='Starting Guess')
+            self.sstep += 1
+            pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_start.png' % (self.step, self.sstep)))
         
-        matplotlib.pyplot.clf()
-        plt.plot(x, y_est, 'g.',    label='Fitted')
-        self.sstep += 1
-        pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_fitted.png' % (self.step, self.sstep)))
+        if args.debug:
+            matplotlib.pyplot.clf()
+            plt.plot(x, y_est, 'g.',    label='Fitted')
+            self.sstep += 1
+            pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_fitted.png' % (self.step, self.sstep)))
        
         
         self.threshl = g1_u + 3 * g1_std
@@ -911,16 +944,16 @@ class GridCap:
 
         print 'capture_seed()'
 
-        def gen_bitmap():
+        def gen_bitmap(threshl, threshh):
             bitmap = {}
             unk_open = set()
             for (c, r) in self.cr():
                 thresh = self.means_rc[(c, r)]
                 # The void
-                if thresh <= self.threshl:
+                if thresh <= threshl:
                     bitmap[(c, r)] = 'v'
                 # Pretty metal
-                elif thresh >= self.threshh:
+                elif thresh >= threshh:
                     bitmap[(c, r)] = 'm'
                 # WTFBBQ
                 else:
@@ -928,14 +961,15 @@ class GridCap:
                     unk_open.add((c, r))
     
             return (bitmap, unk_open)
-        (bitmap, unk_open) = gen_bitmap()
+        (bitmap, unk_open) = gen_bitmap(self.threshl, self.threshh)
 
 
         print 'Initial counts'
         for c in 'mvu':
             print '  %s: %d' % (c, len(filter(lambda k: k == c, bitmap.values())))
-        self.sstep += 1
-        self.bitmap_save(bitmap, os.path.join(self.outdir, 's%02d-%02d_bitmap_init.png' % (self.step, self.sstep)))
+        if args.debug:
+            self.sstep += 1
+            self.bitmap_save(bitmap, os.path.join(self.outdir, 's%02d-%02d_bitmap_init.png' % (self.step, self.sstep)))
 
         print
         
@@ -956,8 +990,9 @@ class GridCap:
         print 'Post-lone counts'
         for c in 'mvu':
             print '  %s: %d' % (c, len(filter(lambda k: k == c, bitmap.values())))
-        self.sstep += 1
-        self.bitmap_save(bitmap, os.path.join(self.outdir, 's%02d-%02d_lone.png' % (self.step, self.sstep)))
+        if args.debug:
+            self.sstep += 1
+            self.bitmap_save(bitmap, os.path.join(self.outdir, 's%02d-%02d_lone.png' % (self.step, self.sstep)))
 
         def has_around(bitmap, c, r, t, d='v'):
             return (bitmap.get((c - 1, r), d) == t or bitmap.get((c + 1, r), d) == t or
@@ -986,8 +1021,9 @@ class GridCap:
         print 'Post contiguous counts'
         for c in 'mvu':
             print '  %s: %d' % (c, len(filter(lambda k: k == c, bitmap.values())))
-        self.sstep += 1
-        self.bitmap_save(bitmap, os.path.join(self.outdir, 's%02d-%02d_contiguous.png' % (self.step, self.sstep)))
+        if args.debug:
+            self.sstep += 1
+            self.bitmap_save(bitmap, os.path.join(self.outdir, 's%02d-%02d_contiguous.png' % (self.step, self.sstep)))
         
         print
         
@@ -1010,25 +1046,40 @@ class GridCap:
                 print '  %dc, %dr => m: join m' % (c, r)
                 bitmap[(c, r)] = 'm'
             
+        # FIXME: look into ways to make this more dynamic
         # above 10 generated false positives
         # below 9 lost one of the fixes
         # keep at 9 for now as it stil has some margin
         bitmap_ag, _unk_open = gen_bitmap(self.threshl - 9, self.threshh)
-        self.sstep += 1
-        self.bitmap_save(bitmap_ag, os.path.join(self.outdir, 'viz_drc_04-1_ag.png'))
+        if args.debug:
+            self.sstep += 1
+            self.bitmap_save(bitmap_ag, os.path.join(self.outdir, 's%02d-%02d_aggressive.png' % (self.step, self.sstep)))
         prop_ag(bitmap, bitmap_ag)
         print 'Aggressive counts'
         for c in 'mvu':
             print '  %s: %d' % (c, len(filter(lambda k: k == c, bitmap.values())))
-        self.sstep += 1
-        self.bitmap_save(bitmap, os.path.join(self.outdir, 's%02d-%02d_aggressive.png' % (self.step, self.sstep)))
+        if args.debug:
+            self.sstep += 1
+            self.bitmap_save(bitmap, os.path.join(self.outdir, 's%02d-%02d_post_aggressive.png' % (self.step, self.sstep)))
         
         print
         print 'Final counts'
         for c in 'mvu':
             print '  %s: %d' % (c, len(filter(lambda k: k == c, bitmap.values())))
 
+        self.bitmap = bitmap
 
+    def save(self):
+        im = Image.new("RGB", self.crs, "white")
+        draw = ImageDraw.Draw(im)
+        bitmap2fill = {
+                'v':'white',
+                'm':'blue',
+                'u':'orange',
+                }
+        for (c, r) in self.cr():
+            draw.rectangle((c, r, c, r), fill=bitmap2fill[self.bitmap[(c, r)]])
+        im.save(os.path.join(self.outdir, 'out.png'))
 
     def bitmap_save(self, bitmap, fn):
         viz = self.preproc_im.copy()
@@ -1046,7 +1097,8 @@ class GridCap:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Grid auto-bitmap test')
     parser.add_argument('--angle', help='Correct specified rotation instead of auto-rotating')
-    parser.add_argument('--no-straighten', action='store_true')
+    add_bool_arg(parser, '--straighten', default=True)
+    add_bool_arg(parser, '--debug', default=True)
     parser.add_argument('fn_in', help='image file to process')
     args = parser.parse_args()
 
