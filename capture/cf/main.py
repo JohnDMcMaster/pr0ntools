@@ -539,6 +539,10 @@ class GridCap:
             plt.plot(sums)
             self.sstep += 1
             pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_sum.png' % (self.step, self.sstep)))
+            with open(os.path.join(self.outdir, 's%02d-%02d_sum.csv' % (self.step, self.sstep)), 'w') as f:
+                f.write('n,v\n')
+                for n, v in enumerate(sums):
+                    f.write('%d,%d\n' % (n, v))
         
         smin = min(sums)
         smax = max(sums)
