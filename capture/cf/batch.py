@@ -6,6 +6,7 @@ import os
 import shutil
 import glob
 import traceback
+import multiprocessing
 
 from pr0ntools.util import add_bool_arg
 from main import GridCap, GridCapFailed
@@ -201,7 +202,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Grid auto-bitmap test')
     # ord('pr') = 28786
     parser.add_argument('--port', type=int, default=28786, help='TCP port number')
-    parser.add_argument('--workers', type=int, default=4, help='Number worker processes')
+    parser.add_argument('--workers', type=int, default= multiprocessing.cpu_count(), help='Number worker processes')
     add_bool_arg(parser, '--debug', default=True)
     parser.add_argument('dir_in', help='Directory to grab jobs from')
     parser.add_argument('dir_out', help='Directory to put completed jobs')
