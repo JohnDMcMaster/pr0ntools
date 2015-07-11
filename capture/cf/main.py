@@ -1006,9 +1006,43 @@ class GridCap:
         if self.threshl >= self.threshh:
             raise GridCapFailed("Thresholds overlap.  Grid not fitted correctly?")
 
-
-
-
+    def bitmap_netstat(self, bitmap, c, r):
+        '''
+        return dictionary with m and u keys
+        each key holds a set with the cols and rows contiguous with start point c, r (including c, r)
+        
+        This could potentially blow through the stack for large polygons
+        If problems optimize
+        
+        TODO: abort when find certain metal threshold?
+        '''
+        
+        ret = {'m': set(), 'u': set()}
+        checked = set()
+        
+        def check(c, r):
+            #print 'check(%d, %d)' % (c, r)
+            if (c, r) in checked:
+                return
+            this = bitmap.get((c, r), None)
+            # Out of bounds?
+            if this is None:
+                return
+            checked.add((c, r))
+            # Void?  We are off the polygon: stop looking
+            if this == 'v':
+                return
+            
+            # got something
+            ret[this].add((c, r))
+            
+            check(c - 1, r)
+            check(c + 1, r)
+            check(c, r - 1)
+            check(c, r + 1)
+        
+        check(c, r)
+        return ret
 
     def capture(self):
         # make initial guesses based on thresholds
@@ -1049,6 +1083,7 @@ class GridCap:
         Its very likely noise
         '''
         print 'Looking for lone unknowns'
+        
         def filt_unk_lone(bitmap, unk_open):
             for c, r in set(unk_open):
                 # look for adjacent
@@ -1057,7 +1092,30 @@ class GridCap:
                     print '  Unknown %dc, %dr rm: lone' % (c, r)
                     bitmap[(c, r)] = 'v'
                     unk_open.discard((c, r))
-        filt_unk_lone(bitmap, unk_open)
+        
+        '''
+        Remove any segments that are composed of only unknown and 0-1 positive matches
+        '''
+        def filt_unk_groups(bitmap, unk_open):
+            to_remove = set()
+            checked = set()
+            for c, r in set(unk_open):
+                if (c, r) in checked:
+                    continue
+                
+                bins = self.bitmap_netstat(bitmap, c, r)
+                checked = checked.union(bins['u'])
+                if len(bins['m']) <= 1:
+                    print '  Unknown %dc, %dr rm: %d unknowns, %d metal' % (c, r, len(bins['u']), len(bins['m']))
+                    to_remove = to_remove.union(bins['u'])
+                    to_remove = to_remove.union(bins['m'])
+            
+            for cr in to_remove:
+                bitmap[cr] = 'v'
+                unk_open.discard(cr)
+                
+        #filt_unk_lone(bitmap, unk_open)
+        filt_unk_groups(bitmap, unk_open)
         print 'Post-lone counts'
         for c in 'mvu':
             print '  %s: %d' % (c, len(filter(lambda k: k == c, bitmap.values())))
