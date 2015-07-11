@@ -56,6 +56,8 @@ class GridCap:
         self.thresh_sig = 3.0
         self.step = None
         
+        self.png_fn = None
+        
         self.should_straighten = True
         self.straighten_angle = None
         
@@ -75,6 +77,7 @@ class GridCap:
         (ym, yb) = self.grid_ylin[1]
         '''
         self.xy_mb = [None, None]
+        self.m_est = None
         # 0: cols, 1: rows
         self.crs = [None, None]
         
@@ -103,40 +106,64 @@ class GridCap:
         print 'run()'
         self.step = 0
         self.sstep = 0
+        pass_ = False
 
         print
         
-        # Straighten, cropping image slightly
-        self.step += 1
-        if not self.should_straighten:
-            self.preproc_fn = self.fn
-            self.preproc_im = Image.open(self.fn)
-        else:
-            print 'straighten()'
-            self.straighten()
-
-        print
-
-        # Find grid
-        self.step += 1
-        print 'gridify()'
-        self.gridify()
-
-        print
-
-        # Figure out thresholds based on grid
-        self.step += 1
-        print 'autothresh()'
-        self.autothresh()
-
-        print
-
-        # Use computed thresholds on grid to guess materials
-        self.step += 1
-        print 'capture()'
-        self.capture()
-
-        self.save()
+        try:
+            print
+            print
+            print
+    
+            print '*' * 80
+            # Straighten, cropping image slightly
+            self.step += 1
+            if not self.should_straighten:
+                print 'Skipping straighten'
+                self.preproc_fn = self.fn
+                self.preproc_im = Image.open(self.fn)
+            else:
+                print 'straighten()'
+                self.straighten()
+    
+            print
+            print
+            print
+    
+            print '*' * 80
+            # Find grid
+            self.step += 1
+            self.gridify()
+    
+            print
+            print
+            print
+    
+            print '*' * 80
+            # Figure out thresholds based on grid
+            self.step += 1
+            self.autothresh()
+    
+            print
+            print
+            print
+    
+            print '*' * 80
+            # Use computed thresholds on grid to guess materials
+            self.step += 1
+            print 'capture()'
+            self.capture()
+        
+            print
+            print
+            print
+    
+            print '*' * 80
+            self.save()
+            pass_ = True
+        finally:
+            print 'Saving JSON on done'
+            self.save_json(pass_)
 
     def straighten(self):
         self.sstep = 0
@@ -238,7 +265,11 @@ class GridCap:
         This is approximately the distance between grid lines
         '''
         
-        m_est = self.lin_kmeans(np.array(x0sd_roi))
+        if self.m_est is None:
+            m_est = self.lin_kmeans(np.array(x0sd_roi))
+        else:
+            print 'Skipping lin_kmeans(): using provided m estimate %0.3f' % self.m_est
+            m_est = self.m_est
         b_est = 0.0
         
         grid_xlin, self.crs[order] = self.leastsq_axis_iter(order, x0s, m_est, b_est)
@@ -656,6 +687,8 @@ class GridCap:
     def gridify(self):
         '''Final output to self.xy_mb, self.crs[1], self.crs[0]'''
         
+        print 'gridify(): solving for design grid'
+        
         # Find lines and compute x/y distances between them
         img = cv2.imread(self.preproc_fn)
         if debug:
@@ -790,6 +823,8 @@ class GridCap:
                 yield ((x, y), (int(x + xm), int(y + ym))), (c, r)
 
     def autothresh(self):
+        print 'autothresh(): characterizing grid'
+        
         print 'Collecting threshold statistics...'
         means = {'r': [], 'g': [],'b': [],'u': []}
         self.means_rc = {}
@@ -966,7 +1001,7 @@ class GridCap:
         print '  Metal: %s' % self.threshh
         print '  Flagz: %s' % (self.threshh - self.threshl,)
         if self.threshl >= self.threshh:
-            raise GridCapFailed("State mismatch")
+            raise GridCapFailed("Thresholds overlap.  Grid not fitted correctly?")
 
 
 
@@ -1103,7 +1138,7 @@ class GridCap:
         self.bitmap = bitmap
 
     def save(self):
-        png_fn = os.path.join(self.outdir, 'out.png')
+        self.png_fn = os.path.join(self.outdir, 'out.png')
         im = Image.new("RGB", self.crs, "white")
         draw = ImageDraw.Draw(im)
         bitmap2fill = {
@@ -1113,24 +1148,46 @@ class GridCap:
                 }
         for (c, r) in self.cr():
             draw.rectangle((c, r, c, r), fill=bitmap2fill[self.bitmap[(c, r)]])
-        im.save(png_fn)
-
+        im.save(self.png_fn)
+        
+    def save_json(self, pass_):
         # Critical parameters needed to fixup errors
         axes = []
+        
+        preproc_fn = None
+        if self.preproc_fn:
+            preproc_fn = os.path.basename(self.preproc_fn)
+        
+        png_fn = None
+        if self.png_fn:
+            png_fn = os.path.basename(self.png_fn)
+        
         j = {
-            'img': os.path.basename(self.preproc_fn),
-            'png': os.path.basename(png_fn),
+            'pass': pass_,
+            'img': preproc_fn,
+            'png': png_fn,
             'axes': axes,
             'params': self.paramsj,
         }
         for order in xrange(2):
+            if self.xy_mb[order] is None:
+                m = None
+                b = None
+            else:
+                m, b = self.xy_mb[order]
+            
+            if self.crs is None:
+                crs = None
+            else:
+                crs = self.crs[order]
+            
             ja = {
                 # number of rows/cols
-                'n': self.crs[order],
+                'n': crs,
                 # pixels per row/col
-                'm': self.xy_mb[order][0],
+                'm': m,
                 # row/col offset
-                'b': self.xy_mb[order][1],
+                'b': b,
             }
             axes.append(ja)
         js = json.dumps(j, sort_keys=True, indent=4, separators=(',', ': '))
@@ -1154,6 +1211,7 @@ if __name__ == '__main__':
     parser.add_argument('--angle', help='Correct specified rotation instead of auto-rotating')
     add_bool_arg(parser, '--straighten', default=True)
     add_bool_arg(parser, '--debug', default=True)
+    parser.add_argument('--m-est')
     parser.add_argument('fn_in', help='image file to process')
     args = parser.parse_args()
 
@@ -1161,5 +1219,10 @@ if __name__ == '__main__':
 
     gc = GridCap(args.fn_in, os.path.splitext(args.fn_in)[0])
     gc.should_straighten = args.straighten
-    gc.straighten_angle = float(args.angle)
+    if args.angle is not None:
+        gc.straighten_angle = float(args.angle)
+    if args.m_est is not None:
+        gc.m_est = float(args.m_est)
+        if gc.m_est <= 0.0:
+            raise Exception('Bad m estimate')
     gc.run()
