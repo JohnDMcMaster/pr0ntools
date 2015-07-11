@@ -238,8 +238,8 @@ class TileTiler:
 						if self.verbose:
 							print 'z%d %d/%d: transforming row %d => %d, col %d => %d w/ quality %u' % (self.zoom_level, this, todo, old_row, new_row, old_col, new_col, self.quality)
 						# Paste the old (4) images together
-						imgp = PImage.from_filename_array([[self.get_old(old_row + 0, old_col + 0), self.get_old(old_row + 0, old_col + 1)],
-								[self.get_old(old_row + 1, old_col + 0), self.get_old(old_row + 1, old_col + 1)]])
+						imgp = PImage.from_tile_fns([[self.get_old(old_row + 0, old_col + 0), self.get_old(old_row + 0, old_col + 1)],
+								[self.get_old(old_row + 1, old_col + 0), self.get_old(old_row + 1, old_col + 1)]], twh=(self.t_width, self.t_height))
 						if imgp.width() != self.t_width * self.zoom_factor or imgp.height() != self.t_height * self.zoom_factor:
 							print 'New image width %d, height: %d from tile width %d, height %d' % (imgp.width(), imgp.height(), self.t_width, self.t_height)
 							raise Exception('Combined image incorrect size')
