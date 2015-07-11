@@ -58,8 +58,8 @@ class GridCap:
         
         self.png_fn = None
         
-        self.should_straighten = True
         self.straighten_angle = None
+        self.calc_straighten_angle = None
         
         # green seems to give the best results on my setup
         self.channel = 'g'
@@ -121,7 +121,7 @@ class GridCap:
             print '*' * 80
             # Straighten, cropping image slightly
             self.step += 1
-            if not self.should_straighten:
+            if self.straighten_angle == 0.0:
                 print 'Skipping straighten'
                 self.preproc_fn = self.fn
                 self.preproc_im = Image.open(self.fn)
@@ -165,14 +165,20 @@ class GridCap:
             self.save()
             pass_ = True
         finally:
+            print
+            print
+            print
+            print '*' * 80
+            print 'Shutting down'
             print 'Saving JSON on done'
             self.save_json(pass_)
 
     def straighten(self):
         self.sstep = 0
         if self.straighten_angle is not None:
-            print 'Using existing angle'
-            angle = self.straighten_angle
+            print 'Straighten: using given angle %0.3f deg' % self.straighten_angle
+            angled = self.straighten_angle
+            angle = angled * np.pi / 180.
         else:
             img = cv2.imread(self.fn)
             if debug:
@@ -227,12 +233,14 @@ class GridCap:
             angle = sum(thetas_keep) / len(thetas_keep)
             angled = angle * 180. / np.pi
             print 'Mean angle: %f rad (%f deg)' % (angle, angled)
+            self.calc_straighten_angle = angled
         
 
         im = Image.open(self.fn)
         # In degrees
         # Positive values cause CCW rotation, same convention as above theta
         # but we want to correct it so go opposite direction
+        print 'Straighten: rotate %0.3f deg' % self.straighten_angle
         im = im.rotate(angled, resample=Image.BICUBIC)
         if debug:
             self.sstep += 1
@@ -1228,6 +1236,8 @@ class GridCap:
             'img': preproc_fn,
             'png': png_fn,
             'axes': axes,
+            'calc_straighten_angle': self.calc_straighten_angle,
+            'straighten_angle': self.straighten_angle,
             'params': self.paramsj,
         }
         for order in xrange(2):
@@ -1269,8 +1279,7 @@ class GridCap:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Grid auto-bitmap test')
-    parser.add_argument('--angle', help='Correct specified rotation instead of auto-rotating')
-    add_bool_arg(parser, '--straighten', default=True)
+    parser.add_argument('--angle', help='Correct specified rotation instead of auto-rotating (degrees)')
     add_bool_arg(parser, '--debug', default=True)
     parser.add_argument('--channel', default='g', help='Which color channel to use for histograms (rgbu).  u: gray')
     parser.add_argument('--m-est')
@@ -1280,7 +1289,6 @@ if __name__ == '__main__':
     debug = args.debug
 
     gc = GridCap(args.fn_in, os.path.splitext(args.fn_in)[0])
-    gc.should_straighten = args.straighten
     gc.channel = args.channel
     if args.angle is not None:
         gc.straighten_angle = float(args.angle)

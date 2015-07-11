@@ -29,6 +29,32 @@ class Worker(Process):
             print 'WARNING: removing stable outdir %s' % outdir
             shutil.rmtree(outdir)
         gc = GridCap(fn, outdir)
+        # FIXME: test
+        '''
+        "m": 28.798439172285491,
+        "m": 28.858570666253318,
+        "m": 28.863853412915169,
+        "m": 28.870065695379324,
+        "m": 28.897894257052542,
+        "m": 28.898561602670757,
+        "m": 28.902170052993778,
+        "m": 28.904432700498411,
+        "m": 28.912128923940617,
+        "m": 28.921572162297931,
+        "m": 28.92840006812828,
+        "m": 28.938493227866346,
+        "m": 28.95081479394069,
+        "m": 28.974397399436118,
+        '''
+        gc.m_est = 28.9
+        '''
+        Mean angle: 0.015334 rad (0.878571 deg)
+        Mean angle: 0.014321 rad (0.820513 deg)
+        Mean angle: 0.015828 rad (0.906849 deg)
+        Mean angle: 0.015526 rad (0.889583 deg)
+        avg: 0.873879ll
+        '''
+        gc.straighten_angle = 0.87387911
         print 'Running GridCap'
         try:
             gc.run()
@@ -183,5 +209,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     main.debug = args.debug
+    
     s = Server()
     s.run()
