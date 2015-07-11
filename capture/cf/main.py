@@ -853,12 +853,16 @@ class GridCap:
                 y = int(ym * r + yb)
                 yield (x, y), (x + xm, y + ym)
 
-    def xy_cr(self):
+    def xy_cr(self, b):
         for c in xrange(self.crs[0] + 1):
             (xm, xb) = self.xy_mb[0]
+            if not b:
+                xb = 0.0
             x = int(xm * c + xb)
             for r in xrange(self.crs[1] + 1):
                 (ym, yb) = self.xy_mb[1]
+                if not b:
+                    yb = 0.0
                 y = int(ym * r + yb)
                 yield ((x, y), (int(x + xm), int(y + ym))), (c, r)
 
@@ -869,7 +873,7 @@ class GridCap:
         means = {'r': [], 'g': [],'b': [],'u': []}
         self.means_rc = {}
         
-        for ((x0, y0), (x1, y1)), (c, r) in self.xy_cr():
+        for ((x0, y0), (x1, y1)), (c, r) in self.xy_cr(True):
             # TODO: look into using mask
             # I suspect this is faster though
             #print x0, y0, x1, y1
@@ -1306,7 +1310,7 @@ class GridCap:
                 'm':'blue',
                 'u':'orange',
                 }
-        for ((x0, y0), (x1, y1)), (c, r) in self.xy_cr():
+        for ((x0, y0), (x1, y1)), (c, r) in self.xy_cr(False):
             draw.rectangle((x0, y0, x1, y1), fill=bitmap2fill[bitmap[(c, r)]])
         viz.save(fn)
 
