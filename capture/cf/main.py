@@ -61,6 +61,9 @@ class GridCap:
         self.should_straighten = True
         self.straighten_angle = None
         
+        # green seems to give the best results on my setup
+        self.channel = 'g'
+        
         # Number of pixels to look at for clusters
         # needs to be enough that at least 3 grid lines are in scope
         # TODO: look into ways to automaticaly detect this
@@ -836,11 +839,16 @@ class GridCap:
             imxy = self.preproc_im.crop((x0, y0, x1, y1))
             mean = ImageStat.Stat(imxy).mean
             mmean = sum(mean[0:3])/3.0
-            means['r'].append(mean[0])
-            means['g'].append(mean[1])
-            means['b'].append(mean[2])
-            means['u'].append(mmean)
-            self.means_rc[(c, r)] = mmean
+            
+            channels = {
+                'r': mean[0],
+                'g': mean[1],
+                'b': mean[2],
+                'u': mmean,
+                }
+            for k, v in channels.iteritems():
+                means[k].append(v)
+            self.means_rc[(c, r)] = channels[self.channel]
             #print 'x%0.4d y%0.4d:     % 8.3f % 8.3f % 8.3f % 8.3f % 8.3f' % (x, y, mean[0], mean[1], mean[2], mean[3], mmean)
 
         if debug:
@@ -852,12 +860,7 @@ class GridCap:
                 self.sstep += 1
                 pylab.savefig(os.path.join(self.outdir, 's%02d-%02d_stat_%c.png' % (self.step, self.sstep, c)))
     
-        data2 = means['u']
-        data2_np = np.array(data2)
-
-
-
-
+        data2 = means[self.channel]
         # Extract clusters
         data2_np = np.array(data2)
         
@@ -873,7 +876,7 @@ class GridCap:
 
 
 
-        s = data2_np
+        #s = data2_np
         '''
         Calc 1
           u: 49.9241213118
@@ -889,7 +892,7 @@ class GridCap:
         print '  2: %s' % clusters[1]
 
         #  The return value is a tuple (n, bins, patches)
-        (n, bins, patches) = pylab.hist(data2_np, bins=50)
+        (n, bins, _patches) = pylab.hist(data2_np, bins=50)
         # Supposed to normalize to height 1 before I feed in?
         n = [0.03 * d / max(n) for d in n]
         #print 'n', n
@@ -1211,6 +1214,7 @@ if __name__ == '__main__':
     parser.add_argument('--angle', help='Correct specified rotation instead of auto-rotating')
     add_bool_arg(parser, '--straighten', default=True)
     add_bool_arg(parser, '--debug', default=True)
+    parser.add_argument('--channel', default='g', help='Which color channel to use for histograms (rgbu).  u: gray')
     parser.add_argument('--m-est')
     parser.add_argument('fn_in', help='image file to process')
     args = parser.parse_args()
@@ -1219,6 +1223,7 @@ if __name__ == '__main__':
 
     gc = GridCap(args.fn_in, os.path.splitext(args.fn_in)[0])
     gc.should_straighten = args.straighten
+    gc.channel = args.channel
     if args.angle is not None:
         gc.straighten_angle = float(args.angle)
     if args.m_est is not None:
