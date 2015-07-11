@@ -99,6 +99,13 @@ class CommonStitch:
         # and fix scan.json to invert these to match these values
         self.x_overlap = 1.0 / 3.0
         self.y_overlap = 1.0 / 3.0
+        if os.path.exists('scan.json'):
+            print 'Loading overlaps from scan.json'
+            j = json.load(open('scan.json'))
+            self.x_overlap = 1.0 - j['computed']['x']['overlap']
+            self.y_overlap = 1.0 - j['computed']['y']['overlap']
+            print '  X: %g' % (self.x_overlap,)
+            print '  Y: %g' % (self.y_overlap,)
         
         self.dry = False
         
