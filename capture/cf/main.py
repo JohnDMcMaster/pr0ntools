@@ -41,6 +41,35 @@ def drange(start, stop=None, step=1.0):
         yield r
         r += step
 
+'''
+def has_around(bitmap, c, r, t, d='v', order=1):
+    return (bitmap.get((c - 1,  r),     d) != t and
+            bitmap.get((c + 1,  r),     d) != t and
+            bitmap.get((c,      r - 1), d) != t and
+            bitmap.get((c,      r + 1), d) != t)
+'''
+def has_around(bitmap, c, r, t, d='v', order=1):
+    '''Return true if d exists for order tiles in at least one direction around c, r'''
+    # the four directions
+    for cr in [
+            lambda i: (c - i,  r),
+            lambda i: (c + i,  r),
+            lambda i: (c,      r - 1),
+            lambda i: (c,      r + 1),
+            ]:
+        def check():
+            # order tiles this direction match?
+            for i in xrange(order):
+                if bitmap.get(cr(i), d) != t:
+                    return False
+            return True
+        # this direction has a match?
+        if check():
+            return True
+    # No direction matched
+    return False
+                
+
 class GridCap:
     def __init__(self, fn, outdir):
         self.fn = fn
@@ -1131,10 +1160,6 @@ class GridCap:
             self.sstep += 1
             self.bitmap_save(bitmap, os.path.join(self.outdir, 's%02d-%02d_lone.png' % (self.step, self.sstep)))
 
-        def has_around(bitmap, c, r, t, d='v'):
-            return (bitmap.get((c - 1, r), d) == t or bitmap.get((c + 1, r), d) == t or
-                        bitmap.get((c, r - 1), d) == t or bitmap.get((c, r + 1), d) == t)
-
         print
 
         '''
@@ -1142,14 +1167,19 @@ class GridCap:
         Note: this will ocassionally cause garbage to incorrectly merge nets
         '''
         def munge_unk_cont(bitmap, unk_open):
+            # Don't propagate
+            # Make a list and apply it after the sweep
+            to_promote = set()
             for c, r in set(unk_open):
                 # Abort if any adjacent unknowns
-                if has_around(bitmap, c, r, 'u'):
+                if has_around(bitmap, c, r, 'u', order=1):
                     continue
-                # Is there surrounding metal?
-                if not has_around(bitmap, c, r, 'm'):
+                # Is there surrounding metal forming a line? (or solid)
+                if not has_around(bitmap, c, r, 'm', order=2):
                     continue
                 print '  Unknown %dc, %dr => m: join m' % (c, r)
+                to_promote.add((c, r))
+            for (c, r) in to_promote:
                 bitmap[(c, r)] = 'm'
                 unk_open.discard((c, r))
                     
@@ -1170,6 +1200,7 @@ class GridCap:
         '''
         print 'prop_ag()'
         def prop_ag(bitmap, bitmap_ag):
+            to_promote = set()
             for c, r in self.cr():
                 # Skip if nothing is there
                 if bitmap_ag[(c, r)] == 'v':
@@ -1178,10 +1209,13 @@ class GridCap:
                 if bitmap[(c, r)] == 'm':
                     continue
                 # Is there something to extend?
-                if not has_around(bitmap, c, r, 'm'):
+                if not has_around(bitmap, c, r, 'm', order=2):
                     continue
                 print '  %dc, %dr => m: join m' % (c, r)
+                to_promote.add((c, r))
+            for (c, r) in to_promote:
                 bitmap[(c, r)] = 'm'
+                unk_open.discard((c, r))
             
         # FIXME: look into ways to make this more dynamic
         # above 10 generated false positives
