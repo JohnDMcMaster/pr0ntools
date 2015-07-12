@@ -1,5 +1,17 @@
 from PIL import Image, ImageDraw, ImageStat
 
+states = 'vmu'
+bitmap2fill = {
+        'v':'white',
+        'm':'blue',
+        'u':'orange',
+        }
+fill2bitmap = {
+        (255, 255, 255):'v',    # white
+        (0, 0, 255):    'm',    # blue
+        (255, 165, 0):  'u',    # orange
+        }
+
 # confocal bitmap
 class CFB:
     def __init__(self):

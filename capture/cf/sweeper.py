@@ -8,29 +8,19 @@ import xmlrpclib
 from xmlrpclib import Binary
 from PIL import Image
 #from PyQt4 import Qt
-#from PyQt4.QtGui import Qt
+from PyQt4.QtGui import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPixmap, QDesktopWidget
 from PyQt4.QtCore import Qt
 from PIL import Image, ImageDraw, ImageStat
 
+import cfb
 from cfb import CFB
 from cfb import cfb_save, cfb_save_debug
 from cfb import filt_unk_groups, cfb_verify, prop_ag, munge_unk_cont
+from cfb import bitmap2fill, fill2bitmap
 
-states = 'vmu'
-bitmap2fill = {
-        'v':'white',
-        'm':'blue',
-        'u':'orange',
-        }
-fill2bitmap = {
-        (255, 255, 255):'v',    # white
-        (0, 0, 255):    'm',    # blue
-        (255, 165, 0):  'u',    # orange
-        }
-
-class GridWidget(QtGui.QWidget):
+class GridWidget(QWidget):
     def __init__(self, tmp_dir):
-        QtGui.QWidget.__init__(self)
+        QWidget.__init__(self)
         self.tmp_dir = tmp_dir
         # images are a bit big
         self.sf = 0.5
@@ -39,21 +29,42 @@ class GridWidget(QtGui.QWidget):
         #self.cfb.xy_mb = None
         #self.cfb.bitmap = None
         self.cfb = None
-        self.img = None
+        self.jpg_fn = None
+        self.pixmap = None
+        self.img_label = QLabel()
+        self.layout = QVBoxLayout()
+        self.layout.addWidget(self.img_label)
+        self.setLayout(self.layout)
 
-    def server_next(self, cfb, img):
+    def server_next(self, cfb, jpg_fn):
         self.cfb = cfb
-        self.img = img
-        
+        self.jpg_fn = jpg_fn
+        if self.jpg_fn:
+            self.pixmap = QPixmap(self.jpg_fn)
+            self.img_label.setPixmap(self.pixmap)
+
+            # this ensures the label can also re-size downwards
+            self.img_label.setMinimumSize(1, 1)
+            # get resize events for the label
+            self.img_label.installEventFilter(self)
+
+        w = self.cfb.crs[0] * self.cfb.xy_mb[0][0] * self.sf
+        h = self.cfb.crs[1] * self.cfb.xy_mb[1][0] * self.sf
+        self.setMinimumSize(w, h)
+        #self.resize((w, h)
+
+    def eventFilter(self, source, event):
+        if (source is self.img_label and event.type() == QtCore.QEvent.Resize):
+            # re-scale the pixmap when the label resizes
+            self.img_label.setPixmap(self.pixmap.scaled(
+                self.img_label.size(), QtCore.Qt.KeepAspectRatio,
+                QtCore.Qt.SmoothTransformation))
+        return QWidget.eventFilter(self, source, event)
+    
     def gen_png(self):
         png_fn = os.path.join(self.tmp_dir, 'out.png')
         im = Image.new("RGB", self.cfb.crs, "white")
         draw = ImageDraw.Draw(im)
-        bitmap2fill = {
-                'v':'white',
-                'm':'blue',
-                'u':'orange',
-                }
         for (c, r) in self.cfb.cr():
             draw.rectangle((c, r, c, r), fill=bitmap2fill[self.cfb.bitmap[(c, r)]])
         im.save(png_fn)
@@ -70,15 +81,16 @@ class GridWidget(QtGui.QWidget):
         #print 'c=%d, r=%d' % (c, r)
         # cycle to next state
         old = self.cfb.bitmap[(c, r)]
-        oldi = states.index(old)
-        statep = states[(oldi + 1) % len(states)]
+        oldi = cfb.states.index(old)
+        statep = cfb.states[(oldi + 1) % len(cfb.states)]
         self.cfb.bitmap[(c, r)] = statep
         
         #self.repaint()
-        self.update()
+        self.parent().update()
 
     def paintEvent(self, e):
-
+        if self.jpg_fn:
+            return
         qp = QtGui.QPainter()
         qp.begin(self)
         self.drawRectangles(qp)
@@ -126,7 +138,7 @@ class Test(QtGui.QWidget):
     def keyPressEvent(self, event):
         def accept():
             if self.job:
-                self.server.job_done(self.job['name'], Binary(self.grid.gen_png()), '')
+                self.server.job_done(self.job['name'], Binary(self.grid1.gen_png()), '')
             self.server_next()
 
         def reject():
@@ -175,7 +187,8 @@ class Test(QtGui.QWidget):
             self.cfb = CFB()
             self.cfb.crs = self.png.size
             self.cfb.xy_mb = [(30.0, 0.0), (30.0, 0.0)]
-            self.grid.server_next(None, None)
+            self.grid1.server_next(None, None)
+            self.grid2.server_next(None, None)
             self.img = None
         else:
             print 'RX %s' % self.job['name']
@@ -207,22 +220,37 @@ class Test(QtGui.QWidget):
             p = self.png.getpixel((c, r))
             self.cfb.bitmap[(c, r)] = fill2bitmap[p]
 
-        self.grid.server_next(self.cfb, self.img)
+        self.grid1.server_next(self.cfb, None)
+        self.grid2.server_next(self.cfb, self.jpg_fn)
 
+        '''
+        self.setGeometry(0, 0,
+                    (self.img.size[0] * self.grid1.sf + 20) * 1,
+                    (self.img.size[1] * self.grid1.sf + 20) * 2)
+        '''
+
+        '''
         if self.job is None:
             self.setGeometry(0, 0,
-                        self.cfb.crs[0] * self.cfb.xy_mb[0][0] * self.grid.sf + 20,
-                        self.cfb.crs[1] * self.cfb.xy_mb[1][0] * self.grid.sf + 20)
+                        (self.cfb.crs[0] * self.cfb.xy_mb[0][0] * self.grid1.sf) * 1 + 20,
+                        (self.cfb.crs[1] * self.cfb.xy_mb[1][0] * self.grid1.sf) * 1 + 20)
         else:
-            self.setGeometry(0, 0, self.img.size[0] * self.grid.sf + 20, self.img.size[1] * self.grid.sf + 20)
+            self.setGeometry(0, 0,
+                        (self.img.size[0] * self.grid1.sf + 20) * 1,
+                        (self.img.size[1] * self.grid1.sf + 20) * 2)
+        '''
+        #dw = QDesktopWidget()
+        #self.setGeometry(0, 0, dw.width(), dw.height())
         self.update()
 
 
     def initUI(self):
         self.setWindowTitle('pr0nsweeper: init')
-        self.grid = GridWidget(self.tmp_dir)
-        l = QtGui.QVBoxLayout()
-        l.addWidget(self.grid)
+        l = QHBoxLayout()
+        self.grid1 = GridWidget(self.tmp_dir)
+        l.addWidget(self.grid1)
+        self.grid2 = GridWidget(self.tmp_dir)
+        l.addWidget(self.grid2)
         self.setLayout(l)
         #self.setCentralWidget(self.grid)
         self.show()
