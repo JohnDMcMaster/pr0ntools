@@ -188,9 +188,9 @@ class Test(QtGui.QWidget):
         if self.job is None:
             self.setGeometry(0, 0,
                         self.crs[0] * self.xy_mb[0][0] * self.grid.sf + 20,
-                        self.crs[1] * self.xy_mb[1][0] * self.grid.sf)
+                        self.crs[1] * self.xy_mb[1][0] * self.grid.sf + 20)
         else:
-            self.setGeometry(0, 0, self.img.size[0] * self.grid.sf + 20, self.img.size[1] * self.grid.sf)
+            self.setGeometry(0, 0, self.img.size[0] * self.grid.sf + 20, self.img.size[1] * self.grid.sf + 20)
 
 
     def initUI(self):
