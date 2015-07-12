@@ -4,7 +4,8 @@ import sys
 from PyQt4 import QtGui, QtCore
 import os
 import json
-
+import xmlrpclib
+from xmlrpclib import Binary
 from PIL import Image
 
 states = 'vmu'
@@ -19,37 +20,23 @@ fill2bitmap = {
         (255, 165, 0):  'u',    # orange
         }
 
-class Test(QtGui.QWidget):
+class GridWidget(QtGui.QWidget):
     def __init__(self):
         QtGui.QWidget.__init__(self)
-        self.points = []
-        j_dir = '../cf/sample/'
-        self.fn_j = os.path.join(j_dir, 'out.json')
-        self.j = json.load(open(self.fn_j, 'r'))
-        
-        print 'Loading images...'
-        self.fn_bmp = os.path.join(j_dir, self.j['png'])
-        self.bmp = Image.open(self.fn_bmp)
-        self.fn_img = os.path.join(j_dir, self.j['img'])
-        self.img = Image.open(self.fn_img)
-        print 'Images loaded'
-        
-        self.crs = [self.j['axes'][order]['n'] for order in xrange(2)]
-        self.xy_mb = [[self.j['axes'][order]['m'], self.j['axes'][order]['b']] for order in xrange(2)]
-        
-        '''
-        [c][r] to tile state
-        m: metal
-        v: void / nothing
-        u: unknown
-        '''
-        self.ts = {}
-        for (c, r) in self.cr():
-            p = self.bmp.getpixel((c, r))
-            self.ts[(c, r)] = fill2bitmap[p]
+        # images are a bit big
+        self.sf = 0.5
 
-        self.initUI()
+        self.crs = None
+        self.xy_mb = None
+        self.ts = None
+        self.img = None
 
+    def server_next(self, crs, xy_mb, ts, img):
+        self.crs = crs
+        self.xy_mb = xy_mb
+        self.ts = ts
+        self.img = img
+        
     def cr(self):
         for c in xrange(self.crs[0]):
             for r in xrange(self.crs[1]):
@@ -65,16 +52,21 @@ class Test(QtGui.QWidget):
                 y = int(ym * r + yb)
                 yield (x, y), (x + xm, y + ym)
 
-    def xy_cr(self):
+    def xy_cr(self, sf=1.0):
         for c in xrange(self.crs[0]):
             (xm, xb) = self.xy_mb[0]
             x = int(xm * c + xb)
             for r in xrange(self.crs[1]):
                 (ym, yb) = self.xy_mb[1]
                 y = int(ym * r + yb)
-                yield ((x, y), (int(x + xm), int(y + ym))), (c, r)
+                # should this be one int conversion or two?
+                # maybe it doesn't matter
+                yield ((x * sf, y * sf), (int(int(x + xm) * sf), int(int(y + ym)) * sf)), (c, r)
     
-    def xy2cr(self, x, y):
+    def xy2cr(self, x, y, sf = 1.0):
+        x = x / sf
+        y = y / sf
+        
         m, b = self.xy_mb[0]
         c = int((x - b) / m)
 
@@ -94,8 +86,7 @@ class Test(QtGui.QWidget):
     def mouseReleaseEvent(self, event):
         #print event.pos()
         p = event.pos()
-        #self.points.append(event.pos())
-        c, r = self.xy2cr(p.x(), p.y())
+        c, r = self.xy2cr(p.x(), p.y(), self.sf)
         #print 'c=%d, r=%d' % (c, r)
         # cycle to next state
         old = self.ts[(c, r)]
@@ -106,11 +97,6 @@ class Test(QtGui.QWidget):
         #self.repaint()
         self.update()
 
-    def initUI(self):
-        self.setGeometry(0, 0, self.img.size[0] + 20, self.img.size[1])
-        self.setWindowTitle('Colours')
-        self.show()
-
     def paintEvent(self, e):
 
         qp = QtGui.QPainter()
@@ -119,6 +105,10 @@ class Test(QtGui.QWidget):
         qp.end()
         
     def drawRectangles(self, qp):
+        # No image loaded => nothing to render
+        if not self.crs:
+            return
+        
         color = QtGui.QColor(0, 0, 0)
         color.setNamedColor('#d4d4d4')
         qp.setPen(color)
@@ -134,9 +124,71 @@ class Test(QtGui.QWidget):
         qp.drawRect(250, 15, 90, 60)
         '''
         
-        for ((x0, y0), (x1, y1)), (c, r) in self.xy_cr():
+        for ((x0, y0), (x1, y1)), (c, r) in self.xy_cr(self.sf):
             qp.setBrush(QtGui.QColor(bitmap2fill[self.ts[(c, r)]]))
             qp.drawRect(x0, y0, x1 - x0, y1 - y0)
+
+class Test(QtGui.QWidget):
+    def __init__(self):
+        QtGui.QWidget.__init__(self)
+        self.server = xmlrpclib.ServerProxy('http://localhost:9000')
+
+        self.png_fn = 'job.png'
+        self.jpg_fn = 'jog.jpg'
+
+        self.initUI()
+
+        self.server_next()
+    
+    def server_next(self):
+        self.job = self.server.job_req()
+        if self.job is None:
+            print 'WARNING: no job'
+            self.setWindowTitle('pr0nsweeper: Idle')
+            self.grid.server_next(None, None, None, None)
+            return
+        print 'RX %s' % self.job['name']
+        self.setWindowTitle('pr0nsweeper: ' + self.job['name'])
+        self.j = self.job['json']
+        
+        print 'Exporting images...'
+        open(self.png_fn, 'w').write(self.job['png'].data)
+        open(self.jpg_fn, 'w').write(self.job['img'].data)
+
+        self.crs = [self.j['axes'][order]['n'] for order in xrange(2)]
+        self.xy_mb = [[self.j['axes'][order]['m'], self.j['axes'][order]['b']] for order in xrange(2)]
+
+        print 'Loading images...'
+        self.png = Image.open(self.png_fn)
+        self.img = Image.open(self.jpg_fn)
+
+        print 'Images loaded'
+        
+        '''
+        [c][r] to tile state
+        m: metal
+        v: void / nothing
+        u: unknown
+        '''
+        self.ts = {}
+        self.grid.server_next(self.crs, self.xy_mb, None, None)
+        for (c, r) in self.grid.cr():
+            p = self.png.getpixel((c, r))
+            self.ts[(c, r)] = fill2bitmap[p]
+
+        self.grid.server_next(self.crs, self.xy_mb, self.ts, self.img)
+
+        self.setGeometry(0, 0, self.img.size[0] * self.grid.sf + 20, self.img.size[1] * self.grid.sf)
+
+
+    def initUI(self):
+        self.setWindowTitle('pr0nsweeper: init')
+        self.grid = GridWidget()
+        l = QtGui.QVBoxLayout()
+        l.addWidget(self.grid)
+        self.setLayout(l)
+        #self.setCentralWidget(self.grid)
+        self.show()
     
 if __name__ == '__main__':
     app = QtGui.QApplication(sys.argv)

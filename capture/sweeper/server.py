@@ -44,7 +44,7 @@ class Server(object):
         # alternatively open every json file and see if it looks okay
         print 'Scanning for new jobs: %s' % indir
         for fn in glob.glob(indir + '/*/out.png'):
-            base = os.path.basename(fn)
+            base = os.path.dirname(fn)
             print '  Adding: %s' % base
             self.todo.add(base)
         print 'Scan complete'
@@ -66,48 +66,58 @@ class Server(object):
     RPC
     '''
     def job_req(self):
-        '''
-        In order to process the client needs:
-        -Output image (out.png)
-        -Image for grid (cropped or original if not rotating)
-        -Offsets into the original image (out.json)
-        '''
         try:
-            base = self.todo.pop()
-        except KeyError:
-            # No jobs to hand out
-            return None
-        print 'Allocating %s' % base
-        
-        j = json.load(open(os.path.join(base, 'out.json')))
-        
-        if j['pass'] != True:
-            raise Exception("Bad job %s" % base)
-        
-        ret = {
-                'png': Binary(open(os.path.join(base, j['png']).read())),
-                'img': Binary(open(os.path.join(base, j['img']).read())),
-                'json': j,
-                }
-        self.outstanding[base] = {
-                'ret': ret,
-                # so can timeout clients that don't complete jobs
-                'tstart': time.time(),
-                }
-        return ret
+            '''
+            In order to process the client needs:
+            -Output image (out.png)
+            -Image for grid (cropped or original if not rotating)
+            -Offsets into the original image (out.json)
+            '''
+            try:
+                base = self.todo.pop()
+            except KeyError:
+                # No jobs to hand out
+                print 'WARNING: client requested job but no jobs'
+                return None
+            print 'Allocating %s' % base
+            
+            j = json.load(open(os.path.join(base, 'out.json')))
+            
+            if j['pass'] != True:
+                raise Exception("Bad job %s" % base)
+            
+            ret = {
+                    'name': base,
+                    'png': Binary(open(os.path.join(base, j['png'])).read()),
+                    'img': Binary(open(os.path.join(base, j['img'])).read()),
+                    'json': j,
+                    }
+            self.outstanding[base] = {
+                    'ret': ret,
+                    # so can timeout clients that don't complete jobs
+                    'tstart': time.time(),
+                    }
+            return ret
+        except:
+            traceback.print_exc()
+            raise
     
     def job_complete(self, base, new_png):
-        print 'Completed: %s' % base
-        submit = self.outstanding[base]
-        open(os.path.join(base, 'sweep.png'), 'w').write(new_png.data)
-        self.completed.add(submit)
-        del self.outstanding[base]
-        
-        if args.reserve and len(self.todo) == 0:
-            print 'reserve: reloading'
-            self.outstanding = {}
-            self.completed = set()
-            self.add_dir(self.indir)
+        try:
+            print 'Completed: %s' % base
+            submit = self.outstanding[base]
+            open(os.path.join(base, 'sweep.png'), 'w').write(new_png.data)
+            self.completed.add(submit)
+            del self.outstanding[base]
+            
+            if args.reserve and len(self.todo) == 0:
+                print 'reserve: reloading'
+                self.outstanding = {}
+                self.completed = set()
+                self.add_dir(self.indir)
+        except:
+            traceback.print_exc()
+            raise
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Grid auto-bitmap test')

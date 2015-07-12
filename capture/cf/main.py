@@ -86,7 +86,7 @@ class GridCap:
         self.thresh_sig = 3.0
         self.step = None
         
-        #self.copy_fn = None
+        self.copy_fn = None
         self.png_fn = None
         
         self.straighten_angle = None
@@ -149,9 +149,9 @@ class GridCap:
             print
             print
 
-            #copy_fn = os.path.join(self.outdir, 'raw.' + os.path.splitext(self.fn)[1])
-            #shutil.copy(self.fn, copy_fn)
-            #self.copy_fn = copy_fn
+            copy_fn = os.path.join(self.outdir, 'raw.' + os.path.splitext(self.fn)[1])
+            shutil.copy(self.fn, copy_fn)
+            self.copy_fn = copy_fn
     
             print '*' * 80
             # Straighten, cropping image slightly
@@ -1273,17 +1273,20 @@ class GridCap:
         if self.png_fn:
             png_fn = os.path.basename(self.png_fn)
         
-        img = None
-        '''
+        img_orig = None
         if self.copy_fn:
-            img = os.path.basename(self.copy_fn)
-        '''
+            img_orig = os.path.basename(self.copy_fn)
+        
+        img = None
         if self.preproc_fn:
             img = os.path.basename(self.preproc_fn)
         
         j = {
             'pass': pass_,
             'img_src': self.fn,
+            # Original image
+            # this may be used for aligning tiles
+            'img_orig': img_orig,
             # The image that coordinate parameters fit to
             'img': img,
             'png': png_fn,
