@@ -838,28 +838,28 @@ class GridCap:
         else:
             raise Exception("Failed to detect grid.  Adjust thresholds?")
 
-    def cr(self):
-        for c in xrange(self.crs[0] + 1):
-            for r in xrange(self.crs[1] + 1):
+    def cr(self, adj=0):
+        for c in xrange(self.crs[0] + adj):
+            for r in xrange(self.crs[1] + adj):
                 yield (c, r)
 
-    def xy(self):
+    def xy(self, adj=0):
         '''Generate (x0, y0) upper left and (x1, y1) lower right (inclusive) tile coordinates'''
-        for c in xrange(self.crs[0] + 1):
+        for c in xrange(self.crs[0] + adj):
             (xm, xb) = self.xy_mb[0]
             x = int(xm * c + xb)
-            for r in xrange(self.crs[1] + 1):
+            for r in xrange(self.crs[1] + adj):
                 (ym, yb) = self.xy_mb[1]
                 y = int(ym * r + yb)
                 yield (x, y), (x + xm, y + ym)
 
-    def xy_cr(self, b):
-        for c in xrange(self.crs[0] + 1):
+    def xy_cr(self, b, adj=0):
+        for c in xrange(self.crs[0] + adj):
             (xm, xb) = self.xy_mb[0]
             if not b:
                 xb = 0.0
             x = int(xm * c + xb)
-            for r in xrange(self.crs[1] + 1):
+            for r in xrange(self.crs[1] + adj):
                 (ym, yb) = self.xy_mb[1]
                 if not b:
                     yb = 0.0
@@ -1109,7 +1109,6 @@ class GridCap:
             return (bitmap, unk_open)
         (bitmap, unk_open) = gen_bitmap(self.threshl, self.threshh)
 
-
         print 'Initial counts'
         for c in 'mvu':
             print '  %s: %d' % (c, len(filter(lambda k: k == c, bitmap.values())))
@@ -1303,8 +1302,9 @@ class GridCap:
         open(os.path.join(self.outdir, 'out.json'), 'w').write(js)
 
     def bitmap_save(self, bitmap, fn):
-        viz = self.preproc_im.copy()
-        draw = ImageDraw.Draw(viz)
+        #im = self.preproc_im.copy()
+        im = Image.new("RGB", (int(self.crs[0] * self.xy_mb[0][0]), int(self.crs[1] * self.xy_mb[1][0])), "white")
+        draw = ImageDraw.Draw(im)
         bitmap2fill = {
                 'v':'black',
                 'm':'blue',
@@ -1312,8 +1312,14 @@ class GridCap:
                 }
         for ((x0, y0), (x1, y1)), (c, r) in self.xy_cr(False):
             draw.rectangle((x0, y0, x1, y1), fill=bitmap2fill[bitmap[(c, r)]])
-        viz.save(fn)
+        im.save(fn)
+        
+        self.bitmap_verify(bitmap)
 
+    def bitmap_verify(self, bitmap):
+        for (c, r) in bitmap:
+            if c >= self.crs[0] or r >= self.crs[1]:
+                raise Exception("Got c=%d, r=%d w/ global cs=%d, rs=%d" % (c, r, self.crs[0], self.crs[1]))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Grid auto-bitmap test')
