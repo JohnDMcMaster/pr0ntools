@@ -178,10 +178,32 @@ class Test(QtGui.QWidget):
             pass
             print event.key()
         
+        # Convert unknowns to metal
+        def m():
+            for (c, r) in self.grid.cr():
+                ts = self.ts[(c, r)]
+                if ts == 'u':
+                    self.ts[(c, r)] = 'm'
+            self.update()
+
+        # Convert unknowns to empty
+        def w():
+            for (c, r) in self.grid.cr():
+                ts = self.ts[(c, r)]
+                if ts == 'u':
+                    self.ts[(c, r)] = 'v'
+            self.update()
+        
+        def l():
+            self.update()
+        
         {
             Qt.Key_Enter: accept,
             Qt.Key_Return: accept,
             Qt.Key_Escape: reject,
+            Qt.Key_M: m,
+            Qt.Key_W: w,
+            Qt.Key_L: l,
         }.get(event.key(), default)()
     
     def server_next(self):
