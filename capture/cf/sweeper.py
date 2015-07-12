@@ -25,8 +25,9 @@ fill2bitmap = {
         }
 
 class GridWidget(QtGui.QWidget):
-    def __init__(self):
+    def __init__(self, tmp_dir):
         QtGui.QWidget.__init__(self)
+        self.tmp_dir = tmp_dir
         # images are a bit big
         self.sf = 0.5
 
@@ -94,7 +95,7 @@ class GridWidget(QtGui.QWidget):
                 'u':'orange',
                 }
         for (c, r) in self.cr():
-            draw.rectangle((c, r, c, r), fill=bitmap2fill[self.bitmap[(c, r)]])
+            draw.rectangle((c, r, c, r), fill=bitmap2fill[self.ts[(c, r)]])
         im.save(png_fn)
         return open(png_fn, 'r').read()
 
@@ -175,9 +176,11 @@ class Test(QtGui.QWidget):
 
         def default():
             pass
+            print event.key()
         
         {
             Qt.Key_Enter: accept,
+            Qt.Key_Return: accept,
             Qt.Key_Escape: reject,
         }.get(event.key(), default)()
     
@@ -234,7 +237,7 @@ class Test(QtGui.QWidget):
 
     def initUI(self):
         self.setWindowTitle('pr0nsweeper: init')
-        self.grid = GridWidget()
+        self.grid = GridWidget(self.tmp_dir)
         l = QtGui.QVBoxLayout()
         l.addWidget(self.grid)
         self.setLayout(l)
