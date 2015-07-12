@@ -1,3 +1,4 @@
+#!/usr/bin/python
 '''
 For now this has very narrow focus of taking in a directory, serving it, and then terminating
 Eventually this should become a service that can register projects in different directories

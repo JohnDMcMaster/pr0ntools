@@ -1,3 +1,4 @@
+#!/usr/bin/python
 from pylab import plot,show
 from numpy import vstack,array
 from numpy.random import rand
