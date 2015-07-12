@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 import math
 import glob
 import json
+import shutil
 
 from pr0ntools.util import add_bool_arg
 
@@ -85,6 +86,7 @@ class GridCap:
         self.thresh_sig = 3.0
         self.step = None
         
+        #self.copy_fn = None
         self.png_fn = None
         
         self.straighten_angle = None
@@ -146,13 +148,19 @@ class GridCap:
             print
             print
             print
+
+            #copy_fn = os.path.join(self.outdir, 'raw.' + os.path.splitext(self.fn)[1])
+            #shutil.copy(self.fn, copy_fn)
+            #self.copy_fn = copy_fn
     
             print '*' * 80
             # Straighten, cropping image slightly
             self.step += 1
             if self.straighten_angle == 0.0:
                 print 'Skipping straighten'
-                self.preproc_fn = self.fn
+                fn = os.path.join(self.fn, 'in.' + os.path.splitext(self.fn)[1])
+                shutil.copy(self.fn, fn)
+                self.preproc_fn = fn
                 self.preproc_im = Image.open(self.fn)
             else:
                 print 'straighten()'
@@ -283,8 +291,9 @@ class GridCap:
         print 'y crop: %d' % sy
         im_crop = im.crop((sx, sy, imw - sx, imh - sy))
         
+        # Used by server: always save
         self.sstep += 1
-        self.preproc_fn = os.path.join(self.outdir, 's%02d-%02d_crop.png' % (self.step, self.sstep))
+        self.preproc_fn = os.path.join(self.outdir, 's%02d-%02d_crop.jpg' % (self.step, self.sstep))
         self.preproc_im = im_crop
         im_crop.save(self.preproc_fn)
 
@@ -1260,17 +1269,23 @@ class GridCap:
         # Critical parameters needed to fixup errors
         axes = []
         
-        preproc_fn = None
-        if self.preproc_fn:
-            preproc_fn = os.path.basename(self.preproc_fn)
-        
         png_fn = None
         if self.png_fn:
             png_fn = os.path.basename(self.png_fn)
         
+        img = None
+        '''
+        if self.copy_fn:
+            img = os.path.basename(self.copy_fn)
+        '''
+        if self.preproc_fn:
+            img = os.path.basename(self.preproc_fn)
+        
         j = {
             'pass': pass_,
-            'img': preproc_fn,
+            'img_src': self.fn,
+            # The image that coordinate parameters fit to
+            'img': img,
             'png': png_fn,
             'axes': axes,
             'calc_straighten_angle': self.calc_straighten_angle,
