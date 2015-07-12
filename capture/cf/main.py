@@ -59,7 +59,7 @@ def has_around(bitmap, c, r, t, d='v', order=1):
             ]:
         def check():
             # order tiles this direction match?
-            for i in xrange(order):
+            for i in xrange(order + 1):
                 if bitmap.get(cr(i), d) != t:
                     return False
             return True
@@ -1187,7 +1187,7 @@ class GridCap:
                 bitmap[(c, r)] = 'm'
                 unk_open.discard((c, r))
                     
-        print 'Looking for lone unknowns'
+        print 'Merging contiguous statements'
         munge_unk_cont(bitmap, unk_open)
         print 'Post contiguous counts'
         for c in 'mvu':
