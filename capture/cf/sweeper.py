@@ -12,6 +12,10 @@ from PIL import Image
 from PyQt4.QtCore import Qt
 from PIL import Image, ImageDraw, ImageStat
 
+from cfb import CFB
+from cfb import cfb_save, cfb_save_debug
+from cfb import filt_unk_groups, cfb_verify, prop_ag, munge_unk_cont
+
 states = 'vmu'
 bitmap2fill = {
         'v':'white',
@@ -31,71 +35,27 @@ class GridWidget(QtGui.QWidget):
         # images are a bit big
         self.sf = 0.5
 
-        self.crs = None
-        self.xy_mb = None
-        self.ts = None
+        #self.cfb.crs = None
+        #self.cfb.xy_mb = None
+        #self.cfb.bitmap = None
+        self.cfb = None
         self.img = None
 
-    def server_next(self, crs, xy_mb, ts, img):
-        self.crs = crs
-        self.xy_mb = xy_mb
-        self.ts = ts
+    def server_next(self, cfb, img):
+        self.cfb = cfb
         self.img = img
         
-    def cr(self):
-        for c in xrange(self.crs[0]):
-            for r in xrange(self.crs[1]):
-                yield (c, r)
-
-    def xy(self):
-        '''Generate (x0, y0) upper left and (x1, y1) lower right (inclusive) tile coordinates'''
-        for c in xrange(self.crs[0]):
-            (xm, xb) = self.xy_mb[0]
-            x = int(xm * c + xb)
-            for r in xrange(self.crs[1]):
-                (ym, yb) = self.xy_mb[1]
-                y = int(ym * r + yb)
-                yield (x, y), (x + xm, y + ym)
-
-    def xy_cr(self, sf=1.0):
-        for c in xrange(self.crs[0]):
-            (xm, xb) = self.xy_mb[0]
-            x = int(xm * c + xb)
-            for r in xrange(self.crs[1]):
-                (ym, yb) = self.xy_mb[1]
-                y = int(ym * r + yb)
-                # should this be one int conversion or two?
-                # maybe it doesn't matter
-                yield ((x * sf, y * sf), (int(int(x + xm) * sf), int(int(y + ym)) * sf)), (c, r)
-    
-    def xy2cr(self, x, y, sf = 1.0):
-        x = x / sf
-        y = y / sf
-        
-        m, b = self.xy_mb[0]
-        c = int((x - b) / m)
-
-        m, b = self.xy_mb[1]
-        r = int((y - b) / m)
-        
-        if c > self.crs[0]:
-            raise ValueError("max col %d, got %d => %d" % (self.crs[0], x, c))
-        if r > self.crs[1]:
-            raise ValueError("max row %d, got %d => %d" % (self.crs[1], y, r))
-        
-        return (c, r)
-    
     def gen_png(self):
         png_fn = os.path.join(self.tmp_dir, 'out.png')
-        im = Image.new("RGB", self.crs, "white")
+        im = Image.new("RGB", self.cfb.crs, "white")
         draw = ImageDraw.Draw(im)
         bitmap2fill = {
                 'v':'white',
                 'm':'blue',
                 'u':'orange',
                 }
-        for (c, r) in self.cr():
-            draw.rectangle((c, r, c, r), fill=bitmap2fill[self.ts[(c, r)]])
+        for (c, r) in self.cfb.cr():
+            draw.rectangle((c, r, c, r), fill=bitmap2fill[self.cfb.bitmap[(c, r)]])
         im.save(png_fn)
         return open(png_fn, 'r').read()
 
@@ -106,13 +66,13 @@ class GridWidget(QtGui.QWidget):
     def mouseReleaseEvent(self, event):
         #print event.pos()
         p = event.pos()
-        c, r = self.xy2cr(p.x(), p.y(), self.sf)
+        c, r = self.cfb.xy2cr(p.x(), p.y(), self.sf)
         #print 'c=%d, r=%d' % (c, r)
         # cycle to next state
-        old = self.ts[(c, r)]
+        old = self.cfb.bitmap[(c, r)]
         oldi = states.index(old)
         statep = states[(oldi + 1) % len(states)]
-        self.ts[(c, r)] = statep
+        self.cfb.bitmap[(c, r)] = statep
         
         #self.repaint()
         self.update()
@@ -126,7 +86,7 @@ class GridWidget(QtGui.QWidget):
         
     def drawRectangles(self, qp):
         # No image loaded => nothing to render
-        if not self.crs:
+        if not self.cfb.crs:
             return
         
         color = QtGui.QColor(0, 0, 0)
@@ -144,8 +104,8 @@ class GridWidget(QtGui.QWidget):
         qp.drawRect(250, 15, 90, 60)
         '''
         
-        for ((x0, y0), (x1, y1)), (c, r) in self.xy_cr(self.sf):
-            qp.setBrush(QtGui.QColor(bitmap2fill[self.ts[(c, r)]]))
+        for ((x0, y0), (x1, y1)), (c, r) in self.cfb.xy_cr(sf=self.sf):
+            qp.setBrush(QtGui.QColor(bitmap2fill[self.cfb.bitmap[(c, r)]]))
             qp.drawRect(x0, y0, x1 - x0, y1 - y0)
 
 class Test(QtGui.QWidget):
@@ -180,18 +140,18 @@ class Test(QtGui.QWidget):
         
         # Convert unknowns to metal
         def m():
-            for (c, r) in self.grid.cr():
-                ts = self.ts[(c, r)]
+            for (c, r) in self.cfb.cr():
+                ts = self.cfb.bitmap[(c, r)]
                 if ts == 'u':
-                    self.ts[(c, r)] = 'm'
+                    self.cfb.bitmap[(c, r)] = 'm'
             self.update()
 
         # Convert unknowns to empty
         def w():
-            for (c, r) in self.grid.cr():
-                ts = self.ts[(c, r)]
+            for (c, r) in self.cfb.cr():
+                ts = self.cfb.bitmap[(c, r)]
                 if ts == 'u':
-                    self.ts[(c, r)] = 'v'
+                    self.cfb.bitmap[(c, r)] = 'v'
             self.update()
         
         def l():
@@ -212,9 +172,10 @@ class Test(QtGui.QWidget):
             print 'WARNING: no job'
             self.setWindowTitle('pr0nsweeper: Idle')
             self.png = Image.open('splash.png').convert(mode='RGB')
-            self.crs = self.png.size
-            self.xy_mb = [(30.0, 0.0), (30.0, 0.0)]
-            self.grid.server_next(None, None, None, None)
+            self.cfb = CFB()
+            self.cfb.crs = self.png.size
+            self.cfb.xy_mb = [(30.0, 0.0), (30.0, 0.0)]
+            self.grid.server_next(None, None)
             self.img = None
         else:
             print 'RX %s' % self.job['name']
@@ -225,8 +186,9 @@ class Test(QtGui.QWidget):
             open(self.png_fn, 'w').write(self.job['png'].data)
             open(self.jpg_fn, 'w').write(self.job['img'].data)
     
-            self.crs = [self.j['axes'][order]['n'] for order in xrange(2)]
-            self.xy_mb = [[self.j['axes'][order]['m'], self.j['axes'][order]['b']] for order in xrange(2)]
+            self.cfb = CFB()
+            self.cfb.crs = [self.j['axes'][order]['n'] for order in xrange(2)]
+            self.cfb.xy_mb = [[self.j['axes'][order]['m'], self.j['axes'][order]['b']] for order in xrange(2)]
     
             print 'Loading images...'
             self.png = Image.open(self.png_fn)
@@ -240,18 +202,17 @@ class Test(QtGui.QWidget):
         v: void / nothing
         u: unknown
         '''
-        self.ts = {}
-        self.grid.server_next(self.crs, self.xy_mb, None, None)
-        for (c, r) in self.grid.cr():
+        self.cfb.bitmap = {}
+        for (c, r) in self.cfb.cr():
             p = self.png.getpixel((c, r))
-            self.ts[(c, r)] = fill2bitmap[p]
+            self.cfb.bitmap[(c, r)] = fill2bitmap[p]
 
-        self.grid.server_next(self.crs, self.xy_mb, self.ts, self.img)
+        self.grid.server_next(self.cfb, self.img)
 
         if self.job is None:
             self.setGeometry(0, 0,
-                        self.crs[0] * self.xy_mb[0][0] * self.grid.sf + 20,
-                        self.crs[1] * self.xy_mb[1][0] * self.grid.sf + 20)
+                        self.cfb.crs[0] * self.cfb.xy_mb[0][0] * self.grid.sf + 20,
+                        self.cfb.crs[1] * self.cfb.xy_mb[1][0] * self.grid.sf + 20)
         else:
             self.setGeometry(0, 0, self.img.size[0] * self.grid.sf + 20, self.img.size[1] * self.grid.sf + 20)
         self.update()

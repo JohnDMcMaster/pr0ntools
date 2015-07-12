@@ -132,7 +132,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Grid auto-bitmap test')
     # ord('pr') = 28786
     parser.add_argument('--port', type=int, default=28786, help='TCP port number')
-    add_bool_arg(parser, '--debug', default=True)
+    add_bool_arg(parser, '--debug', default=False)
     add_bool_arg(parser, '--reserve', default=False)
     parser.add_argument('dir', help='Directory to nom')
     args = parser.parse_args()

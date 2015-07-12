@@ -24,7 +24,7 @@ class CFB:
                 y = int(ym * r + yb)
                 yield (x, y), (x + xm, y + ym)
 
-    def xy_cr(self, b, adj=0):
+    def xy_cr(self, b=True, adj=0, sf=1.0):
         for c in xrange(self.crs[0] + adj):
             (xm, xb) = self.xy_mb[0]
             if not b:
@@ -35,7 +35,25 @@ class CFB:
                 if not b:
                     yb = 0.0
                 y = int(ym * r + yb)
-                yield ((x, y), (int(x + xm), int(y + ym))), (c, r)
+                yield ((int(x * sf), int(y * sf)), (int(int(x + xm) * sf), int(int(y + ym) * sf))), (c, r)
+
+    def xy2cr(self, x, y, sf = 1.0):
+        x = x / sf
+        y = y / sf
+        
+        m, b = self.xy_mb[0]
+        c = int((x - b) / m)
+
+        m, b = self.xy_mb[1]
+        r = int((y - b) / m)
+        
+        if c > self.crs[0]:
+            raise ValueError("max col %d, got %d => %d" % (self.crs[0], x, c))
+        if r > self.crs[1]:
+            raise ValueError("max row %d, got %d => %d" % (self.crs[1], y, r))
+        
+        return (c, r)
+    
 
 # Save in enlarged form
 # Colors are made to be easy to see

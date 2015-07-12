@@ -822,7 +822,7 @@ class GridCap:
         means = {'r': [], 'g': [],'b': [],'u': []}
         self.means_rc = {}
         
-        for ((x0, y0), (x1, y1)), (c, r) in self.cfb.xy_cr(True):
+        for ((x0, y0), (x1, y1)), (c, r) in self.cfb.xy_cr(b=True):
             # TODO: look into using mask
             # I suspect this is faster though
             #print x0, y0, x1, y1
