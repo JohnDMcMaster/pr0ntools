@@ -21,6 +21,9 @@ import json
 import shutil
 
 from pr0ntools.util import add_bool_arg
+from cfb import CFB
+from cfb import cfb_save, cfb_save_debug
+from cfb import filt_unk_groups, cfb_verify, prop_ag, munge_unk_cont
 
 debug = False
 
@@ -42,35 +45,6 @@ def drange(start, stop=None, step=1.0):
     while r < stop:
         yield r
         r += step
-
-'''
-def has_around(bitmap, c, r, t, d='v', order=1):
-    return (bitmap.get((c - 1,  r),     d) != t and
-            bitmap.get((c + 1,  r),     d) != t and
-            bitmap.get((c,      r - 1), d) != t and
-            bitmap.get((c,      r + 1), d) != t)
-'''
-def has_around(bitmap, c, r, t, d='v', order=1):
-    '''Return true if d exists for order tiles in at least one direction around c, r'''
-    # the four directions
-    for cr in [
-            lambda i: (c - i,  r),
-            lambda i: (c + i,  r),
-            lambda i: (c,      r - 1),
-            lambda i: (c,      r + 1),
-            ]:
-        def check():
-            # order tiles this direction match?
-            for i in xrange(order + 1):
-                if bitmap.get(cr(i), d) != t:
-                    return False
-            return True
-        # this direction has a match?
-        if check():
-            return True
-    # No direction matched
-    return False
-                
 
 class GridCap:
     def __init__(self, fn, outdir):
@@ -111,10 +85,8 @@ class GridCap:
         (xm, xb) = self.grid_xlin[0]
         (ym, yb) = self.grid_ylin[1]
         '''
-        self.xy_mb = [None, None]
         self.m_est = None
-        # 0: cols, 1: rows
-        self.crs = [None, None]
+        self.cfb = CFB()
         
         '''
         [c][r] to tile state
@@ -131,8 +103,6 @@ class GridCap:
         self.threshh = None
         
         self.means_rc = None
-        
-        self.bitmap = None
         
         # Misc parameters to debug dump
         self.paramsj = {}
@@ -298,7 +268,6 @@ class GridCap:
         self.preproc_im = im_crop
         im_crop.save(self.preproc_fn)
 
-
     def regress_axis(self, order, x0s, x0sd_roi):
         '''
         
@@ -322,11 +291,9 @@ class GridCap:
             m_est = self.m_est
         b_est = 0.0
         
-        grid_xlin, self.crs[order] = self.leastsq_axis_iter(order, x0s, m_est, b_est)
-        self.xy_mb[order] = grid_xlin
+        grid_xlin, self.cfb.crs[order] = self.leastsq_axis_iter(order, x0s, m_est, b_est)
+        self.cfb.xy_mb[order] = grid_xlin
         self.dbg_grid()
-
-            
 
     def lin_kmeans(self, data2_np):
         '''
@@ -413,17 +380,17 @@ class GridCap:
         im = self.preproc_im.copy()
         draw = ImageDraw.Draw(im)
         # +1: draw right bounding box
-        if self.xy_mb[0] is not None:
-            (m, b) = self.xy_mb[0]
+        if self.cfb.xy_mb[0] is not None:
+            (m, b) = self.cfb.xy_mb[0]
             if b is not None:
-                for c in xrange(self.crs[0] + 1):
+                for c in xrange(self.cfb.crs[0] + 1):
                     x = int(m * c + b)
                     draw.line((x, 0, x, im.size[1]), fill=128)
         
-        if self.xy_mb[1] is not None:
-            (m, b) = self.xy_mb[1]
+        if self.cfb.xy_mb[1] is not None:
+            (m, b) = self.cfb.xy_mb[1]
             if b is not None:
-                for r in xrange(self.crs[1] + 1):
+                for r in xrange(self.cfb.crs[1] + 1):
                     y = int(m * r + b)
                     draw.line((0, y, im.size[0], y), fill=128)
         del draw
@@ -620,7 +587,7 @@ class GridCap:
         if order != 1:
             raise Exception("FIXME")
         print 'max_axis_contrast()'
-        m = self.xy_mb[0][0]
+        m = self.cfb.xy_mb[0][0]
         print 'm: %0.6f' % m
         
         img = cv2.imread(self.preproc_fn)
@@ -690,10 +657,10 @@ class GridCap:
 
         # TODO: consider doing least squares to fine tune remaining error
 
-        self.xy_mb[order] = (m, b)
+        self.cfb.xy_mb[order] = (m, b)
         rowcols = int((self.preproc_im.size[order] - b)/m)
         print 'Rows: %d' % rowcols
-        self.crs[order] = rowcols
+        self.cfb.crs[order] = rowcols
         
         self.dbg_grid()
 
@@ -735,7 +702,7 @@ class GridCap:
         return x0s, y0s
 
     def gridify(self):
-        '''Final output to self.xy_mb, self.crs[1], self.crs[0]'''
+        '''Final output to self.cfb.xy_mb, self.cfb.crs[1], self.cfb.crs[0]'''
         
         print 'gridify(): solving for design grid'
         
@@ -782,7 +749,7 @@ class GridCap:
                         diffs_roi.append(d)
             return diffs_all, diffs_roi
 
-        self.xy_mb = [None, None]
+        self.cfb.xy_mb = [None, None]
 
         print 'x0s: %d' % len(x0s)
         if len(x0s) != 0:
@@ -831,8 +798,8 @@ class GridCap:
             # Take now known grid pitch and find offsets
             # by doing regression against original positions
 
-            self.xy_mb[0], self.crs[0] = self.gridify_axis(0, m, x0s)
-            self.xy_mb[1], self.crs[1] = self.gridify_axis(1, m, y0s)
+            self.cfb.xy_mb[0], self.cfb.crs[0] = self.gridify_axis(0, m, x0s)
+            self.cfb.xy_mb[1], self.cfb.crs[1] = self.gridify_axis(1, m, y0s)
             
             self.dbg_grid()
             
@@ -848,34 +815,6 @@ class GridCap:
         else:
             raise Exception("Failed to detect grid.  Adjust thresholds?")
 
-    def cr(self, adj=0):
-        for c in xrange(self.crs[0] + adj):
-            for r in xrange(self.crs[1] + adj):
-                yield (c, r)
-
-    def xy(self, adj=0):
-        '''Generate (x0, y0) upper left and (x1, y1) lower right (inclusive) tile coordinates'''
-        for c in xrange(self.crs[0] + adj):
-            (xm, xb) = self.xy_mb[0]
-            x = int(xm * c + xb)
-            for r in xrange(self.crs[1] + adj):
-                (ym, yb) = self.xy_mb[1]
-                y = int(ym * r + yb)
-                yield (x, y), (x + xm, y + ym)
-
-    def xy_cr(self, b, adj=0):
-        for c in xrange(self.crs[0] + adj):
-            (xm, xb) = self.xy_mb[0]
-            if not b:
-                xb = 0.0
-            x = int(xm * c + xb)
-            for r in xrange(self.crs[1] + adj):
-                (ym, yb) = self.xy_mb[1]
-                if not b:
-                    yb = 0.0
-                y = int(ym * r + yb)
-                yield ((x, y), (int(x + xm), int(y + ym))), (c, r)
-
     def autothresh(self):
         print 'autothresh(): characterizing grid'
         
@@ -883,7 +822,7 @@ class GridCap:
         means = {'r': [], 'g': [],'b': [],'u': []}
         self.means_rc = {}
         
-        for ((x0, y0), (x1, y1)), (c, r) in self.xy_cr(True):
+        for ((x0, y0), (x1, y1)), (c, r) in self.cfb.xy_cr(True):
             # TODO: look into using mask
             # I suspect this is faster though
             #print x0, y0, x1, y1
@@ -1057,44 +996,6 @@ class GridCap:
         if self.threshl >= self.threshh:
             raise GridCapFailed("Thresholds overlap.  Grid not fitted correctly?")
 
-    def bitmap_netstat(self, bitmap, c, r):
-        '''
-        return dictionary with m and u keys
-        each key holds a set with the cols and rows contiguous with start point c, r (including c, r)
-        
-        This could potentially blow through the stack for large polygons
-        If problems optimize
-        
-        TODO: abort when find certain metal threshold?
-        '''
-        
-        ret = {'m': set(), 'u': set()}
-        checked = set()
-        
-        def check(c, r):
-            #print 'check(%d, %d)' % (c, r)
-            if (c, r) in checked:
-                return
-            this = bitmap.get((c, r), None)
-            # Out of bounds?
-            if this is None:
-                return
-            checked.add((c, r))
-            # Void?  We are off the polygon: stop looking
-            if this == 'v':
-                return
-            
-            # got something
-            ret[this].add((c, r))
-            
-            check(c - 1, r)
-            check(c + 1, r)
-            check(c, r - 1)
-            check(c, r + 1)
-        
-        check(c, r)
-        return ret
-
     def capture(self):
         # make initial guesses based on thresholds
 
@@ -1103,7 +1004,7 @@ class GridCap:
         def gen_bitmap(threshl, threshh):
             bitmap = {}
             unk_open = set()
-            for (c, r) in self.cr():
+            for (c, r) in self.cfb.cr():
                 thresh = self.means_rc[(c, r)]
                 # The void
                 if thresh <= threshl:
@@ -1117,14 +1018,14 @@ class GridCap:
                     unk_open.add((c, r))
     
             return (bitmap, unk_open)
-        (bitmap, unk_open) = gen_bitmap(self.threshl, self.threshh)
+        (self.cfb.bitmap, unk_open) = gen_bitmap(self.threshl, self.threshh)
 
         print 'Initial counts'
         for c in 'mvu':
-            print '  %s: %d' % (c, len(filter(lambda k: k == c, bitmap.values())))
+            print '  %s: %d' % (c, len(filter(lambda k: k == c, self.cfb.bitmap.values())))
         if debug:
             self.sstep += 1
-            self.bitmap_save(bitmap, os.path.join(self.outdir, 's%02d-%02d_bitmap_init.png' % (self.step, self.sstep)))
+            self.cfb_save(self.cfb, os.path.join(self.outdir, 's%02d-%02d_bitmap_init.png' % (self.step, self.sstep)))
 
         print
         
@@ -1134,76 +1035,25 @@ class GridCap:
         '''
         print 'Looking for lone unknowns'
         
-        def filt_unk_lone(bitmap, unk_open):
-            for c, r in set(unk_open):
-                # look for adjacent
-                if     (bitmap.get((c - 1, r), 'v') == 'v' and bitmap.get((c + 1, r), 'v') == 'v' and
-                        bitmap.get((c, r - 1), 'v') == 'v' and bitmap.get((c, r + 1), 'v') == 'v'):
-                    print '  Unknown %dc, %dr rm: lone' % (c, r)
-                    bitmap[(c, r)] = 'v'
-                    unk_open.discard((c, r))
-        
-        '''
-        Remove any segments that are composed of only unknown and 0-1 positive matches
-        '''
-        def filt_unk_groups(bitmap, unk_open):
-            to_remove = set()
-            checked = set()
-            for c, r in set(unk_open):
-                if (c, r) in checked:
-                    continue
-                
-                bins = self.bitmap_netstat(bitmap, c, r)
-                checked = checked.union(bins['u'])
-                if len(bins['m']) <= 1:
-                    print '  Unknown %dc, %dr rm: %d unknowns, %d metal' % (c, r, len(bins['u']), len(bins['m']))
-                    to_remove = to_remove.union(bins['u'])
-                    to_remove = to_remove.union(bins['m'])
-            
-            for cr in to_remove:
-                bitmap[cr] = 'v'
-                unk_open.discard(cr)
-                
         #filt_unk_lone(bitmap, unk_open)
-        filt_unk_groups(bitmap, unk_open)
+        filt_unk_groups(self.cfb.bitmap, unk_open)
         print 'Post-lone counts'
         for c in 'mvu':
-            print '  %s: %d' % (c, len(filter(lambda k: k == c, bitmap.values())))
+            print '  %s: %d' % (c, len(filter(lambda k: k == c, self.cfb.bitmap.values())))
         if debug:
             self.sstep += 1
-            self.bitmap_save(bitmap, os.path.join(self.outdir, 's%02d-%02d_lone.png' % (self.step, self.sstep)))
+            self.cfb_save(self.cfb, os.path.join(self.outdir, 's%02d-%02d_lone.png' % (self.step, self.sstep)))
 
         print
 
-        '''
-        If a single unknown is on a contiguous strip of metal its likely a via has distorted it
-        Note: this will ocassionally cause garbage to incorrectly merge nets
-        '''
-        def munge_unk_cont(bitmap, unk_open):
-            # Don't propagate
-            # Make a list and apply it after the sweep
-            to_promote = set()
-            for c, r in set(unk_open):
-                # Abort if any adjacent unknowns
-                if has_around(bitmap, c, r, 'u', order=1):
-                    continue
-                # Is there surrounding metal forming a line? (or solid)
-                if not has_around(bitmap, c, r, 'm', order=2):
-                    continue
-                print '  Unknown %dc, %dr => m: join m' % (c, r)
-                to_promote.add((c, r))
-            for (c, r) in to_promote:
-                bitmap[(c, r)] = 'm'
-                unk_open.discard((c, r))
-                    
         print 'Merging contiguous statements'
-        munge_unk_cont(bitmap, unk_open)
+        munge_unk_cont(self.cfb.bitmap, unk_open)
         print 'Post contiguous counts'
         for c in 'mvu':
-            print '  %s: %d' % (c, len(filter(lambda k: k == c, bitmap.values())))
+            print '  %s: %d' % (c, len(filter(lambda k: k == c, self.cfb.bitmap.values())))
         if debug:
             self.sstep += 1
-            self.bitmap_save(bitmap, os.path.join(self.outdir, 's%02d-%02d_contiguous.png' % (self.step, self.sstep)))
+            self.cfb_save(self.cfb, os.path.join(self.outdir, 's%02d-%02d_contiguous.png' % (self.step, self.sstep)))
         
         print
         
@@ -1212,23 +1062,6 @@ class GridCap:
         Any warnings in aggressive adjacent to metal in baseline are taken as truth
         '''
         print 'prop_ag()'
-        def prop_ag(bitmap, bitmap_ag):
-            to_promote = set()
-            for c, r in self.cr():
-                # Skip if nothing is there
-                if bitmap_ag[(c, r)] == 'v':
-                    continue
-                # Do we already think something is there?
-                if bitmap[(c, r)] == 'm':
-                    continue
-                # Is there something to extend?
-                if not has_around(bitmap, c, r, 'm', order=2):
-                    continue
-                print '  %dc, %dr => m: join m' % (c, r)
-                to_promote.add((c, r))
-            for (c, r) in to_promote:
-                bitmap[(c, r)] = 'm'
-                unk_open.discard((c, r))
             
         # FIXME: look into ways to make this more dynamic
         # above 10 generated false positives
@@ -1237,34 +1070,27 @@ class GridCap:
         bitmap_ag, _unk_open = gen_bitmap(self.threshl - 9, self.threshh)
         if debug:
             self.sstep += 1
-            self.bitmap_save(bitmap_ag, os.path.join(self.outdir, 's%02d-%02d_aggressive.png' % (self.step, self.sstep)))
-        prop_ag(bitmap, bitmap_ag)
+            cfb_ag = CFB()
+            cfb_ag.crs = self.cfb.crs
+            cfb_ag.xy_mb = self.cfb.xy_mb
+            cfb_ag.bitmap = bitmap_ag
+            self.cfb_save(cfb_ag, os.path.join(self.outdir, 's%02d-%02d_aggressive.png' % (self.step, self.sstep)))
+        prop_ag(self.cfb, bitmap_ag, unk_open)
         print 'Aggressive counts'
         for c in 'mvu':
-            print '  %s: %d' % (c, len(filter(lambda k: k == c, bitmap.values())))
+            print '  %s: %d' % (c, len(filter(lambda k: k == c, self.cfb.bitmap.values())))
         if debug:
             self.sstep += 1
-            self.bitmap_save(bitmap, os.path.join(self.outdir, 's%02d-%02d_post_aggressive.png' % (self.step, self.sstep)))
+            self.cfb_save(self.cfb, os.path.join(self.outdir, 's%02d-%02d_post_aggressive.png' % (self.step, self.sstep)))
         
         print
         print 'Final counts'
         for c in 'mvu':
-            print '  %s: %d' % (c, len(filter(lambda k: k == c, bitmap.values())))
-
-        self.bitmap = bitmap
+            print '  %s: %d' % (c, len(filter(lambda k: k == c, self.cfb.bitmap.values())))
 
     def save(self):
         self.png_fn = os.path.join(self.outdir, 'out.png')
-        im = Image.new("RGB", self.crs, "white")
-        draw = ImageDraw.Draw(im)
-        bitmap2fill = {
-                'v':'white',
-                'm':'blue',
-                'u':'orange',
-                }
-        for (c, r) in self.cr():
-            draw.rectangle((c, r, c, r), fill=bitmap2fill[self.bitmap[(c, r)]])
-        im.save(self.png_fn)
+        cfb_save(self.cfb, self.png_fn)
         
     def save_json(self, pass_):
         # Critical parameters needed to fixup errors
@@ -1297,16 +1123,16 @@ class GridCap:
             'params': self.paramsj,
         }
         for order in xrange(2):
-            if self.xy_mb[order] is None:
+            if self.cfb.xy_mb[order] is None:
                 m = None
                 b = None
             else:
-                m, b = self.xy_mb[order]
+                m, b = self.cfb.xy_mb[order]
             
-            if self.crs is None:
+            if self.cfb.crs is None:
                 crs = None
             else:
-                crs = self.crs[order]
+                crs = self.cfb.crs[order]
             
             ja = {
                 # number of rows/cols
@@ -1320,25 +1146,9 @@ class GridCap:
         js = json.dumps(j, sort_keys=True, indent=4, separators=(',', ': '))
         open(os.path.join(self.outdir, 'out.json'), 'w').write(js)
 
-    def bitmap_save(self, bitmap, fn):
-        #im = self.preproc_im.copy()
-        im = Image.new("RGB", (int(self.crs[0] * self.xy_mb[0][0]), int(self.crs[1] * self.xy_mb[1][0])), "white")
-        draw = ImageDraw.Draw(im)
-        bitmap2fill = {
-                'v':'black',
-                'm':'blue',
-                'u':'orange',
-                }
-        for ((x0, y0), (x1, y1)), (c, r) in self.xy_cr(False):
-            draw.rectangle((x0, y0, x1, y1), fill=bitmap2fill[bitmap[(c, r)]])
-        im.save(fn)
-        
-        self.bitmap_verify(bitmap)
-
-    def bitmap_verify(self, bitmap):
-        for (c, r) in bitmap:
-            if c >= self.crs[0] or r >= self.crs[1]:
-                raise Exception("Got c=%d, r=%d w/ global cs=%d, rs=%d" % (c, r, self.crs[0], self.crs[1]))
+    def cfb_save(self, cfb, fn):
+        cfb_save_debug(cfb, fn)
+        cfb_verify(cfb)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Grid auto-bitmap test')
