@@ -10,8 +10,8 @@ import traceback
 import multiprocessing
 
 from pr0ntools.util import add_bool_arg
-from main import GridCap, GridCapFailed
-import main
+from pr0ncv import GridCap, GridCapFailed
+import pr0ncv
 
 class Worker(Process):
     def __init__(self):
@@ -115,12 +115,14 @@ class Server(object):
     def process_rx(self, worker, fn, outdir, ok):
         print '%s: done' % fn
         
+        '''
         if ok:
             dst = os.path.join(args.dir_out, os.path.basename(fn))
         else:
             dst = os.path.join(args.dir_fail, os.path.basename(fn))
         print '%s => %s' % (fn, dst)
         shutil.move(fn, dst)
+        '''
         self.w_free.add(worker)
     
     def to_process(self):
@@ -156,7 +158,7 @@ class Server(object):
         
         print 'Creating out dir'
         os.mkdir(args.dir_out)
-        os.mkdir(args.dir_fail)
+        #os.mkdir(args.dir_fail)
         try:
             to_process = self.to_process()
             worked = True
@@ -207,10 +209,9 @@ if __name__ == '__main__':
     add_bool_arg(parser, '--debug', default=True)
     parser.add_argument('dir_in', help='Directory to grab jobs from')
     parser.add_argument('dir_out', help='Directory to put completed jobs')
-    parser.add_argument('dir_fail', help='Directory to put failed jobs')
     args = parser.parse_args()
 
-    main.debug = args.debug
+    pr0ncv.debug = args.debug
     
     s = Server()
     s.run()

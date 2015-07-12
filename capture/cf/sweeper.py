@@ -133,8 +133,11 @@ class Test(QtGui.QWidget):
         QtGui.QWidget.__init__(self)
         self.server = xmlrpclib.ServerProxy('http://localhost:9000')
 
-        self.png_fn = 'job.png'
-        self.jpg_fn = 'jog.jpg'
+        self.tmp_dir = '/tmp/pr0nsweeper'
+        if not os.path.exists(self.tmp_dir):
+            os.mkdir(self.tmp_dir)
+        self.png_fn = os.path.join(self.tmp_dir, 'job.png')
+        self.jpg_fn = os.path.join(self.tmp_dir, 'job.jpg')
 
         self.initUI()
 
@@ -145,24 +148,28 @@ class Test(QtGui.QWidget):
         if self.job is None:
             print 'WARNING: no job'
             self.setWindowTitle('pr0nsweeper: Idle')
+            self.png = Image.open('splash.png').convert(mode='RGB')
+            self.crs = self.png.size
+            self.xy_mb = [(30.0, 0.0), (30.0, 0.0)]
             self.grid.server_next(None, None, None, None)
-            return
-        print 'RX %s' % self.job['name']
-        self.setWindowTitle('pr0nsweeper: ' + self.job['name'])
-        self.j = self.job['json']
-        
-        print 'Exporting images...'
-        open(self.png_fn, 'w').write(self.job['png'].data)
-        open(self.jpg_fn, 'w').write(self.job['img'].data)
-
-        self.crs = [self.j['axes'][order]['n'] for order in xrange(2)]
-        self.xy_mb = [[self.j['axes'][order]['m'], self.j['axes'][order]['b']] for order in xrange(2)]
-
-        print 'Loading images...'
-        self.png = Image.open(self.png_fn)
-        self.img = Image.open(self.jpg_fn)
-
-        print 'Images loaded'
+            self.img = None
+        else:
+            print 'RX %s' % self.job['name']
+            self.setWindowTitle('pr0nsweeper: ' + self.job['name'])
+            self.j = self.job['json']
+            
+            print 'Exporting images...'
+            open(self.png_fn, 'w').write(self.job['png'].data)
+            open(self.jpg_fn, 'w').write(self.job['img'].data)
+    
+            self.crs = [self.j['axes'][order]['n'] for order in xrange(2)]
+            self.xy_mb = [[self.j['axes'][order]['m'], self.j['axes'][order]['b']] for order in xrange(2)]
+    
+            print 'Loading images...'
+            self.png = Image.open(self.png_fn)
+            self.img = Image.open(self.jpg_fn)
+    
+            print 'Images loaded'
         
         '''
         [c][r] to tile state
@@ -178,7 +185,12 @@ class Test(QtGui.QWidget):
 
         self.grid.server_next(self.crs, self.xy_mb, self.ts, self.img)
 
-        self.setGeometry(0, 0, self.img.size[0] * self.grid.sf + 20, self.img.size[1] * self.grid.sf)
+        if self.job is None:
+            self.setGeometry(0, 0,
+                        self.crs[0] * self.xy_mb[0][0] * self.grid.sf + 20,
+                        self.crs[1] * self.xy_mb[1][0] * self.grid.sf)
+        else:
+            self.setGeometry(0, 0, self.img.size[0] * self.grid.sf + 20, self.img.size[1] * self.grid.sf)
 
 
     def initUI(self):
