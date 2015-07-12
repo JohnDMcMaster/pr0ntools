@@ -7,6 +7,10 @@ import json
 import xmlrpclib
 from xmlrpclib import Binary
 from PIL import Image
+#from PyQt4 import Qt
+#from PyQt4.QtGui import Qt
+from PyQt4.QtCore import Qt
+from PIL import Image, ImageDraw, ImageStat
 
 states = 'vmu'
 bitmap2fill = {
@@ -79,7 +83,22 @@ class GridWidget(QtGui.QWidget):
             raise ValueError("max row %d, got %d => %d" % (self.crs[1], y, r))
         
         return (c, r)
-        
+    
+    def gen_png(self):
+        png_fn = os.path.join(self.tmp_dir, 'out.png')
+        im = Image.new("RGB", self.crs, "white")
+        draw = ImageDraw.Draw(im)
+        bitmap2fill = {
+                'v':'white',
+                'm':'blue',
+                'u':'orange',
+                }
+        for (c, r) in self.cr():
+            draw.rectangle((c, r, c, r), fill=bitmap2fill[self.bitmap[(c, r)]])
+        im.save(png_fn)
+        return open(png_fn, 'r').read()
+
+    
     #def mousePressEvent(self, event):
     #    print event.pos()
 
@@ -131,7 +150,7 @@ class GridWidget(QtGui.QWidget):
 class Test(QtGui.QWidget):
     def __init__(self):
         QtGui.QWidget.__init__(self)
-        self.server = xmlrpclib.ServerProxy('http://localhost:9000')
+        self.server = xmlrpclib.ServerProxy('http://localhost:9000', allow_none=True)
 
         self.tmp_dir = '/tmp/pr0nsweeper'
         if not os.path.exists(self.tmp_dir):
@@ -142,6 +161,25 @@ class Test(QtGui.QWidget):
         self.initUI()
 
         self.server_next()
+    
+    def keyPressEvent(self, event):
+        def accept():
+            if self.job:
+                self.server.job_done(self.job['name'], Binary(self.grid.gen_png()), '')
+            self.server_next()
+
+        def reject():
+            if self.job:
+                self.server.job_done(self.job['name'], None, 'rejected')
+            self.server_next()
+
+        def default():
+            pass
+        
+        {
+            Qt.Key_Enter: accept,
+            Qt.Key_Escape: reject,
+        }.get(event.key(), default)()
     
     def server_next(self):
         self.job = self.server.job_req()
@@ -191,6 +229,7 @@ class Test(QtGui.QWidget):
                         self.crs[1] * self.xy_mb[1][0] * self.grid.sf + 20)
         else:
             self.setGeometry(0, 0, self.img.size[0] * self.grid.sf + 20, self.img.size[1] * self.grid.sf + 20)
+        self.update()
 
 
     def initUI(self):

@@ -60,7 +60,7 @@ class Server(object):
         server.register_multicall_functions()
         #server.register_instance(self.rpc)
         server.register_function(self.job_req,      "job_req")
-        server.register_function(self.job_complete, "job_complete")
+        server.register_function(self.job_done,     "job_done")
         server.serve_forever()
     
     '''
@@ -103,12 +103,20 @@ class Server(object):
             traceback.print_exc()
             raise
     
-    def job_complete(self, base, new_png):
+    '''
+    new_png may be None indicating the job was rejected
+    In this case msg must be set
+    Otherwise msg is optional
+    '''
+    def job_done(self, base, new_png, msg):
         try:
-            print 'Completed: %s' % base
+            print 'Completed: %s: %s' % (base, new_png is not None)
             submit = self.outstanding[base]
-            open(os.path.join(base, 'sweep.png'), 'w').write(new_png.data)
-            self.completed.add(submit)
+            print 'Time: %0.1f' % (time.time() - submit['tstart'],)
+            if new_png is not None:
+                open(os.path.join(base, 'sweep.png'), 'w').write(new_png.data)
+            open(os.path.join(base, 'sweep.txt'), 'w').write(msg)
+            self.completed.add(base)
             del self.outstanding[base]
             
             if args.reserve and len(self.todo) == 0:
