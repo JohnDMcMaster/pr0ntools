@@ -10,8 +10,8 @@ import traceback
 import multiprocessing
 
 from pr0ntools.util import add_bool_arg
-from pr0ncv import GridCap, GridCapFailed
-import pr0ncv
+from cfcv import GridCap, GridCapFailed
+import cfcv
 
 class Worker(Process):
     def __init__(self):
@@ -211,7 +211,7 @@ if __name__ == '__main__':
     parser.add_argument('dir_out', help='Directory to put completed jobs')
     args = parser.parse_args()
 
-    pr0ncv.debug = args.debug
+    cfcv.debug = args.debug
     
     s = Server()
     s.run()
