@@ -18,6 +18,9 @@ from cfb import bitmap2fill, bitmap2fill2, fill2bitmap
 
 LOCKOUT_TIME = 0.0
 
+# Whether key is depressed
+keydep = {}
+
 class GridWidget(QWidget):
     def __init__(self, tmp_dir):
         QWidget.__init__(self)
@@ -80,19 +83,55 @@ class GridWidget(QWidget):
         return open(png_fn, 'r').read()
 
     
-    #def mousePressEvent(self, event):
-    #    print event.pos()
-
     def mouseReleaseEvent(self, event):
+        '''
+        left: metal
+            unk => metal
+            metal => unk
+            void => metal
+        right: void
+            unk => void
+            metal => void
+            void => unknown
+        shift left
+            same but extend to all adjacent tiles of the same time
+        shift right
+            ...
+        '''
+        
         #print event.pos()
         p = event.pos()
         c, r = self.cfb.xy2cr(p.x(), p.y(), self.sf)
-        #print 'c=%d, r=%d' % (c, r)
+        
         # cycle to next state
         old = self.cfb.bitmap[(c, r)]
-        oldi = cfb.states.index(old)
-        statep = cfb.states[(oldi + 1) % len(cfb.states)]
-        self.cfb.bitmap[(c, r)] = statep
+
+        def left():
+            self.cfb.bitmap[(c, r)] = {
+                'u': 'm',
+                'm': 'u',
+                'v': 'm',
+            }[old]
+        
+        def right():
+            self.cfb.bitmap[(c, r)] = {
+                'u': 'v',
+                'm': 'v',
+                'v': 'u',
+            }[old]
+
+        def left_shift():
+            pass
+        
+        def right_shift():
+            pass
+        
+        {
+            (Qt.LeftButton, False): left,
+            (Qt.RightButton, False): right,
+            (Qt.LeftButton, True): left_shift,
+            (Qt.RightButton, True): right_shift,
+        }[(event.button(), keydep.get(Qt.Key_Shift, False))]()
         
         #self.repaint()
         self.parent().update()
@@ -156,8 +195,24 @@ class Test(QtGui.QWidget):
         self.initUI()
 
         self.server_next()
+
+    def face_press(self):
+        pass
+
+    def face_release(self):
+        pass
     
+    def mousePressEvent(self, event):
+        #print event.pos()
+        self.face_press()
+
+    def mouseReleaseEvent(self, event):
+        #print event.pos()
+        self.face_release()
+
     def keyPressEvent(self, event):
+        keydep[event.key()] = True
+        
         def accept():
             if time.time() - self.req_last < LOCKOUT_TIME:
                 return
@@ -203,6 +258,9 @@ class Test(QtGui.QWidget):
             Qt.Key_W: w,
             Qt.Key_L: l,
         }.get(event.key(), default)()
+
+    def keyReleaseEvent(self, event):
+        keydep[event.key()] = True
     
     def server_next(self):
         print
