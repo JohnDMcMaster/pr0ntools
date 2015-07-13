@@ -38,7 +38,7 @@ class GridWidget(QWidget):
         #self.layout.addWidget(self.img_label)
         #self.setLayout(self.layout)
 
-    def server_next(self, cfb, jpg_fn):
+    def server_next(self, cfb, jpg_fn, wh):
         self.cfb = cfb
         self.jpg_fn = jpg_fn
         '''
@@ -53,8 +53,10 @@ class GridWidget(QWidget):
             pass
         '''
 
-        self.wh = [ (self.cfb.crs[0] * self.cfb.xy_mb[0][0] + self.cfb.xy_mb[0][1]) * self.sf,
-                    (self.cfb.crs[1] * self.cfb.xy_mb[1][0] + self.cfb.xy_mb[1][1]) * self.sf]
+        # clips the bottom of the image
+        #self.wh = [ (self.cfb.crs[0] * self.cfb.xy_mb[0][0] + self.cfb.xy_mb[0][1]) * self.sf,
+        #            (self.cfb.crs[1] * self.cfb.xy_mb[1][0] + self.cfb.xy_mb[1][1]) * self.sf]
+        self.wh = [wh[0] * self.sf, wh[1] * self.sf]
         self.setMinimumSize(self.wh[0] + 20, self.wh[1] + 20)
         #self.resize((w, h)
 
@@ -204,8 +206,8 @@ class Test(QtGui.QWidget):
             self.cfb = CFB()
             self.cfb.crs = self.png.size
             self.cfb.xy_mb = [(30.0, 0.0), (30.0, 0.0)]
-            self.grid1.server_next(None, None)
-            self.grid2.server_next(None, None)
+            self.grid1.server_next(None, None, None)
+            self.grid2.server_next(None, None, self.png.size)
             self.img = None
         else:
             print 'RX %s' % self.job['name']
@@ -237,8 +239,8 @@ class Test(QtGui.QWidget):
             p = self.png.getpixel((c, r))
             self.cfb.bitmap[(c, r)] = fill2bitmap[p]
 
-        self.grid1.server_next(self.cfb, None)
-        self.grid2.server_next(self.cfb, self.jpg_fn)
+        self.grid1.server_next(self.cfb, None,          self.img.size)
+        self.grid2.server_next(self.cfb, self.jpg_fn,   self.img.size)
 
         '''
         self.setGeometry(0, 0,
