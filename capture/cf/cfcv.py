@@ -487,11 +487,6 @@ class GridCap:
         print
         print 'Iter done'
         print 'Result x = %16.12f c + %16.12f' % (m_cur, b_cur)
-        while b_cur > m_cur:
-            b_cur -= m_cur
-        while b_cur < 0:
-            b_cur += m_cur
-        print 'Normalized x = %16.12f c + %16.12f' % (m_cur, b_cur)
         return (m_cur, b_cur), rowcols
     
     def leastsq_axis(self, order, x0s, m_est, b_est, png=0, m_est_tol=0.05):
@@ -573,6 +568,13 @@ class GridCap:
         if not silent:
             print 'Covariance: %0.1f' % cov
             print 'Calc x = %0.1f c + %0.1f' % (mb[0], mb[1])
+
+        while mb[1] > mb[0]:
+            mb[1] -= mb[0]
+        while mb[1] < 0:
+            mb[1] += mb[0]
+        if not silent:
+            print 'Normalized x = %16.12f c + %16.12f' % (mb[0], mb[1])
         
         rowcols = int((self.preproc_im.size[order] - mb[1])/mb[0])
         if not silent:
