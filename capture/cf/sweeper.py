@@ -8,15 +8,15 @@ import xmlrpclib
 from xmlrpclib import Binary
 from PIL import Image
 #from PyQt4 import Qt
-from PyQt4.QtGui import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPixmap, QDesktopWidget
-from PyQt4.QtCore import Qt
+from PyQt4.QtGui import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPixmap, QDesktopWidget, QImage, QColor
+from PyQt4.QtCore import Qt, QRect
 from PIL import Image, ImageDraw, ImageStat
 
 import cfb
 from cfb import CFB
 from cfb import cfb_save, cfb_save_debug
 from cfb import filt_unk_groups, cfb_verify, prop_ag, munge_unk_cont
-from cfb import bitmap2fill, fill2bitmap
+from cfb import bitmap2fill, bitmap2fill2, fill2bitmap
 
 class GridWidget(QWidget):
     def __init__(self, tmp_dir):
@@ -31,28 +31,34 @@ class GridWidget(QWidget):
         self.cfb = None
         self.jpg_fn = None
         self.pixmap = None
-        self.img_label = QLabel()
-        self.layout = QVBoxLayout()
-        self.layout.addWidget(self.img_label)
-        self.setLayout(self.layout)
+        self.wh = None
+        #self.img_label = QLabel()
+        #self.img_label.setStyleSheet("border: 0px;")
+        #self.layout = QVBoxLayout()
+        #self.layout.addWidget(self.img_label)
+        #self.setLayout(self.layout)
 
     def server_next(self, cfb, jpg_fn):
         self.cfb = cfb
         self.jpg_fn = jpg_fn
+        '''
         if self.jpg_fn:
-            self.pixmap = QPixmap(self.jpg_fn)
-            self.img_label.setPixmap(self.pixmap)
+            #self.pixmap = QPixmap(self.jpg_fn)
+            #self.img_label.setPixmap(self.pixmap)
 
             # this ensures the label can also re-size downwards
-            self.img_label.setMinimumSize(1, 1)
+            #self.img_label.setMinimumSize(1, 1)
             # get resize events for the label
-            self.img_label.installEventFilter(self)
+            #self.img_label.installEventFilter(self)
+            pass
+        '''
 
-        w = self.cfb.crs[0] * self.cfb.xy_mb[0][0] * self.sf
-        h = self.cfb.crs[1] * self.cfb.xy_mb[1][0] * self.sf
-        self.setMinimumSize(w, h)
+        self.wh = [ self.cfb.crs[0] * self.cfb.xy_mb[0][0] * self.sf,
+                    self.cfb.crs[1] * self.cfb.xy_mb[1][0] * self.sf]
+        self.setMinimumSize(*self.wh)
         #self.resize((w, h)
 
+    '''
     def eventFilter(self, source, event):
         if (source is self.img_label and event.type() == QtCore.QEvent.Resize):
             # re-scale the pixmap when the label resizes
@@ -60,6 +66,7 @@ class GridWidget(QWidget):
                 self.img_label.size(), QtCore.Qt.KeepAspectRatio,
                 QtCore.Qt.SmoothTransformation))
         return QWidget.eventFilter(self, source, event)
+    '''
     
     def gen_png(self):
         png_fn = os.path.join(self.tmp_dir, 'out.png')
@@ -89,10 +96,23 @@ class GridWidget(QWidget):
         self.parent().update()
 
     def paintEvent(self, e):
-        if self.jpg_fn:
-            return
         qp = QtGui.QPainter()
         qp.begin(self)
+
+        if self.jpg_fn:
+            pass
+            # not scaled
+            #qp.drawImage(0, 0, QImage(self.jpg_fn))
+            # overload error
+            #qp.drawImage(QImage(self.jpg_fn))
+            
+            # void QPainter::drawImage(const QRect & target, const QImage & image, const QRect & source, Qt::ImageConversionFlags flags = Qt::AutoColor)
+            # void QPainter::drawImage(const QRectF & rectangle, const QImage & image)
+            # void QPainter::drawImage(const QRect & rectangle, const QImage & image)
+            # void QPainter::drawPixmap(const QRectF & target, const QPixmap & pixmap, const QRectF & source)
+            # Note: The image is scaled to fit the rectangle, if both the image and rectangle size disagree.
+            qp.drawImage(QRect(0, 0, self.wh[0], self.wh[1]), QImage(self.jpg_fn))
+
         self.drawRectangles(qp)
         qp.end()
         
@@ -116,8 +136,17 @@ class GridWidget(QWidget):
         qp.drawRect(250, 15, 90, 60)
         '''
         
+        first = 1
         for ((x0, y0), (x1, y1)), (c, r) in self.cfb.xy_cr(sf=self.sf):
-            qp.setBrush(QtGui.QColor(bitmap2fill[self.cfb.bitmap[(c, r)]]))
+            if first:
+                print x0, y0, x1, y1
+                print self.cfb.xy_mb
+                first = 0
+            c = list(bitmap2fill2[self.cfb.bitmap[(c, r)]])
+            if self.jpg_fn:
+                #c[3] = 128/16
+                c[3] = 255
+            qp.setBrush(QColor(*c))
             qp.drawRect(x0, y0, x1 - x0, y1 - y0)
 
 class Test(QtGui.QWidget):

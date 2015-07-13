@@ -618,7 +618,10 @@ class GridCap:
         print 'Max: %0.1f' % smax
         print 'Normalizing...'
         for i in xrange(len(sums)):
-            sums[i] = (sums[i] - smin) / (smax - smin)
+            sums[i] = 1.0 * (sums[i] - smin) / (smax - smin)
+
+        print "Min': %0.1f" % min(sums)
+        print "Max': %0.1f" % max(sums)
 
         # avoid boundary conditions where truncating a data point on some makes the error go down
         rows = int(self.preproc_im.size[1] / m) - 1
@@ -627,7 +630,6 @@ class GridCap:
         print 'Sweeping b values...'
         berrs = []
         for b in xrange(int(m)):
-            print 'b = %d' % b
             def res():
                 errs = []
                 for row in xrange(rows):
@@ -640,9 +642,11 @@ class GridCap:
                         err = avg
                     else:
                         err = 1.0 - avg
+                    #if row == 0: print 'b %d, y0 %d, y1 %d, avg %0.6f, err %0.6f' % (b, y0, y1, avg, err)
                     errs.append(err**2)
                 return math.sqrt(sum(errs) / len(errs))
-            berrs.append(res())
+            err = res()
+            berrs.append(err)
         emin = min(berrs)
         print 'Min error: %0.6f' % emin
         print 'Max error: %0.6f' % max(berrs)

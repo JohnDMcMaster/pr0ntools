@@ -6,6 +6,11 @@ bitmap2fill = {
         'm':'blue',
         'u':'orange',
         }
+bitmap2fill2 = {
+        'v': (255, 255, 255, 255),
+        'm': (0, 0, 255, 255),
+        'u': (255, 165, 0, 255),
+        }
 fill2bitmap = {
         (255, 255, 255):'v',    # white
         (0, 0, 255):    'm',    # blue
@@ -75,11 +80,6 @@ def cfb_save_debug(cfb, fn):
     #im = self.preproc_im.copy()
     im = Image.new("RGB", (int(cfb.crs[0] * cfb.xy_mb[0][0]), int(cfb.crs[1] * cfb.xy_mb[1][0])), "white")
     draw = ImageDraw.Draw(im)
-    bitmap2fill = {
-            'v':'black',
-            'm':'blue',
-            'u':'orange',
-            }
     for ((x0, y0), (x1, y1)), (c, r) in cfb.xy_cr(False):
         draw.rectangle((x0, y0, x1, y1), fill=bitmap2fill[cfb.bitmap[(c, r)]])
     im.save(fn)
@@ -88,11 +88,6 @@ def cfb_save_debug(cfb, fn):
 def cfb_save(cfb, fn):
     im = Image.new("RGB", cfb.crs, "white")
     draw = ImageDraw.Draw(im)
-    bitmap2fill = {
-            'v':'white',
-            'm':'blue',
-            'u':'orange',
-            }
     for (c, r) in cfb.cr():
         draw.rectangle((c, r, c, r), fill=bitmap2fill[cfb.bitmap[(c, r)]])
     return im
