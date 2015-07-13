@@ -90,7 +90,7 @@ def cfb_save(cfb, fn):
     draw = ImageDraw.Draw(im)
     for (c, r) in cfb.cr():
         draw.rectangle((c, r, c, r), fill=bitmap2fill[cfb.bitmap[(c, r)]])
-    return im
+    im.save(fn)
 
 def cfb_verify(cfb):
     for (c, r) in cfb.bitmap:
