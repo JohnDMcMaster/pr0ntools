@@ -3,19 +3,17 @@
 import sys
 from PyQt4 import QtGui, QtCore
 import os
-import json
 import xmlrpclib
 from xmlrpclib import Binary
 from PIL import Image
 #from PyQt4 import Qt
 from PyQt4.QtGui import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPixmap, QDesktopWidget, QImage, QColor
 from PyQt4.QtCore import Qt, QRect
-from PIL import Image, ImageDraw, ImageStat
+from PIL import ImageDraw
+import time
 
 import cfb
 from cfb import CFB
-from cfb import cfb_save, cfb_save_debug
-from cfb import filt_unk_groups, cfb_verify, prop_ag, munge_unk_cont
 from cfb import bitmap2fill, bitmap2fill2, fill2bitmap
 
 class GridWidget(QWidget):
@@ -128,8 +126,8 @@ class GridWidget(QWidget):
         first = 1
         for ((x0, y0), (x1, y1)), (c, r) in self.cfb.xy_cr(sf=self.sf):
             if first:
-                print x0, y0, x1, y1
-                print self.cfb.xy_mb
+                #print x0, y0, x1, y1
+                #print self.cfb.xy_mb
                 first = 0
             c = list(bitmap2fill2[self.cfb.bitmap[(c, r)]])
             if self.jpg_fn:
@@ -149,6 +147,9 @@ class Test(QtGui.QWidget):
             os.mkdir(self.tmp_dir)
         self.png_fn = os.path.join(self.tmp_dir, 'job.png')
         self.jpg_fn = os.path.join(self.tmp_dir, 'job.jpg')
+        
+        # Prevent accidental double submit
+        self.req_last = None
 
         self.initUI()
 
@@ -156,18 +157,22 @@ class Test(QtGui.QWidget):
     
     def keyPressEvent(self, event):
         def accept():
+            if time.time() - self.req_last < 0.5:
+                return
             if self.job:
                 self.server.job_done(self.job['name'], Binary(self.grid1.gen_png()), '')
             self.server_next()
 
         def reject():
+            if time.time() - self.req_last < 0.5:
+                return
             if self.job:
                 self.server.job_done(self.job['name'], None, 'rejected')
             self.server_next()
 
         def default():
             pass
-            print event.key()
+            #print event.key()
         
         # Convert unknowns to metal
         def m():
@@ -198,6 +203,9 @@ class Test(QtGui.QWidget):
         }.get(event.key(), default)()
     
     def server_next(self):
+        print
+        print
+        print
         self.job = self.server.job_req()
         if self.job is None:
             print 'WARNING: no job'
@@ -261,7 +269,7 @@ class Test(QtGui.QWidget):
         #dw = QDesktopWidget()
         #self.setGeometry(0, 0, dw.width(), dw.height())
         self.update()
-
+        self.req_last = time.time()
 
     def initUI(self):
         self.setWindowTitle('pr0nsweeper: init')
