@@ -56,10 +56,13 @@ class GridWidget(QWidget):
             pass
         '''
 
-        # clips the bottom of the image
-        #self.wh = [ (self.cfb.crs[0] * self.cfb.xy_mb[0][0] + self.cfb.xy_mb[0][1]) * self.sf,
-        #            (self.cfb.crs[1] * self.cfb.xy_mb[1][0] + self.cfb.xy_mb[1][1]) * self.sf]
-        self.wh = [wh[0] * self.sf, wh[1] * self.sf]
+        # WARNING: may clip the bottom of the image
+        if wh is None:
+            self.wh = [ (self.cfb.crs[0] * self.cfb.xy_mb[0][0] + self.cfb.xy_mb[0][1]) * self.sf,
+                        (self.cfb.crs[1] * self.cfb.xy_mb[1][0] + self.cfb.xy_mb[1][1]) * self.sf]
+        # Manually specify to avoid this
+        else:
+            self.wh = [wh[0] * self.sf, wh[1] * self.sf]
         self.setMinimumSize(self.wh[0] + 20, self.wh[1] + 20)
         #self.resize((w, h)
 
@@ -264,9 +267,10 @@ class Test(QtGui.QWidget):
             self.cfb = CFB()
             self.cfb.crs = self.png.size
             self.cfb.xy_mb = [(30.0, 0.0), (30.0, 0.0)]
-            self.grid1.server_next(None, None, None)
-            self.grid2.server_next(None, None, self.png.size)
             self.img = None
+            wh = None
+        
+            self.jpg_fn = None
         else:
             print 'RX %s' % self.job['name']
             self.setWindowTitle('pr0nsweeper: ' + self.job['name'])
@@ -283,6 +287,7 @@ class Test(QtGui.QWidget):
             print 'Loading images...'
             self.png = Image.open(self.png_fn)
             self.img = Image.open(self.jpg_fn)
+            wh = self.img.size
     
             print 'Images loaded'
         
@@ -297,8 +302,8 @@ class Test(QtGui.QWidget):
             p = self.png.getpixel((c, r))
             self.cfb.bitmap[(c, r)] = fill2bitmap[p]
 
-        self.grid1.server_next(self.cfb, None,          self.img.size)
-        self.grid2.server_next(self.cfb, self.jpg_fn,   self.img.size)
+        self.grid1.server_next(self.cfb, None,          wh)
+        self.grid2.server_next(self.cfb, self.jpg_fn,   wh)
 
         '''
         self.setGeometry(0, 0,

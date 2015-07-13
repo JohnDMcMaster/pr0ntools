@@ -206,7 +206,7 @@ if __name__ == '__main__':
     # ord('pr') = 28786
     parser.add_argument('--port', type=int, default=28786, help='TCP port number')
     parser.add_argument('--workers', type=int, default= multiprocessing.cpu_count(), help='Number worker processes')
-    add_bool_arg(parser, '--debug', default=True)
+    add_bool_arg(parser, '--debug', default=False)
     parser.add_argument('dir_in', help='Directory to grab jobs from')
     parser.add_argument('dir_out', help='Directory to put completed jobs')
     args = parser.parse_args()
