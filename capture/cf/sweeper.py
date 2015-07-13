@@ -121,20 +121,7 @@ class GridWidget(QWidget):
         if not self.cfb.crs:
             return
         
-        color = QtGui.QColor(0, 0, 0)
-        color.setNamedColor('#d4d4d4')
-        qp.setPen(color)
-
-        '''
-        qp.setBrush(QtGui.QColor(200, 0, 0))
-        qp.drawRect(10, 15, 90, 60)
-
-        qp.setBrush(QtGui.QColor(255, 80, 0, 160))
-        qp.drawRect(130, 15, 90, 60)
-
-        qp.setBrush(QtGui.QColor(25, 0, 90, 200))
-        qp.drawRect(250, 15, 90, 60)
-        '''
+        qp.setPen(QtGui.QPen(QtGui.QColor(0, 0, 0, 40), 1, QtCore.Qt.SolidLine))
         
         first = 1
         for ((x0, y0), (x1, y1)), (c, r) in self.cfb.xy_cr(sf=self.sf):
@@ -145,7 +132,8 @@ class GridWidget(QWidget):
             c = list(bitmap2fill2[self.cfb.bitmap[(c, r)]])
             if self.jpg_fn:
                 #c[3] = 128/16
-                c[3] = 255
+                c[3] = 80
+            # Fill
             qp.setBrush(QColor(*c))
             qp.drawRect(x0, y0, x1 - x0, y1 - y0)
 
