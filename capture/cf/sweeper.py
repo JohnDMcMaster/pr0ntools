@@ -16,6 +16,8 @@ import cfb
 from cfb import CFB
 from cfb import bitmap2fill, bitmap2fill2, fill2bitmap
 
+LOCKOUT_TIME = 0.0
+
 class GridWidget(QWidget):
     def __init__(self, tmp_dir):
         QWidget.__init__(self)
@@ -157,14 +159,14 @@ class Test(QtGui.QWidget):
     
     def keyPressEvent(self, event):
         def accept():
-            if time.time() - self.req_last < 0.5:
+            if time.time() - self.req_last < LOCKOUT_TIME:
                 return
             if self.job:
                 self.server.job_done(self.job['name'], Binary(self.grid1.gen_png()), '')
             self.server_next()
 
         def reject():
-            if time.time() - self.req_last < 0.5:
+            if time.time() - self.req_last < LOCKOUT_TIME:
                 return
             if self.job:
                 self.server.job_done(self.job['name'], None, 'rejected')
