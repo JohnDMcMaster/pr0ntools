@@ -53,9 +53,9 @@ class GridWidget(QWidget):
             pass
         '''
 
-        self.wh = [ self.cfb.crs[0] * self.cfb.xy_mb[0][0] * self.sf,
-                    self.cfb.crs[1] * self.cfb.xy_mb[1][0] * self.sf]
-        self.setMinimumSize(*self.wh)
+        self.wh = [ (self.cfb.crs[0] * self.cfb.xy_mb[0][0] + self.cfb.xy_mb[0][1]) * self.sf,
+                    (self.cfb.crs[1] * self.cfb.xy_mb[1][0] + self.cfb.xy_mb[1][1]) * self.sf]
+        self.setMinimumSize(self.wh[0] + 20, self.wh[1] + 20)
         #self.resize((w, h)
 
     '''
