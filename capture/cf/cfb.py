@@ -106,7 +106,7 @@ def filt_unk_lone(bitmap, unk_open):
             bitmap[(c, r)] = 'v'
             unk_open.discard((c, r))
 
-def bitmap_netstat(bitmap, c, r):
+def bitmap_netstat(bitmap, c, r, keep=lambda x: x in 'mu'):
     '''
     return dictionary with m and u keys
     each key holds a set with the cols and rows contiguous with start point c, r (including c, r)
@@ -130,7 +130,7 @@ def bitmap_netstat(bitmap, c, r):
             return
         checked.add((c, r))
         # Void?  We are off the polygon: stop looking
-        if this == 'v':
+        if not keep(this):
             return
         
         # got something
@@ -143,6 +143,13 @@ def bitmap_netstat(bitmap, c, r):
     
     check(c, r)
     return ret
+
+def trans_group(bitmap, c, r, to):
+    '''Convert all same type tiles at c, r into to'''
+    this = bitmap[(c, r)]
+    bins = bitmap_netstat(bitmap, c, r, keep=lambda x: x in this)
+    for (cm, rm) in bins[this]:
+        bitmap[(cm, rm)] = to
 
 '''
 Remove any segments that are composed of only unknown and 0-1 positive matches

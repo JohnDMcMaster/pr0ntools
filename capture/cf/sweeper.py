@@ -14,7 +14,7 @@ import time
 
 import cfb
 from cfb import CFB
-from cfb import bitmap2fill, bitmap2fill2, fill2bitmap
+from cfb import bitmap2fill, bitmap2fill2, fill2bitmap, trans_group
 
 LOCKOUT_TIME = 0.0
 
@@ -106,32 +106,22 @@ class GridWidget(QWidget):
         # cycle to next state
         old = self.cfb.bitmap[(c, r)]
 
-        def left():
-            self.cfb.bitmap[(c, r)] = {
+        to = {
+            Qt.LeftButton: {
                 'u': 'm',
                 'm': 'u',
                 'v': 'm',
-            }[old]
-        
-        def right():
-            self.cfb.bitmap[(c, r)] = {
+            },
+            Qt.RightButton: {
                 'u': 'v',
                 'm': 'v',
                 'v': 'u',
-            }[old]
-
-        def left_shift():
-            pass
-        
-        def right_shift():
-            pass
-        
-        {
-            (Qt.LeftButton, False): left,
-            (Qt.RightButton, False): right,
-            (Qt.LeftButton, True): left_shift,
-            (Qt.RightButton, True): right_shift,
-        }[(event.button(), keydep.get(Qt.Key_Shift, False))]()
+            },
+        }[event.button()][old]
+        if keydep.get(Qt.Key_Shift, False):
+            trans_group(self.cfb.bitmap, c, r, to)
+        else:
+            self.cfb.bitmap[(c, r)] = to
         
         #self.repaint()
         self.parent().update()
@@ -260,7 +250,7 @@ class Test(QtGui.QWidget):
         }.get(event.key(), default)()
 
     def keyReleaseEvent(self, event):
-        keydep[event.key()] = True
+        keydep[event.key()] = False
     
     def server_next(self):
         print
