@@ -1040,7 +1040,7 @@ class GridCap:
         print 'Looking for lone unknowns'
         
         #filt_unk_lone(bitmap, unk_open)
-        filt_unk_groups(self.cfb.bitmap, unk_open)
+        filt_unk_groups(self.cfb, unk_open)
         print 'Post-lone counts'
         for c in 'mvu':
             print '  %s: %d' % (c, len(filter(lambda k: k == c, self.cfb.bitmap.values())))

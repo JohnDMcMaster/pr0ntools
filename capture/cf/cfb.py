@@ -147,22 +147,38 @@ def bitmap_netstat(bitmap, c, r):
 '''
 Remove any segments that are composed of only unknown and 0-1 positive matches
 '''
-def filt_unk_groups(bitmap, unk_open):
+def filt_unk_groups(cfb, unk_open):
     to_remove = set()
     checked = set()
     for c, r in set(unk_open):
         if (c, r) in checked:
             continue
         
-        bins = bitmap_netstat(bitmap, c, r)
+        bins = bitmap_netstat(cfb.bitmap, c, r)
         checked = checked.union(bins['u'])
+        
+        def has_border_m():
+            if len(bins['m']) == 0:
+                return False
+            for (cm, rm) in bins['m']:
+                if      cm <= 2 or cm >= cfb.crs[0] - 2 or \
+                        rm <= 2 or rm >= cfb.crs[1] - 2:
+                    return True
+            return False
+        
         if len(bins['m']) <= 1:
+            # if there's metal at a border keep it
+            # tries to level out penalties for not being able to linearize these
+            # keeping as warnings instead of removing
+            # xxx: should just keep the unknown near the border?
+            if has_border_m():
+                continue
             print '  Unknown %dc, %dr rm: %d unknowns, %d metal' % (c, r, len(bins['u']), len(bins['m']))
             to_remove = to_remove.union(bins['u'])
             to_remove = to_remove.union(bins['m'])
     
     for cr in to_remove:
-        bitmap[cr] = 'v'
+        cfb.bitmap[cr] = 'v'
         unk_open.discard(cr)
 
 def prop_ag(cfb, bitmap_ag, unk_open):
@@ -196,8 +212,8 @@ def has_around(bitmap, c, r, t, d='v', order=1):
     for cr in [
             lambda i: (c - i,  r),
             lambda i: (c + i,  r),
-            lambda i: (c,      r - 1),
-            lambda i: (c,      r + 1),
+            lambda i: (c,      r - i),
+            lambda i: (c,      r + i),
             ]:
         def check():
             # order tiles this direction match?
