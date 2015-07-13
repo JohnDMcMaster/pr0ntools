@@ -68,6 +68,12 @@ class Server(object):
     '''
     def job_req(self):
         try:
+            if args.reserve and len(self.todo) == 0:
+                print 'reserve: reloading'
+                self.outstanding = {}
+                self.completed = set()
+                self.add_dir(self.indir)
+            
             '''
             In order to process the client needs:
             -Output image (out.png)
@@ -118,12 +124,6 @@ class Server(object):
             open(os.path.join(base, 'sweep.txt'), 'w').write(msg)
             self.completed.add(base)
             del self.outstanding[base]
-            
-            if args.reserve and len(self.todo) == 0:
-                print 'reserve: reloading'
-                self.outstanding = {}
-                self.completed = set()
-                self.add_dir(self.indir)
         except:
             traceback.print_exc()
             raise
