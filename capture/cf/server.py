@@ -55,7 +55,7 @@ class Server(object):
         self.add_dir(self.indir)
         
         print 'Starting server'
-        server = SimpleXMLRPCServer(('localhost', args.port), logRequests=self.verbose, allow_none=True)
+        server = SimpleXMLRPCServer((args.bind, args.port), logRequests=self.verbose, allow_none=True)
         server.register_introspection_functions()
         server.register_multicall_functions()
         #server.register_instance(self.rpc)
@@ -132,6 +132,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Grid auto-bitmap test')
     # ord('pr') = 28786
     parser.add_argument('--port', type=int, default=28786, help='TCP port number')
+    parser.add_argument('--bind', default='localhost', help='Address to bind to')
     add_bool_arg(parser, '--debug', default=False)
     add_bool_arg(parser, '--reserve', default=False)
     parser.add_argument('dir', help='Directory to nom')
