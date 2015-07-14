@@ -9,7 +9,7 @@ import glob
 import traceback
 import multiprocessing
 
-from pr0ntools.util import add_bool_arg
+from util import add_bool_arg
 from cfcv import GridCap, GridCapFailed
 import cfcv
 

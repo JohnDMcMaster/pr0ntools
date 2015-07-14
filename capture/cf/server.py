@@ -21,7 +21,7 @@ import traceback
 import multiprocessing
 import json
 
-from pr0ntools.util import add_bool_arg
+from util import add_bool_arg
 
 from SimpleXMLRPCServer import SimpleXMLRPCServer
 from xmlrpclib import Binary

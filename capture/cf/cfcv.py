@@ -20,7 +20,7 @@ import glob
 import json
 import shutil
 
-from pr0ntools.util import add_bool_arg
+from util import add_bool_arg
 from cfb import CFB
 from cfb import cfb_save, cfb_save_debug
 from cfb import filt_unk_groups, cfb_verify, prop_ag, munge_unk_cont
