@@ -55,7 +55,7 @@ class Server(object):
         self.add_dir(self.indir)
         
         print 'Starting server'
-        server = SimpleXMLRPCServer(('localhost', 9000), logRequests=self.verbose, allow_none=True)
+        server = SimpleXMLRPCServer(('localhost', args.port), logRequests=self.verbose, allow_none=True)
         server.register_introspection_functions()
         server.register_multicall_functions()
         #server.register_instance(self.rpc)

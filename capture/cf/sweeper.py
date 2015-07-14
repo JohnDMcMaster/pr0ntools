@@ -11,6 +11,7 @@ from PyQt4.QtGui import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPixmap, QDes
 from PyQt4.QtCore import Qt, QRect
 from PIL import ImageDraw
 import time
+import argparse
 
 import cfb
 from cfb import CFB
@@ -172,9 +173,9 @@ class GridWidget(QWidget):
             qp.drawRect(x0, y0, x1 - x0, y1 - y0)
 
 class Test(QtGui.QWidget):
-    def __init__(self):
+    def __init__(self, host, port):
         QtGui.QWidget.__init__(self)
-        self.server = xmlrpclib.ServerProxy('http://localhost:9000', allow_none=True)
+        self.server = xmlrpclib.ServerProxy('http://%s:%d' % (host, port), allow_none=True)
 
         self.tmp_dir = '/tmp/pr0nsweeper'
         if not os.path.exists(self.tmp_dir):
@@ -338,7 +339,12 @@ class Test(QtGui.QWidget):
         self.show()
     
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='pr0nsweeper GUI')
+    parser.add_argument('--host', default='localhost', help='Hostname')
+    parser.add_argument('--port', type=int, default=28786, help='TCP port number')
+
     app = QtGui.QApplication(sys.argv)
-    ex = Test()
+    args = parser.parse_args()
+    ex = Test(host=args.host, port=args.port)
     sys.exit(app.exec_())
 
