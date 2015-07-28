@@ -17,6 +17,26 @@ class ImageMapPoint:
 	x = None
 	y = None
 
+'''
+def genBasename(self, point, original_file_name, rowcol=True, coord=False):
+    ret = ''
+    
+    suffix = original_file_name.split('.')[1]
+    row = point[3]
+    col = point[4]
+    
+    rowcol = ''
+    if include_rowcol:
+        rowcol = 'c%04d_r%04d' % (col, row)
+
+    coordinate = "x%03d_y%03d" % (point[0] * 1000, point[1] * 1000)
+    spacer = ''
+    if len(rowcol) and len(coordinate):
+        spacer = '__'
+    return "%s%s%s%s" % (rowcol, spacer, coordinate, suffix)
+
+'''
+
 class ImageMap:
 	points = list()
 	points_by_rowcol = dict()

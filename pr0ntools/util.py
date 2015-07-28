@@ -53,7 +53,7 @@ class IOTimestamp(object):
             if i == len(parts) - 1 and len(part) == 0:
                 break
             if self.nl:
-                self.fd.write('%s: ' % now())
+                self.fd.write('%s: ' % datetime.datetime.utcnow().isoformat())
             self.fd.write(part)
             # Newline results in n + 1 list elements
             # The last element has no newline
