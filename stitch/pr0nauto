@@ -8,7 +8,7 @@ time (
 echo
 echo
 echo '**********************************'
-time pr0nstitch out.pto *.jpg "$@" ||exit 1
+time pr0nstitch out.pto $( (shopt -s nullglob; echo *.jpg *.png) ) "$@" ||exit 1
 
 #if [ $(md5sum stitch_failures.json |cut -c1-32) != 63e4be57043380c84996254fe8120e04 ]
 if cat stitch_failures.json |grep '"critical_images": 0'
