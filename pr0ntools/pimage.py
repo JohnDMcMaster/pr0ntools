@@ -301,22 +301,9 @@ class PImage:
 		return PImage.from_image(Image.new(mode, (width, height)))
 
 	@staticmethod
-	def from_image_array(images):
-		'''Return an image constructed from a 2-D array of image objects'''
-		return PImage.from_array_core(images)
-	
-	@staticmethod
-	def from_filename_array(fns):
+	def from_fns(images_in, tw=None, th=None):
 		'''Return an image constructed from a 2-D array of image file names'''
-		return PImage.from_array_core(fns)
-
-	@staticmethod
-	def from_array_core(images_in):
-		# FIXME: all I need is 2x2, enhance later if needed
-		# but allow entries to be none
 		
-		tw = None
-		th = None
 		mode = None
 		
 		def dbg(s):
