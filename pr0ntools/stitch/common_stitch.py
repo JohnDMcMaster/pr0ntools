@@ -102,8 +102,12 @@ class CommonStitch:
         if os.path.exists('scan.json'):
             print 'Loading overlaps from scan.json'
             j = json.load(open('scan.json'))
-            self.x_overlap = 1.0 - j['computed']['x']['overlap']
-            self.y_overlap = 1.0 - j['computed']['y']['overlap']
+            if 'computed' in j:
+                self.x_overlap = 1.0 - j['computed']['x']['overlap']
+                self.y_overlap = 1.0 - j['computed']['y']['overlap']
+            else:
+                self.x_overlap = 0.7
+                self.y_overlap = 0.7
             print '  X: %g' % (self.x_overlap,)
             print '  Y: %g' % (self.y_overlap,)
         

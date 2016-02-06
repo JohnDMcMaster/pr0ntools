@@ -5,6 +5,10 @@ time (
 # CNC always outputs good images now
 #microdown *
 
+if [ -f out.pto ] ; then
+   mv out.pto out_old.pto
+fi
+
 echo
 echo
 echo '**********************************'
