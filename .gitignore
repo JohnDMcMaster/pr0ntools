@@ -3,3 +3,6 @@
 MANIFEST
 dist
 *~
+.project
+.pydevproject
+
