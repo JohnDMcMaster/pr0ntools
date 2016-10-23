@@ -27,6 +27,19 @@ def now():
 def msg(s=''):
     print '%s: %s' % (now(), s)
 
+def try_shift_dir(d):
+    if not os.path.exists(d):
+        return
+    i = 0
+    while True:
+        dst = d + '.' + str(i)
+        if os.path.exists(dst):
+            i += 1
+            continue
+        shutil.move(d, dst)
+        break
+
+
 # Print timestamps in front of all output messages
 class IOTimestamp(object):
     def __init__(self, obj=sys, name='stdout'):

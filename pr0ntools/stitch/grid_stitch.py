@@ -13,7 +13,7 @@ from image_coordinate_map import ImageCoordinateMap
 import os
 import sys
 from pr0ntools.stitch.pto.util import dbg
-import threading
+#import threading
 import Queue
 import traceback
 import common_stitch
@@ -21,22 +21,24 @@ import common_stitch
 import time
 import datetime
 import shutil
+import multiprocessing
 
-# FIXME: placeholder
-def msg(s=''):
-    #print '%s: %s' % (now(), s)
-    print s
+from pr0ntools.util import IOTimestamp, IOLog
 
-class Worker(threading.Thread):
-    def __init__(self, i):
-        threading.Thread.__init__(self)
+class Worker(object):
+    def __init__(self, i, log_fn):
+        self.process = multiprocessing.Process(target=self.run)
+        
         self.i = i
-        self.qi = Queue.Queue()
-        self.qo = Queue.Queue()
-        self.running = threading.Event()
+        self.qi = multiprocessing.Queue()
+        self.qo = multiprocessing.Queue()
+        self.pq = multiprocessing.Queue()
+        self.running = multiprocessing.Event()
         self.generate_control_points_by_pair = None
         self.idle = True
+        self.log_fn = log_fn
         
+        '''
         def p(sin):
             self.pb += sin
             pos = 0
@@ -57,14 +59,25 @@ class Worker(threading.Thread):
                         self.inline = True
                     self.f.write(out)
                     break
-
-        self.pq = Queue.Queue()
-        self.p = p
-        self.inline = False
         self.pb = bytearray()
-
+        self.inline = False
+        self.p = p
+        '''
+    def start(self):
+        self.process.start()
 
     def run(self):
+        #_outlog = IOLog(obj=sys, name='stdout', out_fn=self.log_fn, shift=True)
+        #_errlog = IOLog(obj=sys, name='stderr', out_fd=_outlog.out_fd)
+
+        # already setup?
+        #_outdate = IOTimestamp(sys, 'stdout')
+        #_errdate = IOTimestamp(sys, 'stderr')
+
+        _outlog = open(self.log_fn, 'w')
+        sys.stdout = _outlog
+        sys.stderr = _outlog
+
         self.running.set()
         while self.running.is_set():
             try:
@@ -77,35 +90,35 @@ class Worker(threading.Thread):
             try:
                 (pair, pair_images) = task
 
-                msg()
-                msg()
-                msg()
-                msg()
-                msg()
-                msg('*' * 80)
-                msg('w%d: task rx' % self.i)
+                print
+                print
+                print
+                print
+                print
+                print '*' * 80
+                print 'w%d: task rx' % self.i
             
                 final_pair_project = self.generate_control_points_by_pair(pair, pair_images)
                 
                 if not final_pair_project:
-                    msg('WARNING: bad project @ %s, %s' % (repr(pair), repr(pair_images)))
+                    print 'WARNING: bad project @ %s, %s' % (repr(pair), repr(pair_images))
                 else:
                     if False:
-                        msg()
-                        msg('Final pair project')
-                        msg(final_pair_project.get_a_file_name())
-                        msg()
-                        msg()
-                        msg(final_pair_project)
-                        msg()
-                        msg()
-                        msg()
+                        print
+                        print 'Final pair project'
+                        print final_pair_project.get_a_file_name()
+                        print
+                        print
+                        print final_pair_project
+                        print
+                        print
+                        print
                         #sys.exit(1)
                     if len(final_pair_project.get_text().strip()) == 0:
                         raise Exception('Generated empty pair project')
                 
                 self.qo.put(('done', (task, final_pair_project)))
-                msg('w%d: task done' % self.i)
+                print 'w%d: task done' % self.i
                 
             except Exception as e:
                 traceback.print_exc()
@@ -153,28 +166,28 @@ class GridStitch(common_stitch.CommonStitch):
         '''
         #temp_projects = list()
 
-        msg()
+        print
         n_pairs = len(list(self.coordinate_map.gen_pairs(1, 1)))
-        msg('***Pairs: %d***' % n_pairs)
-        msg()
+        print '***Pairs: %d***' % n_pairs
+        print
         pair_submit = 0
         pair_complete = 0
         
         if self.skip_missing:
-            msg('Not verifying image map')
+            print 'Not verifying image map'
         else:
-            msg('Verifying image map')
+            print 'Verifying image map'
             try:
                 self.coordinate_map.is_complete()
             except image_coordinate_map.MissingImage as e:
-                msg('!' * 80)
-                msg('Missing images.  Use --skip-missing to continue')
-                msg('!' * 80)
+                print '!' * 80
+                print 'Missing images.  Use --skip-missing to continue'
+                print '!' * 80
                 raise e
         
-        msg('Initializing %d workers' % self.threads)
+        print 'Initializing %d workers' % self.threads
         for ti in xrange(self.threads):
-            w = Worker(ti)
+            w = Worker(ti, os.path.join(self.log_dir, 'w%02d.log' % ti))
             w.generate_control_points_by_pair = self.generate_control_points_by_pair
             self.workers.append(w)
             w.start()
@@ -209,9 +222,10 @@ class GridStitch(common_stitch.CommonStitch):
                     if what == 'done':
                         (_task, final_pair_project) = out[1]
                         prog = 'complete %d/%d' % (pair_complete, n_pairs)
-                        msg('W%d: done w/ submit %d, %s' % (wi, pair_submit, prog))
-                        open('pr0nstitch_stat.txt.tmp', 'w').write(prog + '\n')
-                        shutil.move('pr0nstitch_stat.txt.tmp', 'pr0nstitch_stat.txt')
+                        print 'W%d: done w/ submit %d, %s' % (wi, pair_submit, prog)
+                        fn = os.path.join(self.log_dir, 'stat.txt')
+                        open(fn + '.tmp', 'w').write(prog + '\n')
+                        shutil.move(fn + '.tmp', fn)
                         # May have failed
                         if final_pair_project:
                             final_pair_projects.append(final_pair_project)
@@ -227,16 +241,16 @@ class GridStitch(common_stitch.CommonStitch):
                         time.sleep(1)
                         
                         #(_task, e) = out[1]
-                        msg('!' * 80)
-                        msg('ERROR: W%d failed w/ exception' % wi)
+                        print '!' * 80
+                        print 'ERROR: W%d failed w/ exception' % wi
                         (_task, _e, estr) = out[1]
-                        msg('Stack trace:')
+                        print 'Stack trace:'
                         for l in estr.split('\n'):
-                            msg(l)
-                        msg('!' * 80)
+                            print l
+                        print '!' * 80
                         raise Exception('Shutdown on worker failure')
                     else:
-                        msg('%s' % (out,))
+                        print '%s' % (out,)
                         raise Exception('Internal error: bad task type %s' % what)
                 # Merge projects
                 if len(final_pair_projects):
@@ -252,20 +266,20 @@ class GridStitch(common_stitch.CommonStitch):
                             try:
                                 pair = coord_pairs.next()
                             except  StopIteration:
-                                msg('All tasks allocated')
+                                print 'All tasks allocated'
                                 all_allocated = True
                                 break
             
                             progress = True
                 
-                            msg('*' * 80)
-                            msg('W%d: submit %s (%d / %d)' % (wi, repr(pair), pair_submit, n_pairs))
+                            print '*' * 80
+                            print 'W%d: submit %s (%d / %d)' % (wi, repr(pair), pair_submit, n_pairs)
                 
                             # Image file names as list
                             pair_images = self.coordinate_map.get_images_from_pair(pair)
-                            msg('pair images: ' + repr(pair_images))
+                            print 'pair images: ' + repr(pair_images)
                             if pair_images[0] is None or pair_images[1] is None:
-                                msg('WARNING: skipping missing image')
+                                print 'WARNING: skipping missing image'
                                 continue
                                 
                             worker.qi.put((pair, pair_images))
@@ -276,19 +290,19 @@ class GridStitch(common_stitch.CommonStitch):
                     last_progress = time.time()
                 else:
                     if time.time() - last_progress > 30:
-                        msg('WARNING: server thread stalled')
+                        print 'WARNING: server thread stalled'
                         last_progress = time.time()
                 
                 time.sleep(0.1)
                 
-            msg('pairs done')
+            print 'pairs done'
             
         finally:
-            msg('Shutting down workers')
+            print 'Shutting down workers'
             for worker in self.workers:
                 worker.running.clear()
         
-        msg('Reverting canonical file names to original input...')
+        print 'Reverting canonical file names to original input...'
         # Fixup the canonical hack
         for can_fn in self.canon2orig:
             # FIXME: if we have issues with images missing from the project due to bad stitch
@@ -298,34 +312,34 @@ class GridStitch(common_stitch.CommonStitch):
             if il:
                 il.set_name(orig)
             else:
-                msg('WARNING: adding image without feature match %s' % orig)
+                print 'WARNING: adding image without feature match %s' % orig
                 self.project.add_image(orig)
 
         self.project.save()
         
         '''
         if 0:
-            msg('Sub projects (full image):')
+            print 'Sub projects (full image):'
             for project in temp_projects:
                 # prefix so I can grep it for debugging
-                msg('\tSUB: ' + project.file_name)
+                print '\tSUB: ' + project.file_name
         '''
         '''
         if 0:
-            msg()
-            msg()
-            msg('Master project file: %s' % self.project.file_name)
-            msg()
-            msg()
-            msg(self.project.text)
-            msg()
-            msg()
+            print
+            print
+            print 'Master project file: %s' % self.project.file_name
+            print
+            print
+            print self.project.text
+            print
+            print
         '''
             
     def do_generate_control_points_by_pair(self, pair, image_fn_pair):
         ret = common_stitch.CommonStitch.do_generate_control_points_by_pair(self, pair, image_fn_pair)
         if ret is None and pair.adjacent():
-            msg('WARNING: last ditch effort, increasing field of view')
+            print 'WARNING: last ditch effort, increasing field of view'
             
         return ret
 

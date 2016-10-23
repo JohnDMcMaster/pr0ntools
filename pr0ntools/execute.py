@@ -266,3 +266,27 @@ def prefix(args, stdout=sys.stdout, stderr=sys.stderr, prefix=lambda: ''):
             # be careful of race conditions.  child may execute after poll
             except OSError:
                 pass
+
+def exc_ret_istr(cmd, args, print_out=True):
+    '''Execute command, returning status and output.  Optionally print as it runs'''
+    
+    p = subprocess.Popen([cmd] + args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE, close_fds=True)
+    output = bytearray()
+
+    def check():
+        rlist, _wlist, _xlist = select.select([p.stdout, p.stderr], [], [], 0.05)
+        for f in rlist:
+            d = f.read()
+            output.extend(d)
+            if print_out:
+                sys.stdout.write(d)
+                sys.stdout.flush()
+
+    while p.returncode is None:
+        # Hmm how to treat stdout  vs stderror?
+        check()
+        #time.sleep(0.05)
+        p.poll()
+
+    check()
+    return p.returncode, str(output)

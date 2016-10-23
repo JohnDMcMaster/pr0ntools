@@ -18,11 +18,9 @@ import signal
 import sys
 import traceback
 import multiprocessing
-from pr0ntools.stitch.wander_stitch import WanderStitch
-from pr0ntools.stitch.all_stitch import AllStitch
 from pr0ntools.stitch.grid_stitch import GridStitch
 from pr0ntools.stitch.fortify_stitch import FortifyStitch
-from pr0ntools.util import IOTimestamp, IOLog
+from pr0ntools.util import IOTimestamp, IOLog, try_shift_dir
 
 project_file = 'panorama0.pto'
 temp_project_file = '/tmp/pr0nstitch.pto'
@@ -56,6 +54,7 @@ def parser_add_bool_arg(yes_arg, default=False, **kwargs):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Stitch images quickly into .pto through hints')
     parser.add_argument('--out', default='out.pto', help='Output file name')
+    parser.add_argument('--log', default='pr0nstitch', help='Output log file name')
     parser_add_bool_arg('--grid-only', default=False, help='')
     parser.add_argument('--algorithm', default='grid', help='')
     parser.add_argument('--threads', type=int, default= multiprocessing.cpu_count())
@@ -69,7 +68,10 @@ if __name__ == "__main__":
     parser_add_bool_arg('--stampout', default=True, help='timestamp output')
     args = parser.parse_args()
     
-    _outlog = IOLog(obj=sys, name='stdout', out_fn='pr0nstitch.log', shift=True)
+    try_shift_dir(args.log)
+    os.mkdir(args.log)
+    
+    _outlog = IOLog(obj=sys, name='stdout', out_fn=os.path.join(args.log, 'main.log'), shift=True)
     _errlog = IOLog(obj=sys, name='stderr', out_fd=_outlog.out_fd)
     
     if args.stampout:
@@ -111,19 +113,10 @@ if __name__ == "__main__":
         if grid_only:
             print 'Grid only, exiting'
             sys.exit(0)
-    elif args.algorithm == "wander":
-        engine = WanderStitch.from_file_names(input_image_file_names)
-    elif args.algorithm == "all":
-        engine = AllStitch.from_file_names(input_image_file_names)
-    elif args.algorithm == "fortify":
-        if len(input_image_file_names) > 0:
-            raise Exception('Cannot use old project and image files')
-        if input_project_file_name is None:
-            raise Exception('Requires input project')
-        engine = FortifyStitch.from_existing_project_file_name(input_project_file_name)
     else:
         raise Exception('need an algorithm / engine')
 
+    engine.log_dir = args.log
     engine.set_output_project_file_name(output_project_file_name)
     engine.set_regular(regular)
     engine.set_dry(args.dry)

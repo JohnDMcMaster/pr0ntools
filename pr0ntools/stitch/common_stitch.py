@@ -7,8 +7,7 @@ Common code for various stitching strategies
 '''
 
 from pr0ntools.image.soften import soften_composite
-import pr0ntools.stitch.control_point
-from pr0ntools.stitch.control_point import get_cp_engine, ajpto2pto_text, pto_unsub
+from pr0ntools.stitch.control_point import get_cp_engine, pto_unsub
 from pr0ntools.stitch.pto.project import PTOProject
 from pr0ntools.stitch.pto.util import optimize_xy_only, fixup_i_lines, fixup_p_lines
 from pr0ntools.pimage import PImage
@@ -112,6 +111,7 @@ class CommonStitch:
             print '  Y: %g' % (self.y_overlap,)
         
         self.dry = False
+        self.log_dir = 'pr0nstitch'
         
         # Each filename as the key
         #self.failures = FailedImages()
@@ -302,19 +302,9 @@ class CommonStitch:
             print 'WARNING: failed to gen control points @ %s' % repr(pair)
             return None
         
-        # old autpanoaj workflow
-        if type(self.control_point_gen) is pr0ntools.stitch.control_point.AutopanoAJ:
-            oto_text = str(pair_project)
-            
-            # TODO: cleanup/rename this function
-            # Shifts the project delta
-            # Also originally to make dead sure we had the right file order
-            final_pair_project = ajpto2pto_text(oto_text, sub_image_0_file, sub_image_1_file, sub_image_0_x_delta, sub_image_0_y_delta, sub_to_real)
-        # newer, much cleaner workflow
-        else:
-            # all we need to do is adjust xy positions
-            # afaik above is way overcomplicated
-            final_pair_project = pto_unsub(pair_project, (sub_image_0_file, sub_image_1_file), (sub_image_0_x_delta, sub_image_0_y_delta), sub_to_real)
+        # all we need to do is adjust xy positions
+        # afaik above is way overcomplicated
+        final_pair_project = pto_unsub(pair_project, (sub_image_0_file, sub_image_1_file), (sub_image_0_x_delta, sub_image_0_y_delta), sub_to_real)
         
         # Filenames become absolute
         #sys.exit(1)
