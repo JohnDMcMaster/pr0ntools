@@ -19,7 +19,6 @@ import sys
 import traceback
 import multiprocessing
 from pr0ntools.stitch.grid_stitch import GridStitch
-from pr0ntools.stitch.fortify_stitch import FortifyStitch
 from pr0ntools.util import IOTimestamp, IOLog, try_shift_dir
 
 project_file = 'panorama0.pto'

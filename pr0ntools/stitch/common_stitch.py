@@ -48,20 +48,17 @@ class FailedImages:
         
     def add_failure(self, image_fn_pair):
         self.pairs += 1
-        for i in range(2):
-            if i == 0:
-                primary = image_fn_pair[0]
-                against = image_fn_pair[1]
-            else:
-                primary = image_fn_pair[1]
-                against = image_fn_pair[0]
+        ima, imb = image_fn_pair
+        # Make canonical order
+        if ima > imb:
+            ima, imb = imb, ima
         
-            if not primary in self.json:
-                failure = list()
-            else:
-                failure = self.json[primary]
-            failure.append(against)
-            self.json[primary] = failure
+        if not ima in self.json:
+            failure = list()
+        else:
+            failure = self.json[ima]
+        failure.append(imb)
+        self.json[ima] = failure
     
     def add_success(self, image_fn_pair):
         for fn in image_fn_pair:
@@ -323,13 +320,17 @@ class CommonStitch:
     # Control point generator wrapper entry
     def generate_control_points_by_pair(self, pair, image_fn_pair):
         ret = self.do_generate_control_points_by_pair(pair, image_fn_pair)
+        return ret
+        '''
         # If it failed and they were adjacent it is a "critical pair"
+        # XXX: when would we do something not adjacent?
         if self.failures and pair.adjacent():
             if ret:
                 self.failures.add_success(image_fn_pair)
             else:
                 self.failures.add_failure(image_fn_pair)
         return ret
+        '''
     
     def do_generate_control_points_by_pair(self, pair, image_fn_pair):
         '''high level function uses by sub-stitches.  Given a pair of images make a best effort to return a .pto object'''

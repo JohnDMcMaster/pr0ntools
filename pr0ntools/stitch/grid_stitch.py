@@ -38,45 +38,16 @@ class Worker(object):
         self.idle = True
         self.log_fn = log_fn
         
-        '''
-        def p(sin):
-            self.pb += sin
-            pos = 0
-            dt_prefix = datetime.datetime.utcnow().isoformat() + ': '
-            while True:
-                posn = self.pb.find('\n', pos)
-                if posn >= 0:
-                    l = ''
-                    if not self.inline:
-                        self.f.write(dt_prefix)
-                    self.f.write(s[pos:posn + 1])
-                    pos = posn + 2
-                    self.inline = False
-                else:
-                    out = s[pos:]
-                    if len(out) and not self.inline:
-                        self.f.write(self.prefix())
-                        self.inline = True
-                    self.f.write(out)
-                    break
-        self.pb = bytearray()
-        self.inline = False
-        self.p = p
-        '''
     def start(self):
         self.process.start()
 
     def run(self):
-        #_outlog = IOLog(obj=sys, name='stdout', out_fn=self.log_fn, shift=True)
-        #_errlog = IOLog(obj=sys, name='stderr', out_fd=_outlog.out_fd)
-
-        # already setup?
-        #_outdate = IOTimestamp(sys, 'stdout')
-        #_errdate = IOTimestamp(sys, 'stderr')
-
         _outlog = open(self.log_fn, 'w')
         sys.stdout = _outlog
         sys.stderr = _outlog
+
+        _outdate = IOTimestamp(sys, 'stdout')
+        _errdate = IOTimestamp(sys, 'stderr')
 
         self.running.set()
         while self.running.is_set():
@@ -88,7 +59,7 @@ class Worker(object):
             self.idle = False
             
             try:
-                (pair, pair_images) = task
+                (pair, pair_fns) = task
 
                 print
                 print
@@ -98,26 +69,15 @@ class Worker(object):
                 print '*' * 80
                 print 'w%d: task rx' % self.i
             
-                final_pair_project = self.generate_control_points_by_pair(pair, pair_images)
+                pto = self.generate_control_points_by_pair(pair, pair_fns)
                 
-                if not final_pair_project:
-                    print 'WARNING: bad project @ %s, %s' % (repr(pair), repr(pair_images))
+                if not pto:
+                    print 'WARNING: bad project @ %s, %s' % (repr(pair), pair_fns)
                 else:
-                    if False:
-                        print
-                        print 'Final pair project'
-                        print final_pair_project.get_a_file_name()
-                        print
-                        print
-                        print final_pair_project
-                        print
-                        print
-                        print
-                        #sys.exit(1)
-                    if len(final_pair_project.get_text().strip()) == 0:
+                    if len(pto.get_text().strip()) == 0:
                         raise Exception('Generated empty pair project')
                 
-                self.qo.put(('done', (task, final_pair_project)))
+                self.qo.put(('done', (task, pto)))
                 print 'w%d: task done' % self.i
                 
             except Exception as e:
@@ -220,15 +180,22 @@ class GridStitch(common_stitch.CommonStitch):
                     progress = True
                     
                     if what == 'done':
-                        (_task, final_pair_project) = out[1]
+                        (task, pto) = out[1]
                         prog = 'complete %d/%d' % (pair_complete, n_pairs)
                         print 'W%d: done w/ submit %d, %s' % (wi, pair_submit, prog)
+                        
+                        (_pair, pair_fns) = task
+                        if pto:
+                            self.failures.add_success(pair_fns)
+                        else:
+                            self.failures.add_failure(pair_fns)
+
                         fn = os.path.join(self.log_dir, 'stat.txt')
                         open(fn + '.tmp', 'w').write(prog + '\n')
                         shutil.move(fn + '.tmp', fn)
                         # May have failed
-                        if final_pair_project:
-                            final_pair_projects.append(final_pair_project)
+                        if pto:
+                            final_pair_projects.append(pto)
                             if pair_complete % 10 == 0:
                                 print 'Saving intermediate result to %s' % self.project.file_name
                                 self.project.save()
