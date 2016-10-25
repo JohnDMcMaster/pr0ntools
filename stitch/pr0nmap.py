@@ -22,8 +22,6 @@ if __name__ == "__main__":
 	parser.add_argument('--level-max', type=int, default=None, help='Maximum zoom level')
 	parser.add_argument('--out', '-o', dest="out_dir", default="map", help='Output directory')
 	parser.add_argument('--js-only', action="store_true", dest="js_only", default=False, help='No tiles, only JavaScript')
-	#parser.add_argument('--merge', action="store_true", dest="merge", default=False, help='Merge into existing data')
-	#parser.add_argument('--force', action="store_true", dest="force", default=False, help="Delete existing data if present")
 	parser.add_argument('--skip-missing', action="store_true", dest="skip_missing", default=False, help='Skip missing tiles')
 	parser.add_argument('--out-extension', default='.jpg', help='Select output image extension (and type), .jpg, .png, .tif, etc')
 	parser.add_argument('--name', dest="title_name", help='SiMap: <name> title')
@@ -42,7 +40,7 @@ if __name__ == "__main__":
 	
 	if os.path.isdir(args.images_in):
 		print 'Working on directory of max zoomed tiles'
-		source = TileMapSource(args.images_in)
+		source = TileMapSource(args.images_in, threads=args.threads)
 	else:
 		if args.images_in.find('.pto') >= 0:
 			raise ValueError('Cannot stitch .pto directly at this time, use pr0ntile first')
@@ -61,4 +59,3 @@ if __name__ == "__main__":
 	m.skip_missing = args.skip_missing
 	m.set_out_extension(args.out_extension)
 	m.generate()
-

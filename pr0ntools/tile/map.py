@@ -27,7 +27,7 @@ class MapSource:
 	def calc_max_level(self):
 		return calc_max_level(self.height(), self.width())
 				
-	def generate_tiles(self, max_level, min_level, out_dir_base):
+	def generate_tiles(self, max_level, min_level, dst_basedir):
 		pass
 		
 # Input to map generator algorithm is a large input image
@@ -49,24 +49,25 @@ class ImageMapSource(MapSource):
 	def height(self):
 		return self.image.height()
 	
-	def generate_tiles(self, max_level, min_level, out_dir_base):
+	def generate_tiles(self, max_level, min_level, dst_basedir):
 		# Generate tiles
-		print 'From single image in %s to dir %s' % (self.image_in, out_dir_base)
-		gen = SingleTiler(self.image_in, max_level, min_level, out_dir_base=out_dir_base)
+		print 'From single image in %s to dir %s' % (self.image_in, dst_basedir)
+		gen = SingleTiler(self.image_in, max_level, min_level, dst_basedir=dst_basedir)
 		gen.set_out_extension(self.out_extension)
 		gen.run()
 	
 class TileMapSource(MapSource):
-	def __init__(self, dir_in):
+	def __init__(self, dir_in, threads=1):
 		print 'TileMapSource()'
 		self.tw = 250
 		self.th = 250
+		self.threads = threads
 		
 		self.file_names = set()
 		for f in os.listdir(dir_in):
 			self.file_names.add(dir_in + "/" + f)
+		self.src_dir = dir_in
 		
-		self.dir_in = dir_in
 		self.map = ImageCoordinateMap.from_tagged_file_names(self.file_names)
 		
 		self.x_tiles = self.map.width()
@@ -78,7 +79,7 @@ class TileMapSource(MapSource):
 	
 	def get_name(self):
 		# Get the last directory component
-		ret = os.path.basename(self.dir_in)
+		ret = os.path.basename(self.src_dir)
 		if ret == '.' or ret == '..':
 			ret = 'unknown'
 		return ret
@@ -89,9 +90,13 @@ class TileMapSource(MapSource):
 	def height(self):
 		return self.th * self.y_tiles
 	
-	def generate_tiles(self, max_level, min_level, out_dir_base):
+	def generate_tiles(self, max_level, min_level, dst_basedir):
 		print 'From multi tiles'
-		gen = TileTiler(self.file_names, max_level, min_level, out_dir_base=out_dir_base)
+		gen = TileTiler(
+			self.map.height(), self.map.width(),
+			self.src_dir,
+			max_level, min_level,
+			dst_basedir=dst_basedir, threads=self.threads)
 		gen.set_out_extension(self.out_extension)
 		gen.run()
 	
@@ -366,5 +371,5 @@ siMap.setOptions({
 			print
 			print
 			print
-			self.source.generate_tiles(self.max_level, self.min_level, out_dir_base='%s/tiles_out' % self.out_dir)
+			self.source.generate_tiles(self.max_level, self.min_level, dst_basedir='%s/tiles_out' % self.out_dir)
 

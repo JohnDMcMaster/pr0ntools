@@ -904,6 +904,19 @@ class Tiler:
             already_done += 1
         print 'Map seeded with %d already done tiles' % already_done
     
+    def wkill(self):
+        print 'Shutting down workers'
+        for worker in self.workers:
+            worker.running.clear()
+        print 'Waiting for workers to exit...'
+        for i, worker in enumerate(self.workers):
+            worker.process.join(1)
+            if worker.process.is_alive():
+                print '  W%d: failed to join' % i
+                self.stale_worker = True
+            else:
+                print '  W%d: stopped' % i
+
     def run(self):
         print 'Input images width %d, height %d' % (self.img_width, self.img_height)
         print 'Output to %s' % self.out_dir
@@ -1107,15 +1120,5 @@ class Tiler:
                     self.st_fns.append(st_fn)
             
         finally:
-            print 'Shutting down workers'
-            for worker in self.workers:
-                worker.running.clear()
-            print 'Waiting for workers to exit...'
-            for i, worker in enumerate(self.workers):
-                worker.process.join(1)
-                if worker.process.is_alive():
-                    print '  W%d: failed to join' % i
-                    self.stale_worker = True
-                else:
-                    print '  W%d: stopped' % i
+            self.wkill()
             self.workers = None

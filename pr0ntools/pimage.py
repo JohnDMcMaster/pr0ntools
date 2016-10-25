@@ -5,11 +5,12 @@ Copyright 2010 John McMaster <JohnDMcMaster@gmail.com>
 Licensed under a 2 clause BSD license, see COPYING for details
 '''
 
-from PIL import Image
-import sys
 from temp_file import TempFile
 from temp_file import ManagedTempFile
 
+from PIL import Image
+import sys
+import os
 '''
 images are indexed imageInstance[x][y]
 
@@ -301,69 +302,8 @@ class PImage:
 		return PImage.from_image(Image.new(mode, (width, height)))
 
 	@staticmethod
-	def from_fns(images_in, tw=None, th=None):
-		'''Return an image constructed from a 2-D array of image file names'''
-		
-		mode = None
-		
-		def dbg(s):
-			if 0:
-				print s
-		
-		dbg("Constructing parent tile")
-		'''
-		This layout allows for
-		dat = [[imgA, imgB],
-				[imgC, imgD]]
-		'''
-		rows = len(images_in)
-		cols = len(images_in[0])
-		# Ensure all images loaded
-		for rowi in range(rows):
-			row = images_in[rowi]
-			if len(row) != cols:
-				raise Exception('row size mismatch')
-			for coli in range(cols):
-				# Ensure its a PImge object
-				src = images_in[rowi][coli]
-				if not src is None:
-					#print src
-					img = PImage.from_unknown(src)
-					#print img.image.size
-					# img.file_name()
-					#print 'Source image %s width %d, height %d' % (src, img.width(), img.height())
-					if mode is None:
-						mode = img.get_mode()
-					elif img.get_mode() != mode:
-						raise Exception('mode mismatch')
-					if tw is None:
-						tw = img.width()
-					elif tw != img.width():
-						raise Exception('tile width mismatch')
-					if th is None:
-						th = img.height()
-					elif th != img.height():
-						raise Exception('tile height mismatch')
-					images_in[rowi][coli] = img
-		
-		# Images are now all either PImage or None with uniform width/height
-		width = tw * cols
-		height = th * rows
-		#ret = PImage.from_blank(width, height, mode=mode):
-		dbg('New image width %d, height %d from %d pix * %d cols, %d pix * %d rows' % (width, height, tw, cols, th, rows))
-		ret = Image.new(mode, (width, height))
-		for rowi in range(rows):
-			for coli in range(cols):
-				src = images_in[rowi][coli]
-				# Allowed to be empty
-				if src:
-					# (left, upper)
-					cpix = coli * tw
-					rpix = rowi * th
-					dbg('%s => (row %d / %d pix, col %d / %d pix)' % (src.file_name(), rowi, rpix, coli, cpix))
-					ret.paste(src.to_image(), (cpix, rpix))
-		
-		return PImage.from_image(ret)
+	def from_fns(*args, **kwargs):
+		return PImage.from_image(from_fns(*args, **kwargs))
 		
 	@staticmethod
 	def from_unknown(image, trim=False):
@@ -478,3 +418,64 @@ class TempPImage:
 	def __del__(self):
 		os.rm(self.file_name)
 
+def from_fns(images_in, tw=None, th=None):
+	'''
+	Return an image constructed from a 2-D array of image file names
+	[[r0c0, r0c1],
+	 [r1c0, r1c1]]
+	'''
+	
+	mode = None
+	
+	def dbg(s):
+		if 0:
+			print s
+	
+	dbg("Constructing parent tile")
+	rows = len(images_in)
+	cols = len(images_in[0])
+	# Ensure all images loaded
+	for rowi in range(rows):
+		row = images_in[rowi]
+		if len(row) != cols:
+			raise Exception('row size mismatch')
+		for coli in range(cols):
+			# Ensure its a PImge object
+			src = images_in[rowi][coli]
+			if not src is None:
+				img = PImage.from_unknown(src)
+				if mode is None:
+					mode = img.get_mode()
+				elif img.get_mode() != mode:
+					raise Exception('mode mismatch')
+				if tw is None:
+					tw = img.width()
+				elif tw != img.width():
+					raise Exception('tile width mismatch: %s has %s vs %s' % (src, tw, img.width()))
+				if th is None:
+					th = img.height()
+				elif th != img.height():
+					raise Exception('tile height mismatch')
+				images_in[rowi][coli] = img
+	
+	# Images are now all either PImage or None with uniform width/height
+	width = tw * cols
+	height = th * rows
+	#ret = PImage.from_blank(width, height, mode=mode):
+	dbg('New image width %d, height %d from %d pix * %d cols, %d pix * %d rows' % (width, height, tw, cols, th, rows))
+	ret = Image.new(mode, (width, height))
+	for rowi in range(rows):
+		for coli in range(cols):
+			src = images_in[rowi][coli]
+			# Allowed to be empty
+			if src:
+				# (left, upper)
+				cpix = coli * tw
+				rpix = rowi * th
+				dbg('%s => (row %d / %d pix, col %d / %d pix)' % (src.file_name(), rowi, rpix, coli, cpix))
+				ret.paste(src.to_image(), (cpix, rpix))
+	return ret
+
+def rescale(im, factor, filt=Image.NEAREST):
+	w, h = im.size
+	return im.resize((int(w * factor), int(h * factor)), filt)
