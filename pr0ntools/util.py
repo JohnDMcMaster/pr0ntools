@@ -27,6 +27,26 @@ def now():
 def msg(s=''):
     print '%s: %s' % (now(), s)
 
+def logwt(d, fn, shift_d=True, shift_f=False, stampout=True):
+    '''Log with timestamping'''
+    
+    if shift_d:
+        try_shift_dir(d)
+        os.mkdir(d)
+    
+    fn_can = os.path.join(d, fn)
+    outlog = IOLog(obj=sys, name='stdout', out_fn=fn_can, shift=shift_f)
+    errlog = IOLog(obj=sys, name='stderr', out_fd=outlog.out_fd)
+    
+    # Add stamps after so that they appear in output logs
+    outdate = None
+    errdate = None
+    if stampout:
+        outdate = IOTimestamp(sys, 'stdout')
+        errdate = IOTimestamp(sys, 'stderr')
+    
+    return (outlog, errlog, outdate, errdate)
+
 def try_shift_dir(d):
     if not os.path.exists(d):
         return

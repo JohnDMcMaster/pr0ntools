@@ -15,8 +15,12 @@ def singlify(fns_in, fn_out, fn_out_alt=None):
         m = re.match('.*st_([0-9]*)x_([0-9]*)y.jpg', fn)
         return (int(m.group(1), 10), int(m.group(2), 10))
     
+    if not fns_in:
+        raise Exception("No input")
+    
     print 'Calculating dimensions...'
     xmin = None
+    xmax = None
     for fn in fns_in:
         (x, y) = coord(fn)
         if xmin is None:

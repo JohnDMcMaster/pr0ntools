@@ -19,20 +19,9 @@ import sys
 import traceback
 import multiprocessing
 from pr0ntools.stitch.grid_stitch import GridStitch
-from pr0ntools.util import IOTimestamp, IOLog, try_shift_dir
+from pr0ntools.util import logwt
 
-project_file = 'panorama0.pto'
-temp_project_file = '/tmp/pr0nstitch.pto'
 allow_overwrite = True
-
-AUTOPANO_SIFT_C = 1
-autopano_sift_c = "autopano-sift-c"
-AUTOPANO_AJ = 2
-# I use this under WINE, the Linux version doesn't work as well
-autopano_aj = "autopanoaj"
-grid_only = False
-
-CONTROL_POINT_ENGINE = AUTOPANO_AJ
 
 def t_or_f(arg):
     arg_value = str(arg).lower()
@@ -64,19 +53,11 @@ if __name__ == "__main__":
     parser_add_bool_arg('--dry', default=False, help='')
     parser_add_bool_arg('--skip-missing', default=False, help='')
     parser.add_argument('fns', nargs='+', help='File names')
-    parser_add_bool_arg('--stampout', default=True, help='timestamp output')
     args = parser.parse_args()
     
-    try_shift_dir(args.log)
-    os.mkdir(args.log)
+    log_dir = args.log
+    _dt = logwt(log_dir, 'main.log', shift_d=True)
     
-    _outlog = IOLog(obj=sys, name='stdout', out_fn=os.path.join(args.log, 'main.log'), shift=True)
-    _errlog = IOLog(obj=sys, name='stderr', out_fd=_outlog.out_fd)
-    
-    if args.stampout:
-        _outdate = IOTimestamp(sys, 'stdout')
-        _errdate = IOTimestamp(sys, 'stderr')
-
     depth = 1
     # CNC like precision?
     # Default to true for me
@@ -109,13 +90,10 @@ if __name__ == "__main__":
         print 'Using %d threads' % args.threads
         engine.threads = args.threads
         engine.skip_missing = args.skip_missing
-        if grid_only:
-            print 'Grid only, exiting'
-            sys.exit(0)
     else:
         raise Exception('need an algorithm / engine')
 
-    engine.log_dir = args.log
+    engine.log_dir = log_dir
     engine.set_output_project_file_name(output_project_file_name)
     engine.set_regular(regular)
     engine.set_dry(args.dry)
@@ -136,4 +114,3 @@ if __name__ == "__main__":
     
     engine.run()
     print 'Done!'
-

@@ -187,7 +187,7 @@ class ImageCoordinateMap:
                     for file_name in os.listdir(file_name_in):
                         file_names.append(get_file_names(os.path.join(file_name_in, file_name), depth - 1))
         return file_names
-        
+    
     @staticmethod
     def from_dir_tagged_file_names(dir, rows=None, cols=None):
         return ImageCoordinateMap.from_tagged_file_names([os.path.join(dir, f) for f in os.listdir(dir)], rows, cols)

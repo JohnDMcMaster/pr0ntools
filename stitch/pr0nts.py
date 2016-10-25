@@ -16,7 +16,7 @@ from pr0ntools.stitch.tiler import Tiler
 from pr0ntools.stitch.pto.project import PTOProject
 from pr0ntools.config import config
 from pr0ntools.stitch.single import singlify, HugeJPEG
-from pr0ntools.util import IOTimestamp, IOLog
+from pr0ntools.util import logwt
 
 import argparse
 import glob
@@ -113,18 +113,16 @@ if __name__ == "__main__":
     parser.add_argument('--single-fn', default=None, help='file name to write in single dir')
     parser_add_bool_arg('--enblend-lock', default=False, help='use lock file to only enblend (memory intensive part) one at a time')
     parser.add_argument('--threads', type=int, default= multiprocessing.cpu_count())
-    parser_add_bool_arg('--stampout', default=False, help='timestamp output')
+    parser.add_argument('--log', default='pr0nts', help='Output log file name')
     args = parser.parse_args()
 
     if args.threads < 1:
         raise Exception('Bad threads')
     print 'Using %d threads' % args.threads
     
-    if args.stampout:
-        _outdate = IOTimestamp(sys, 'stdout')
-        _errdate = IOTimestamp(sys, 'stderr')
-    _outlog = IOLog(obj=sys, name='stdout', out_fn='pr0nts.log', shift=True)
-    _errlog = IOLog(obj=sys, name='stderr', out_fd=_outlog.out_fd)
+    log_dir = args.log
+    out_dir = 'out'
+    _dt = logwt(log_dir, 'main.log', shift_d=True)
 
     fn = args.pto[0]
     
@@ -150,7 +148,7 @@ if __name__ == "__main__":
                 stp = 2**32/4
 
     
-    t = Tiler(project, 'out', stw=mksize(args.stw), sth=mksize(args.sth), stp=stp, clip_width=args.clip_width, clip_height=args.clip_height)
+    t = Tiler(project, out_dir, stw=mksize(args.stw), sth=mksize(args.sth), stp=stp, clip_width=args.clip_width, clip_height=args.clip_height, log_dir=log_dir)
     t.threads = args.threads
     t.verbose = args.verbose
     t.st_dir = args.st_dir

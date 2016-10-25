@@ -44,16 +44,15 @@ Greedy algorithm to generate a tile if its legal (and safe)
 from pr0ntools.stitch.remapper import Nona
 from pr0ntools.stitch.blender import Enblend
 from image_coordinate_map import ImageCoordinateMap
-from pr0ntools.execute import Execute
 from pr0ntools.config import config
 from pr0ntools.temp_file import ManagedTempFile
 from pr0ntools.temp_file import ManagedTempDir
-#from pr0ntiles.tile import Tiler as TilerCore
 from pr0ntools.pimage import PImage
 from pr0ntools.benchmark import Benchmark
 from pr0ntools.geometry import ceil_mult
 from pr0ntools.execute import CommandFailed
 from pr0ntools.stitch.pto.util import dbg, rm_red_img
+from pr0ntools.util import IOTimestamp
 
 import datetime
 import math
@@ -62,24 +61,15 @@ import Queue
 import shutil
 import subprocess
 import sys
-import threading
+import multiprocessing
 import time
 import traceback
 
 class InvalidClip(Exception):
     pass
 
-'''
-# thread safe stdout/stderr file
-class ThreadedIO:
-    def __init__(self):
-        self.buff = bytearray()
-    
-    def write(self, s):
-'''
-
-class PartialStitcher:
-    def __init__(self, pto, bounds, out, worki, work_run, p, pprefix, lock):
+class PartialStitcher(object):
+    def __init__(self, pto, bounds, out, worki, work_run, pprefix):
         self.pto = pto
         self.bounds = bounds
         self.out = out
@@ -88,9 +78,7 @@ class PartialStitcher:
         self.enblend_lock = False
         self.worki = worki
         self.work_run = work_run
-        self.p = p
         self.pprefix = pprefix
-        self.lock = lock
         
     def run(self):
         '''
@@ -100,13 +88,13 @@ class PartialStitcher:
         but will only generate output for those that matter
         Each one takes a noticible amount of time but its relatively small compared to the time spent actually mapping images
         '''
-        self.p()
-        self.p('Supertile phase 1: remapping (nona)')
+        print
+        print 'Supertile phase 1: remapping (nona)'
         if self.out.find('.') < 0:
             raise Exception('Require image extension')
         # Hugin likes to use the base filename as the intermediates, lets do the sames
         out_name_base = self.out[0:self.out.find('.')].split('/')[-1]
-        self.p("out name: %s, base: %s" % (self.out, out_name_base))
+        print "out name: %s, base: %s" % (self.out, out_name_base)
         #ssadf
         if out_name_base is None or len(out_name_base) == 0 or out_name_base == '.' or out_name_base == '..':
             raise Exception('Bad output file base "%s"' % str(out_name_base))
@@ -121,11 +109,11 @@ class PartialStitcher:
         For large projects this was too slow
         Instead, we simply copy the project and manually fix up the relevant portion
         '''
-        self.p('Copying pto')
+        print 'Copying pto'
         pto = self.pto.copy(control_points=False)
         #pto = self.mini_pto.copy()
         
-        self.p('Cropping...')
+        print 'Cropping...'
         #sys.exit(1)
         pl = pto.panorama_line
         # It is fine to go out of bounds, it will be black filled
@@ -135,24 +123,19 @@ class PartialStitcher:
         rm_red_img(pto)
         #print 'debug break' ; sys.exit(1)
         
-        self.p('Preparing remapper...')
-        def hook():
-            self.p('Prep done, releasing lock')
-            self.lock.release()
-        remapper = Nona(pto, out_name_prefix, start_hook=hook)
-        remapper.p = self.p
+        print 'Preparing remapper...'
+        remapper = Nona(pto, out_name_prefix)
         remapper.pprefix = self.pprefix
         remapper.args = self.nona_args
-        self.p('Starting remapper...')
+        print 'Starting remapper...'
         remapper.remap()
         
         '''
         Phase 2: blend the remapped images into an output image
         '''
-        self.p()
-        self.p('Supertile phase 2: blending (enblend)')
+        print
+        print 'Supertile phase 2: blending (enblend)'
         blender = Enblend(remapper.get_output_files(), self.out, lock=self.enblend_lock)
-        blender.p = self.p
         blender.pprefix = self.pprefix
         blender.args = self.enblend_args
         blender.run()
@@ -161,23 +144,33 @@ class PartialStitcher:
             for f in remapper.get_output_files():
                 os.remove(f)
         
-        self.p('Supertile ready!')
+        print 'Supertile ready!'
 
 
-class Worker(threading.Thread):
-    def __init__(self, i, tiler):
-        threading.Thread.__init__(self)
+class Worker(object):
+    def __init__(self, i, tiler, log_fn):
+        self.process = multiprocessing.Process(target=self.run)
+        
         self.i = i
-        self.qi = Queue.Queue()
-        self.qo = Queue.Queue()
-        self.running = threading.Event()
-        self.tiler = tiler
+        self.qi = multiprocessing.Queue()
+        self.qo = multiprocessing.Queue()
+        self.running = multiprocessing.Event()
         self.exit = False
-    
+        self.log_fn = log_fn
+
+        self.dry = tiler.dry
+        self.ignore_errors = tiler.ignore_errors
+        self.st_dir = tiler.st_dir
+        self.pto = tiler.pto
+        self.enblend_lock = tiler.enblend_lock
+        self.nona_args = tiler.nona_args
+        self.enblend_args = tiler.enblend_args
+        self.st_fns = multiprocessing.Queue()
+
     def p(self, s=''):
         if not self.running:
             raise Exception('not running')
-        print '%s w%d: %s' % (datetime.datetime.utcnow().isoformat(), self.i, s)
+        print s
     
     def pprefix(self):
         # hack: ocassionally get io
@@ -187,9 +180,22 @@ class Worker(threading.Thread):
         # TODO: put this into queue so we don't drop
         return '%s w%d: ' % (datetime.datetime.utcnow().isoformat(), self.i)
         
+    def start(self):
+        self.process.start()
+        # Prevents later join failure
+        self.running.wait(1)
+
     def run(self):
+        _outlog = open(self.log_fn, 'w')
+        sys.stdout = _outlog
+        sys.stderr = _outlog
+
+        _outdate = IOTimestamp(sys, 'stdout')
+        _errdate = IOTimestamp(sys, 'stderr')
+
         self.running.set()
         self.exit = False
+        print 'Worker starting'
         while self.running.is_set():
             try:
                 task = self.qi.get(True, 0.1)
@@ -199,31 +205,31 @@ class Worker(threading.Thread):
             try:
                 (st_bounds,) = task
 
-                self.p('')
-                self.p('')
-                self.p('')
-                self.p('')
-                self.p('*' * 80)
-                self.p('task rx')
+                print
+                print
+                print
+                print
+                print '*' * 80
+                print 'task rx'
 
                 try:
                     img = self.try_supertile(st_bounds)
                     self.qo.put(('done', (st_bounds, img)))
                 except CommandFailed as e:
-                    if not self.tiler.ignore_errors:
+                    if not self.ignore_errors:
                         raise
                     # We shouldn't be trying commands during dry but just in case should raise?
-                    self.p('WARNING: got exception trying supertile %d' % (self.tiler.n_supertiles))
+                    print 'WARNING: got exception trying supertile %s' % str(st_bounds)
                     traceback.print_exc()
                     estr = traceback.format_exc()
                     self.qo.put(('exception', (task, e, estr)))
-                self.p('task done')
+                print 'task done'
                 
             except Exception as e:
                 traceback.print_exc()
                 estr = traceback.format_exc()
                 self.qo.put(('exception', (task, e, estr)))
-        self.p('exiting')
+        print 'exiting'
         self.exit = True
 
     def try_supertile(self, st_bounds):
@@ -232,47 +238,40 @@ class Worker(threading.Thread):
         # every supertile should have at least one solution or the bounds aren't good
         x0, x1, y0, y1 = st_bounds
 
-        self.p('Waiting for worker lock...')
-        self.tiler.gil_sucks.acquire()
-        self.p('Glot lock')
-        
         bench = Benchmark()
         try:
-            if self.tiler.st_dir:
+            if self.st_dir:
                 # nah...tiff takes up too much space
-                dst = os.path.join(self.tiler.st_dir, 'st_%06dx_%06dy.jpg' % (x0, y0))
+                dst = os.path.join(self.st_dir, 'st_%06dx_%06dy.jpg' % (x0, y0))
                 if os.path.exists(dst):
-                    self.tiler.gil_sucks.release()
                     # normally this is a .tif so slight loss in quality
                     img = PImage.from_file(dst)
-                    self.p('supertile short circuit on already existing: %s' % (dst,))
+                    print 'supertile short circuit on already existing: %s' % (dst,)
                     return img
                 
             # st_081357x_000587y.jpg
             temp_file = ManagedTempFile.get(None, '.tif', prefix_mangle='st_%06dx_%06dy_' % (x0, y0))
 
-            #out_name_base = "%s/r%03d_c%03d" % (self.tiler.out_dir, row, col)
-            #print 'Working on %s' % out_name_base
-            stitcher = PartialStitcher(self.tiler.pto, st_bounds, temp_file.file_name, self.i, self.running, p=self.p, pprefix=self.pprefix, lock=self.tiler.gil_sucks)
-            stitcher.enblend_lock = self.tiler.enblend_lock
-            stitcher.nona_args = self.tiler.nona_args
-            stitcher.enblend_args = self.tiler.enblend_args
+            stitcher = PartialStitcher(self.pto, st_bounds, temp_file.file_name, self.i, self.running, pprefix=self.pprefix)
+            stitcher.enblend_lock = self.enblend_lock
+            stitcher.nona_args = self.nona_args
+            stitcher.enblend_args = self.enblend_args
 
-            if self.tiler.dry:
-                self.p('dry: skipping partial stitch')
-                self.tiler.gil_sucks.release()
+            if self.dry:
+                print 'dry: skipping partial stitch'
                 stitcher = None
             else:
                 stitcher.run()
         
-            self.p('')
-            self.p('phase 3: loading supertile image')
-            if self.tiler.dry:
-                self.p('dry: skipping loading PTO')
+            print
+            print 'phase 3: loading supertile image'
+            if self.dry:
+                print 'dry: skipping loading PTO'
                 img = None
             else:
-                if self.tiler.st_dir:
-                    self.tiler.st_fns.append(dst)
+                if self.st_dir:
+                    self.st_fns.put(dst)
+                    
                     #shutil.copyfile(temp_file.file_name, dst)
                     args = ['convert',
                             '-quality', '90', 
@@ -305,8 +304,12 @@ class Worker(threading.Thread):
 # For managing the closed list        
 
 class Tiler:
-    
-    def __init__(self, pto, out_dir, tile_width=250, tile_height=250, st_scalar_heuristic=4, dry=False, stw=None, sth=None, stp=None, clip_width=None, clip_height=None):
+    def __init__(self, pto, out_dir,
+            tile_width=250, tile_height=250,
+            st_scalar_heuristic=4, dry=False,
+            stw=None, sth=None, stp=None,
+            clip_width=None, clip_height=None,
+            log_dir='pr0nts'):
         '''
         stw: super tile width
         sth: super tile height
@@ -332,15 +335,12 @@ class Tiler:
         self.workers = None
         self.st_fns = []
         self.st_limit = float('inf')
+        self.log_dir = log_dir
         '''
         When running lots of threads, we get stuck trying to get something mapping
         I think this is due to GIL contention
         To work around this, workers do pre-map stuff single threaded (as if they were in the server thread)
         '''
-        self.gil_sucks =  threading.Lock()
-        self.gil_sucks.acquire()
-        self.gil_sucks.release()
-        
         # TODO: this is a heuristic just for this, uniform input images aren't actually required
         for i in pto.get_image_lines():
             w = i.width()
@@ -945,11 +945,10 @@ class Tiler:
         
         # Scrub old dir if we don't want it
         if os.path.exists(self.out_dir) and not self.merge:
-            if self.force:
-                if not self.dry:
-                    shutil.rmtree(self.out_dir)
-            else:
+            if not self.force:
                 raise Exception("Must set force to override output")
+            if not self.dry:
+                shutil.rmtree(self.out_dir)
         if not self.dry and not os.path.exists(self.out_dir):
             os.mkdir(self.out_dir)
         if self.st_dir and not self.dry and not os.path.exists(self.st_dir):
@@ -976,7 +975,8 @@ class Tiler:
         print 'M: Initializing %d workers' % self.threads
         self.workers = []
         for ti in xrange(self.threads):
-            w = Worker(ti, self)
+            print 'Bringing up W%02d' % ti
+            w = Worker(ti, self, os.path.join(self.log_dir, 'w%02d.log' % ti))
             self.workers.append(w)
             w.start()
 
@@ -1095,14 +1095,25 @@ class Tiler:
                 print 'M ERROR: expected to do %d basic tiles but did %d' % (self.net_expected_tiles, self.tiles_done())
                 self.dump_open_list()
                 raise Exception('State mismatch')
+            
+            # Gather up supertile filenames generated by workers
+            # xxx: maybe we should tell slaves the file they should use?
+            for worker in self.workers:
+                while True:
+                    try:
+                        st_fn = worker.st_fns.get(False)
+                    except Queue.Empty:
+                        break
+                    self.st_fns.append(st_fn)
+            
         finally:
             print 'Shutting down workers'
             for worker in self.workers:
                 worker.running.clear()
             print 'Waiting for workers to exit...'
             for i, worker in enumerate(self.workers):
-                worker.join(1)
-                if worker.isAlive():
+                worker.process.join(1)
+                if worker.process.is_alive():
                     print '  W%d: failed to join' % i
                     self.stale_worker = True
                 else:

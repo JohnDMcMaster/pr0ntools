@@ -13,17 +13,14 @@ from image_coordinate_map import ImageCoordinateMap
 import os
 import sys
 from pr0ntools.stitch.pto.util import dbg
-#import threading
 import Queue
 import traceback
 import common_stitch
-#from pr0ntools.util import msg
 import time
-import datetime
 import shutil
 import multiprocessing
 
-from pr0ntools.util import IOTimestamp, IOLog
+from pr0ntools.util import IOTimestamp
 
 class Worker(object):
     def __init__(self, i, log_fn):
@@ -40,6 +37,8 @@ class Worker(object):
         
     def start(self):
         self.process.start()
+        # Prevents later join failure
+        self.running.wait(1)
 
     def run(self):
         _outlog = open(self.log_fn, 'w')
