@@ -287,7 +287,7 @@ class Tiler(object):
         # Prepare a new image coordinate map so we can form the next tile set
         src_rows, src_cols = self.rcs[level + 1]
         dst_rows, dst_cols = self.rcs[level]
-        dst_images = src_rows * dst_rows
+        dst_images = dst_rows * dst_rows
         
         print 'Shrink by %0.1f: cols %s => %s, rows %s => %s' % (self.zoom_factor,
                 src_cols, dst_cols,
