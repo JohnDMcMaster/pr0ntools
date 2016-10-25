@@ -1,5 +1,5 @@
 from pr0ntools.pimage import PImage
-from pr0ntools.tile.tile import SingleTiler, TileTiler, calc_max_level
+from pr0ntools.tile.tile import Tiler, calc_max_level
 from pr0ntools.stitch.image_coordinate_map import ImageCoordinateMap
 import os
 import os.path
@@ -13,10 +13,10 @@ Two options:
 '''
 class MapSource:
 	def __init__(self):
-		self.set_out_extension('.jpg')
+		self.set_im_ext('.jpg')
 	
-	def set_out_extension(self, s):
-		self.out_extension = s
+	def set_im_ext(self, s):
+		self.im_ext = s
 	
 	def width(self):
 		return None
@@ -32,28 +32,36 @@ class MapSource:
 		
 # Input to map generator algorithm is a large input image
 class ImageMapSource(MapSource):
-	def __init__(self, image_in):
+	def __init__(self, image_in, threads=1):
 		self.image_in = image_in
-		self.image = PImage.from_file(self.image_in)
-		self.set_out_extension('.jpg')
+		self.pim = PImage.from_file(self.image_in)
+		self.im_ext = '.jpg'
+		self.threads = threads
+		self.tw = 250
+		self.th = 250
 
 	def get_name(self):
-		return self.image_in.split('.')[0]
-
-	def set_out_extension(self, s):
-		self.out_extension = s
+		return os.path.basename(self.image_in).split('.')[0]
 
 	def width(self):
-		return self.image.width()
+		return self.pim.width()
 		
 	def height(self):
-		return self.image.height()
+		return self.pim.height()
 	
 	def generate_tiles(self, max_level, min_level, dst_basedir):
 		# Generate tiles
 		print 'From single image in %s to dir %s' % (self.image_in, dst_basedir)
-		gen = SingleTiler(self.image_in, max_level, min_level, dst_basedir=dst_basedir)
-		gen.set_out_extension(self.out_extension)
+		rows = int(math.ceil(self.pim.height() / self.th))
+		cols = int(math.ceil(self.pim.width() / self.tw))
+		gen = Tiler(
+			rows, cols,
+			None,
+			max_level, min_level,
+			dst_basedir=dst_basedir, threads=self.threads,
+			pim=self.pim)
+		
+		gen.im_ext = self.im_ext
 		gen.run()
 	
 class TileMapSource(MapSource):
@@ -92,12 +100,13 @@ class TileMapSource(MapSource):
 	
 	def generate_tiles(self, max_level, min_level, dst_basedir):
 		print 'From multi tiles'
-		gen = TileTiler(
+		gen = Tiler(
 			self.map.height(), self.map.width(),
 			self.src_dir,
 			max_level, min_level,
-			dst_basedir=dst_basedir, threads=self.threads)
-		gen.set_out_extension(self.out_extension)
+			dst_basedir=dst_basedir, threads=self.threads,
+			pim=None)
+		gen.im_ext = self.im_ext
 		gen.run()
 	
 class Map:
@@ -114,13 +123,13 @@ class Map:
 		self.image = None
 		# don't error on missing tiles in grid
 		self.skip_missing = False
-		self.set_out_extension('.jpg')
+		self.set_im_ext('.jpg')
 		self.tw = 250
 		self.th = 250
 		
-	def set_out_extension(self, s):
-		self.out_extension = s
-		self.source.out_extension = s
+	def set_im_ext(self, s):
+		self.im_ext = s
+		self.source.im_ext = s
 		self.out_format = s.replace('.', '')
 		if self.out_format == 'png':
 			self.is_png_str = 'isPng: true,'
@@ -281,7 +290,7 @@ var %s = new google.maps.ImageMapType({
   name: "SM",
   alt: "IC map"
 });
-''') % (self.min_level, self.type_obj_name(), self.out_extension, self.out_format, self.is_png_str, self.SI_MAX_ZOOM())
+''') % (self.min_level, self.type_obj_name(), self.im_ext, self.out_format, self.is_png_str, self.SI_MAX_ZOOM())
 
 	def type_obj_name(self):
 		#return 'mos6522NoMetal'

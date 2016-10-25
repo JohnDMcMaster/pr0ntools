@@ -45,7 +45,7 @@ if __name__ == "__main__":
 		if args.images_in.find('.pto') >= 0:
 			raise ValueError('Cannot stitch .pto directly at this time, use pr0ntile first')
 		print 'Working on singe input image %s' % args.images_in
-		source = ImageMapSource(args.images_in)
+		source = ImageMapSource(args.images_in, threads=args.threads)
 
 	m = Map(source, args.copyright)
 	if args.title_name:
@@ -57,5 +57,5 @@ if __name__ == "__main__":
 	m.out_dir = args.out_dir
 	m.js_only = args.js_only
 	m.skip_missing = args.skip_missing
-	m.set_out_extension(args.out_extension)
+	m.set_im_ext(args.out_extension)
 	m.generate()

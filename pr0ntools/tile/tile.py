@@ -5,17 +5,12 @@ Copyright 2012 John McMaster <JohnDMcMaster@gmail.com>
 Licensed under a 2 clause BSD license, see COPYING for details
 '''
 
-import sys 
-import os.path
 from pr0ntools import pimage
 from pr0ntools.pimage import PImage
-from pr0ntools.pimage import TempPImage
-from pr0ntools.stitch.wander_stitch import WanderStitch
-from pr0ntools.stitch.grid_stitch import GridStitch
-from pr0ntools.stitch.fortify_stitch import FortifyStitch
-from pr0ntools.execute import Execute
+
+import sys 
+import os.path
 from PIL import Image
-from pr0ntools.stitch.image_coordinate_map import ImageCoordinateMap
 import shutil
 import math
 import Queue
@@ -23,11 +18,11 @@ import multiprocessing
 import traceback
 import time
 
-def get_fn(basedir, row, col, ext='.jpg'):
-    return '%s/y%03d_x%03d%s' % (basedir, row, col, ext)
+def get_fn(basedir, row, col, im_ext='.jpg'):
+    return '%s/y%03d_x%03d%s' % (basedir, row, col, im_ext)
 
-def get_fn_level(basedir, level, row, col, ext='.jpg'):
-    return '%s/%d/y%03d_x%03d%s' % (basedir, level, row, col, ext)
+def get_fn_level(basedir, level, row, col, im_ext='.jpg'):
+    return '%s/%d/y%03d_x%03d%s' % (basedir, level, row, col, im_ext)
 
 def calc_max_level_from_image(image, zoom_factor=None):
     return calc_max_level(image.height(), image.width(), zoom_factor)
@@ -53,40 +48,26 @@ def calc_max_level(height, width, zoom_factor=None):
 Take a single large image and break it into tiles
 '''
 class ImageTiler(object):
-    def __init__(self, image, x0 = None, x1 = None, y0 = None, y1 = None, tw = 250, th = 250):
+    def __init__(self, pim, dst_dir, tw=250, th=250):
         self.verbose = False
-        self.image = image
+        self.pim = pim
         self.progress_inc = 0.10
         
-        if x0 is None:
-            x0 = 0
-        self.x0 = x0
-        if x1 is None:
-            x1 = image.width()
-        self.x1 = x1
-        if y0 is None:
-            y0 = 0
-        self.y0 = y0
-        if y1 is None:
-            y1 = image.height()
-        self.y1 = y1
+        self.x0 = 0
+        self.x1 = pim.width()
+        self.y0 = 0
+        self.y1 = pim.height()
         
         self.tw = tw
         self.th = th
-        self.out_dir = None
+        self.dst_dir = dst_dir
 
-        self.set_out_extension('.jpg')
-        
-    def set_out_extension(self, s):
-        self.out_extension = s
+        self.im_ext = '.jpg'
         
     # FIXME / TODO: this isn't the google reccomended naming scheme, look into that more    
     # part of it was that I wanted them to sort nicely in file list view
     def get_name(self, row, col):
-        out_dir = ''
-        if self.out_dir:
-            out_dir = '%s/' % self.out_dir
-        return '%sy%03d_x%03d%s' % (out_dir, row, col, self.out_extension)
+        return '%s/y%03d_x%03d%s' % (self.dst_dir, row, col, self.im_ext)
         
     def make_tile(self, x, y, row, col):
         xmin = x
@@ -97,7 +78,7 @@ class ImageTiler(object):
 
         if self.verbose:
             print '%s: (x %d:%d, y %d:%d)' % (nfn, xmin, xmax, ymin, ymax)
-        ip = self.image.subimage(xmin, xmax, ymin, ymax)
+        ip = self.pim.subimage(xmin, xmax, ymin, ymax)
         '''
         Images must be padded
         If they aren't they will be stretched in google maps
@@ -143,7 +124,7 @@ Only support tiled workers since unclear if full image can/should be parallelize
 '''
 class TWorker(object):
     def __init__(self,
-            ti, qo, ext,
+            ti, qo, im_ext,
             # tile width/height
             tw, th):
         self.process = multiprocessing.Process(target=self.run)
@@ -153,7 +134,7 @@ class TWorker(object):
         self.qo = qo
         self.running = multiprocessing.Event()
         
-        self.ext = ext
+        self.im_ext = im_ext
         self.tw = tw
         self.th = th
         self.zoom = 2.0
@@ -183,13 +164,13 @@ class TWorker(object):
                 ]
             for src_col in xrange(src_colb, src_colb + 2):
                 for src_row in xrange(src_rowb, src_rowb + 2):
-                    fn = get_fn(src_dir, src_row, src_col, ext=self.ext)
+                    fn = get_fn(src_dir, src_row, src_col, im_ext=self.im_ext)
                     src_img_fns[src_row - src_rowb][src_col - src_colb] = fn if os.path.exists(fn) else None
             
             img_full = pimage.from_fns(src_img_fns,
                     tw=self.tw, th=self.th)
             img_scaled = pimage.rescale(img_full, 0.5, filt=Image.ANTIALIAS)
-            dst_fn = get_fn(dst_dir, dst_row, dst_col, ext=self.ext)
+            dst_fn = get_fn(dst_dir, dst_row, dst_col, im_ext=self.im_ext)
             img_scaled.save(dst_fn)
     
     def start(self):
@@ -217,10 +198,6 @@ class TWorker(object):
             try:
                 taskers[task](args)
             except Exception as e:
-                raise
-                #if not self.ignore_errors:
-                #    raise
-                # We shouldn't be trying commands during dry but just in case should raise?
                 print 'WARNING: got exception trying supertile %s' % str(task)
                 traceback.print_exc()
                 estr = traceback.format_exc()
@@ -229,18 +206,20 @@ class TWorker(object):
 '''
 Creates smaller tiles from source tiles
 '''
-class TileTiler(object):
-    def __init__(self, rows, cols, src_dir, max_level, min_level=0, dst_basedir=None, threads=1):
+class Tiler(object):
+    def __init__(self, rows, cols, src_dir, max_level, min_level=0, dst_basedir=None, threads=1, pim=None,
+            tw=250, th=250):
+        self.src_dir = src_dir
+        self.pim = pim
+        
         self.verbose = False
         self.cp_lmax = True
-        self.src_dir = src_dir
         self.max_level = max_level
         self.min_level = min_level
         self.dst_basedir = dst_basedir
-        self.set_out_extension('.jpg')
         self.zoom_factor = 2
-        self.tw = 250
-        self.th = 250
+        self.tw = tw
+        self.th = th
         # JPEG quality level, 1-100 or something
         self.quality = 90
         # Fraction of 1 to print each progress level at
@@ -273,7 +252,7 @@ class TileTiler(object):
         self.qi = multiprocessing.Queue()
         for wi in xrange(self.threads):
             print 'Bringing up W%02d' % wi
-            w = TWorker(wi, self.qi, ext='.jpg',
+            w = TWorker(wi, self.qi, im_ext='.jpg',
                 tw=self.tw, th=self.th)
             self.workers.append(w)
             w.start()
@@ -301,9 +280,6 @@ class TileTiler(object):
                 self.wopen.remove(wi)
         if allw:
             self.workers = None
-
-    def set_out_extension(self, s):
-        self.out_extension = s
 
     def subtile(self, level, dst_dir, src_dir):
         '''Subtile from previous level'''
@@ -375,6 +351,54 @@ class TileTiler(object):
         if self.verbose:
             print 'Shrinking the world for future rounds'
 
+    def run_src_dir(self):
+        for level in xrange(self.max_level, self.min_level - 1, -1):
+            print
+            print '************'
+            print 'Zoom level %d' % level
+            dst_dir = '%s/%d' % (self.dst_basedir, level)
+            
+            # For the first level we may just copy things over
+            if level == self.max_level:
+                src_dir = self.src_dir
+                if self.cp_lmax:
+                    print 'Source: direct copy %s => %s' % (src_dir, dst_dir)
+                    shutil.copytree(src_dir, dst_dir)
+                else:
+                    # explicitly load and save images to clean dir, same jpg format
+                    # a bit more paranoid but questionable utility still
+                    raise Exception()
+            # Additional levels we take the image coordinate map and shrink
+            else:
+                print 'Source: tiles'
+                src_dir = '%s/%d' % (self.dst_basedir, level + 1)
+                if not os.path.exists(dst_dir):
+                    os.mkdir(dst_dir)
+                self.subtile(level, dst_dir, src_dir)
+    
+    def run_pim(self):
+        for level in xrange(self.max_level, self.min_level - 1, -1):
+            print
+            print '************'
+            print 'Zoom level %d' % level
+            dst_dir = '%s/%d' % (self.dst_basedir, level)
+            if not os.path.exists(dst_dir):
+                os.mkdir(dst_dir)
+            
+            # For the first level slice up source
+            # Used to do all levels but it would result in OOM crash on large images
+            # Plus only base level needs needs quality
+            if level == self.max_level:
+                print 'Source: single image'
+                pim = self.pim
+                tiler = ImageTiler(pim, dst_dir, tw=self.tw, th=self.th)
+                tiler.run()
+            # Additional levels we take the image coordinate map and shrink
+            else:
+                print 'Source: tiles'
+                src_dir = '%s/%d' % (self.dst_basedir, level + 1)
+                self.subtile(level, dst_dir, src_dir)
+
     def run(self):
         try:
             self.wstart()
@@ -382,83 +406,15 @@ class TileTiler(object):
             if not os.path.exists(self.dst_basedir):
                 os.mkdir(self.dst_basedir)
             
-            for level in xrange(self.max_level, self.min_level - 1, -1):
-                print
-                print '************'
-                print 'Zoom level %d' % level
-                dst_dir = '%s/%d' % (self.dst_basedir, level)
-                
-                # For the first level we may just copy things over
-                if level == self.max_level:
-                    src_dir = self.src_dir
-                    if self.cp_lmax:
-                        print 'Direct copying on first zoom %s => %s' % (src_dir, dst_dir)
-                        shutil.copytree(src_dir, dst_dir)
-                    else:
-                        # explicitly load and save images to clean dir, same jpg format
-                        # a bit more paranoid but questionable utility still
-                        raise Exception()
-                # Additional levels we take the image coordinate map and shrink
-                else:
-                    src_dir = '%s/%d' % (self.dst_basedir, level + 1)
-                    if not os.path.exists(dst_dir):
-                        os.mkdir(dst_dir)
-                    self.subtile(level, dst_dir, src_dir)
+            if self.src_dir:
+                self.run_src_dir()
+            elif self.pim:
+                self.run_pim()
+            else:
+                raise Exception()
+            
         finally:
             self.wkill()
 
     def __del__(self):
         self.wkill()
-
-# replaces from_single
-class SingleTiler:
-    def __init__(self, fn, max_level = None, min_level = None, out_dir_base=None):
-        self.fn = fn
-        self.max_level = max_level
-        self.min_level = min_level
-        self.dst_basedir = out_dir_base
-        self.set_out_extension('.jpg')
-        self.progress_inc = 0.10
-
-    def set_out_extension(self, s):
-        self.out_extension = s
-
-    def run(self):
-        fn = self.fn
-        max_level = self.max_level
-        min_level = self.min_level
-
-        if min_level is None:
-            min_level = 0
-        i = PImage.from_file(fn)
-        if max_level is None:
-            max_level = calc_max_level_from_image(i)
-    
-        '''
-        Test file is the carved out metal sample of the 6522
-        It is 5672 x 4373 pixels
-        I might do a smaller one first
-        '''
-        if not os.path.exists(self.dst_basedir):
-            os.mkdir(self.dst_basedir)
-        
-        for level in xrange(max_level, min_level - 1, -1):
-            print
-            print '************'
-            print 'Zoom level %d' % level
-            out_dir = '%s/%d' % (self.dst_basedir, level)
-            if not os.path.exists(out_dir):
-                os.mkdir(out_dir)
-        
-            tiler = ImageTiler(i)
-            tiler.progress_inc = self.progress_inc
-            tiler.out_dir = out_dir
-            tiler.run()
-        
-            if level != min_level:
-                # Each zoom level is half smaller than previous
-                i = i.get_scaled(0.5, filt=Image.ANTIALIAS)
-                if 0:
-                    i.save('test.jpg')
-                    sys.exit(1)
-

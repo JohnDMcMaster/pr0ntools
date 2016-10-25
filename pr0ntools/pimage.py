@@ -427,11 +427,6 @@ def from_fns(images_in, tw=None, th=None):
 	
 	mode = None
 	
-	def dbg(s):
-		if 0:
-			print s
-	
-	dbg("Constructing parent tile")
 	rows = len(images_in)
 	cols = len(images_in[0])
 	# Ensure all images loaded
@@ -458,11 +453,13 @@ def from_fns(images_in, tw=None, th=None):
 					raise Exception('tile height mismatch')
 				images_in[rowi][coli] = img
 	
+	#if mode is None:
+	#	mode = 'RGB'
+	
 	# Images are now all either PImage or None with uniform width/height
 	width = tw * cols
 	height = th * rows
 	#ret = PImage.from_blank(width, height, mode=mode):
-	dbg('New image width %d, height %d from %d pix * %d cols, %d pix * %d rows' % (width, height, tw, cols, th, rows))
 	ret = Image.new(mode, (width, height))
 	for rowi in range(rows):
 		for coli in range(cols):
@@ -472,7 +469,6 @@ def from_fns(images_in, tw=None, th=None):
 				# (left, upper)
 				cpix = coli * tw
 				rpix = rowi * th
-				dbg('%s => (row %d / %d pix, col %d / %d pix)' % (src.file_name(), rowi, rpix, coli, cpix))
 				ret.paste(src.to_image(), (cpix, rpix))
 	return ret
 
