@@ -251,7 +251,8 @@ class Tiler(object):
         # Our input queue / worker output queue
         self.qi = multiprocessing.Queue()
         for wi in xrange(self.threads):
-            print 'Bringing up W%02d' % wi
+            if self.verbose:
+                print 'Bringing up W%02d' % wi
             w = TWorker(wi, self.qi, im_ext='.jpg',
                 tw=self.tw, th=self.th)
             self.workers.append(w)
@@ -262,10 +263,12 @@ class Tiler(object):
         if self.workers is None:
             return
         
-        print 'Shutting down workers'
+        if self.verbose:
+            print 'Shutting down workers'
         for worker in self.workers:
             worker.running.clear()
-        print 'Waiting for workers to exit...'
+        if self.verbose:
+            print 'Waiting for workers to exit...'
         allw = True
         for wi, worker in enumerate(self.workers):
             if worker is None:
@@ -275,7 +278,8 @@ class Tiler(object):
                 print '  W%d: failed to join' % wi
                 allw = False
             else:
-                print '  W%d: stopped' % wi
+                if self.verbose:
+                    print '  W%d: stopped' % wi
                 self.workers[wi] = None
                 self.wopen.remove(wi)
         if allw:
@@ -341,7 +345,6 @@ class Tiler(object):
                 worker.submit('subtile',
                     (dst_dir, dst_row, dst_cols,
                     src_dir))
-                continue
             
             if idle:
                 # Couldn't find something to do
