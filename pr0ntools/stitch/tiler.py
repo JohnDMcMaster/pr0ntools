@@ -167,11 +167,6 @@ class Worker(object):
         self.enblend_args = tiler.enblend_args
         self.st_fns = multiprocessing.Queue()
 
-    def p(self, s=''):
-        if not self.running:
-            raise Exception('not running')
-        print s
-    
     def pprefix(self):
         # hack: ocassionally get io
         # use that to interrupt if need be
@@ -213,8 +208,8 @@ class Worker(object):
                 print 'task rx'
 
                 try:
-                    img = self.try_supertile(st_bounds)
-                    self.qo.put(('done', (st_bounds, img)))
+                    img_fn = self.try_supertile(st_bounds)
+                    self.qo.put(('done', (st_bounds, img_fn)))
                 except CommandFailed as e:
                     if not self.ignore_errors:
                         raise
@@ -267,7 +262,7 @@ class Worker(object):
             print 'phase 3: loading supertile image'
             if self.dry:
                 print 'dry: skipping loading PTO'
-                img = None
+                img_fn = None
             else:
                 if self.st_dir:
                     self.st_fns.put(dst)
@@ -294,11 +289,18 @@ class Worker(object):
                     else:
                         raise Exception('Missing soften strong blur output file name %s' % dst)
 
-                img = PImage.from_file(temp_file.file_name)
-                self.p('supertile width: %d, height: %d' % (img.width(), img.height()))
-            return img
+                # FIXME: was passing loaded image object
+                # Directory should delete on exit
+                # otherwise parent can delete it
+                #img = PImage.from_file(temp_file.file_name)
+                img_fn = temp_file.file_name
+                # prevent deletion
+                temp_file.file_name = ''
+                
+                print 'supertile width: %d, height: %d' % (img.width(), img.height())
+            return img_fn
         except:
-            self.p('supertile failed at %s' % (bench,))
+            print 'supertile failed at %s' % (bench,)
             raise
 
 # For managing the closed list        
@@ -679,7 +681,7 @@ class Tiler:
                     continue
                 yield (y, x)
                 
-    def process_image(self, img, st_bounds):
+    def process_image(self, pim, st_bounds):
         '''
         A tile is valid if its in a safe location
         There are two ways for the location to be safe:
@@ -711,7 +713,7 @@ class Tiler:
             # note that x and y are in whole pano coords
             # we need to adjust to our frame
             # row and col on the other hand are used for global naming
-            self.make_tile(img, x - x0, y - y0, row, col)
+            self.make_tile(pim, x - x0, y - y0, row, col)
             gen_tiles += 1
         bench.stop()
         print 'Generated %d new tiles for a total of %d / %d in %s' % (gen_tiles, len(self.closed_list), self.net_expected_tiles, str(bench))
@@ -726,7 +728,7 @@ class Tiler:
             out_dir = '%s/' % self.out_dir
         return '%sy%03d_x%03d%s' % (out_dir, row, col, self.out_extension)
     
-    def make_tile(self, i, x, y, row, col):
+    def make_tile(self, pim, x, y, row, col):
         '''Make a tile given an image, the upper left x and y coordinates in that image, and the global row/col indices'''    
         if self.dry:
             if self.verbose:
@@ -734,13 +736,13 @@ class Tiler:
         else:
             xmin = x
             ymin = y
-            xmax = min(xmin + self.tw, i.width())
-            ymax = min(ymin + self.th, i.height())
+            xmax = min(xmin + self.tw, pim.width())
+            ymax = min(ymin + self.th, pim.height())
             nfn = self.get_name(row, col)
 
             if self.verbose:
                 print 'Subtile %s: (x %d:%d, y %d:%d)' % (nfn, xmin, xmax, ymin, ymax)
-            ip = i.subimage(xmin, xmax, ymin, ymax)
+            ip = pim.subimage(xmin, xmax, ymin, ymax)
             '''
             Images must be padded
             If they aren't they will be stretched in google maps
@@ -1023,9 +1025,11 @@ class Tiler:
                     progress = True
     
                     if what == 'done':
-                        (st_bounds, img) = out[1]
+                        (st_bounds, img_fn) = out[1]
                         print 'MW%d: done w/ submit %d, complete %d' % (wi, pair_submit, pair_complete)
-                        self.process_image(img, st_bounds)
+                        pim = PImage.from_file(img_fn)
+                        os.remove(img_fn)
+                        self.process_image(pim, st_bounds)
                     elif what == 'exception':
                         if not self.ignore_errors:
                             for worker in self.workers:
