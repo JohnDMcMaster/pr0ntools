@@ -325,9 +325,9 @@ class Tiler(object):
                 self.wopen.add(wi)
                 
                 done += 1
-                progress = 1.0 * done / dst_images
+                progress = 1.0 * done / dst_rows
                 if self.progress_inc and progress >= next_progress:
-                    print 'Progress: %02.2f%% %d / %d' % (progress * 100, done, dst_images)
+                    print 'Progress: %02.2f%% %d / %d' % (progress * 100, done, dst_rows)
                     next_progress += self.progress_inc
             
             # More tasks to give?
