@@ -52,8 +52,9 @@ class ImageMapSource(MapSource):
 	def generate_tiles(self, max_level, min_level, dst_basedir):
 		# Generate tiles
 		print 'From single image in %s to dir %s' % (self.image_in, dst_basedir)
-		rows = int(math.ceil(self.pim.height() / self.th))
-		cols = int(math.ceil(self.pim.width() / self.tw))
+		rows = int(math.ceil(1.0 * self.pim.height() / self.th))
+		cols = int(math.ceil(1.0 * self.pim.width() / self.tw))
+		print '%dw x %dh => %dc x %dr' % (self.pim.width(), self.pim.height(), cols, rows)
 		gen = Tiler(
 			rows, cols,
 			None,
