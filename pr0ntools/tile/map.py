@@ -60,9 +60,8 @@ class ImageMapSource(MapSource):
 			None,
 			max_level, min_level,
 			dst_basedir=dst_basedir, threads=self.threads,
-			pim=self.pim)
+			pim=self.pim, im_ext=self.im_ext)
 		
-		gen.im_ext = self.im_ext
 		gen.run()
 	
 class TileMapSource(MapSource):
@@ -106,8 +105,7 @@ class TileMapSource(MapSource):
 			self.src_dir,
 			max_level, min_level,
 			dst_basedir=dst_basedir, threads=self.threads,
-			pim=None)
-		gen.im_ext = self.im_ext
+			pim=None, im_ext=self.im_ext)
 		gen.run()
 	
 class Map:

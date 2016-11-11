@@ -48,7 +48,7 @@ def calc_max_level(height, width, zoom_factor=None):
 Take a single large image and break it into tiles
 '''
 class ImageTiler(object):
-    def __init__(self, pim, dst_dir, tw=250, th=250):
+    def __init__(self, pim, dst_dir, tw=250, th=250, im_ext='.jpg'):
         self.verbose = False
         self.pim = pim
         self.progress_inc = 0.10
@@ -62,7 +62,7 @@ class ImageTiler(object):
         self.th = th
         self.dst_dir = dst_dir
 
-        self.im_ext = '.jpg'
+        self.im_ext = im_ext
         
     # FIXME / TODO: this isn't the google reccomended naming scheme, look into that more    
     # part of it was that I wanted them to sort nicely in file list view
@@ -208,7 +208,7 @@ Creates smaller tiles from source tiles
 '''
 class Tiler(object):
     def __init__(self, rows, cols, src_dir, max_level, min_level=0, dst_basedir=None, threads=1, pim=None,
-            tw=250, th=250):
+            tw=250, th=250, im_ext='.jpg'):
         self.src_dir = src_dir
         self.pim = pim
         
@@ -226,6 +226,7 @@ class Tiler(object):
         # None to disable
         self.progress_inc = 0.10
         self.threads = threads
+        self.im_ext = im_ext
 
         self.workers = None
         
@@ -253,7 +254,7 @@ class Tiler(object):
         for wi in xrange(self.threads):
             if self.verbose:
                 print 'Bringing up W%02d' % wi
-            w = TWorker(wi, self.qi, im_ext='.jpg',
+            w = TWorker(wi, self.qi, im_ext=self.im_ext,
                 tw=self.tw, th=self.th)
             self.workers.append(w)
             w.start()
@@ -394,7 +395,7 @@ class Tiler(object):
             if level == self.max_level:
                 print 'Source: single image'
                 pim = self.pim
-                tiler = ImageTiler(pim, dst_dir, tw=self.tw, th=self.th)
+                tiler = ImageTiler(pim, dst_dir, tw=self.tw, th=self.th, im_ext=self.im_ext)
                 tiler.run()
             # Additional levels we take the image coordinate map and shrink
             else:
