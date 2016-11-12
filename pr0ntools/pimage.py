@@ -1,6 +1,7 @@
 '''
 This file is part of pr0ntools
-Image utility class
+Image utility file
+http://effbot.org/imagingbook/image.htm
 Copyright 2010 John McMaster <JohnDMcMaster@gmail.com>
 Licensed under a 2 clause BSD license, see COPYING for details
 '''
@@ -268,8 +269,10 @@ class PImage:
         if self.width() == width and self.height == height:
             return
         
-        ip = Image.new(self.get_mode(), (width, height))
-        ip.paste(self.image, (0,0, self.width(), self.height()))
+        ip = Image.new(self.image.mode, (width, height))
+        if self.image.palette:
+            ip.putpalette(self.image.palette)
+        ip.paste(self.image, (0,0))
         # Shift the old image out
         self.image = ip
 
@@ -424,11 +427,12 @@ def from_fns(images_in, tw=None, th=None):
     [[r0c0, r0c1],
      [r1c0, r1c1]]
     '''
-    
     mode = None
     
     rows = len(images_in)
     cols = len(images_in[0])
+    im = None
+    src_last = None
     # Ensure all images loaded
     for rowi in range(rows):
         row = images_in[rowi]
@@ -437,7 +441,21 @@ def from_fns(images_in, tw=None, th=None):
         for coli in range(cols):
             # Ensure its a PImge object
             src = images_in[rowi][coli]
-            if not src is None:
+            if src is None:
+                # Can we make a best guess on what to fill in?
+                if not src_last:
+                    continue
+                
+                # im should in theory work but accessing pixels
+                # is for some reason causing corruption
+                iml = Image.open(src_last)
+                imf = Image.new(mode, (tw, th))
+                imf.putpalette(iml.palette)
+                pix = iml.getpixel((tw - 1, th - 1))
+                imf.paste(pix, (0, 0, tw, th))
+                
+                images_in[rowi][coli] = imf
+            else:
                 im = Image.open(src)
                 imw, imh = im.size
                 
@@ -457,6 +475,8 @@ def from_fns(images_in, tw=None, th=None):
                     raise Exception('tile height mismatch')
                 
                 images_in[rowi][coli] = im
+
+            src_last = src or src_last
     
     # Images are now all either PImage or None with uniform width/height
     width = tw * cols
@@ -478,8 +498,27 @@ def from_fns(images_in, tw=None, th=None):
                 cpix = coli * tw
                 rpix = rowi * th
                 ret.paste(src, (cpix, rpix))
+    #ret = im_reload(ret)
     return ret
 
+# Change canvas, shifting pixels to fill it
 def rescale(im, factor, filt=Image.NEAREST):
     w, h = im.size
-    return im.resize((int(w * factor), int(h * factor)), filt)
+    ret = im.resize((int(w * factor), int(h * factor)), filt)
+    # for some reason this breaks the image
+    # but for other similiar operations its required
+    if 0 and im.palette:
+        ret.putpalette(im.palette)
+    return ret
+
+# Change canvas, not filling in new pixels
+def resize(im, width, height):
+    ret = Image.new(im.mode, (width, height))
+    if im.palette:
+        ret.putpalette(im.palette)
+    ret.paste(im, (0, 0))
+    return ret
+
+def im_reload(im):
+    im.save('/tmp/pt_pil_tmp.png')
+    return Image.open('/tmp/pt_pil_tmp.png')

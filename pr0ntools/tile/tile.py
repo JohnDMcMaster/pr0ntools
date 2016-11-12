@@ -76,18 +76,22 @@ class ImageTiler(object):
         ymax = min(ymin + self.th, self.y1)
         nfn = self.get_name(row, col)
 
-        if self.verbose:
-            print '%s: (x %d:%d, y %d:%d)' % (nfn, xmin, xmax, ymin, ymax)
-        ip = self.pim.subimage(xmin, xmax, ymin, ymax)
-        '''
-        Images must be padded
-        If they aren't they will be stretched in google maps
-        '''
-        if ip.width() != self.tw or ip.height() != self.th:
-            if self.verbose:
-                print 'WARNING: %s: expanding partial tile (%d X %d) to full tile size' % (nfn, ip.width(), ip.height())
-            ip.set_canvas_size(self.tw, self.th)
-        ip.image.save(nfn)
+        #if self.verbose:
+        #print '%s: (x %d:%d, y %d:%d)' % (nfn, xmin, xmax, ymin, ymax)
+        
+        im = self.pim.image.crop((xmin, ymin, xmax, ymax))
+
+        if self.pim.image.palette:
+            im.putpalette(self.pim.image.palette)
+            # XXX: workaround for PIL bug
+            im = pimage.im_reload(im)
+        
+        # w/o pad map stretches image
+        if im.size != (self.tw, self.th):
+            #print 'resizing', x, y
+            #print im.size, self.tw, self.th
+            im = pimage.resize(im, self.tw, self.th)
+        im.save(nfn)
         
     def run(self):
         '''
@@ -169,6 +173,7 @@ class TWorker(object):
             
             img_full = pimage.from_fns(src_img_fns,
                     tw=self.tw, th=self.th)
+            #img_full = pimage.im_reload(img_full)
             img_scaled = pimage.rescale(img_full, 0.5, filt=Image.ANTIALIAS)
             dst_fn = get_fn(dst_dir, dst_row, dst_col, im_ext=self.im_ext)
             img_scaled.save(dst_fn)
@@ -292,7 +297,6 @@ class Tiler(object):
         # Prepare a new image coordinate map so we can form the next tile set
         src_rows, src_cols = self.rcs[level + 1]
         dst_rows, dst_cols = self.rcs[level]
-        dst_images = dst_rows * dst_cols
         
         print 'Shrink by %0.1f: cols %s => %s, rows %s => %s' % (self.zoom_factor,
                 src_cols, dst_cols,
