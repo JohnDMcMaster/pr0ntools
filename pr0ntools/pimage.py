@@ -2,52 +2,21 @@
 This file is part of pr0ntools
 Image utility file
 http://effbot.org/imagingbook/image.htm
+http://pillow.readthedocs.io/en/3.1.x/reference/ImagePalette.html
+
 Copyright 2010 John McMaster <JohnDMcMaster@gmail.com>
 Licensed under a 2 clause BSD license, see COPYING for details
 '''
 
-from temp_file import TempFile
-from temp_file import ManagedTempFile
-
 from PIL import Image
-import sys
-import os
-'''
-images are indexed imageInstance[x][y]
 
-          width = 5
-                x = ...
-            0 1 2 3 4
-height = 4
-y = 0        0 0 0 0 0
-y = 1        1 1 1 1 1
-y = 2        1 0 0 0 0
-y = 3        1 0 0 0 0                
-
-Ex:
-imageInstance[3, 0] = 0
-imageInstance[0, 2] = 1
-
-
-Image.getdata() uses linear indexing:
-            width / x
-            0 1 2 3
-height / y    4 5 5 6
-            7 8 9 10
-pos = width * y + x
-
-
-0 represents white
-1 represents black
-Currently code treats 0 as white and non-0 as black
-'''
 class PImage:
-    # A PIL Image object
-    image = None
-    temp_file = None
-    
     # We do not copy array, so be careful with modifications
     def __init__(self, image):
+        # A PIL Image object
+        self.image = None
+        self.temp_file = None
+        
         if image is None:
             raise Exception('cannot construct on empty image')
         self.image = image
@@ -74,9 +43,6 @@ class PImage:
 
         return ret
 
-    def debug_show(self):
-        return self.to_image().show()
-
     # To an Image
     def to_image(self):
         return self.image
@@ -87,7 +53,7 @@ class PImage:
     Returns a new image that is trimmed
     '''
     def trim(self):
-        (image, x_min, x_max, y_min, y_max) = self.trim_verbose()
+        (image, _x_min, _x_max, _y_min, _y_max) = self.trim_verbose()
         return image
         
     def trim_verbose(self):
@@ -211,21 +177,6 @@ class PImage:
             return (0, 0, 0)
         raise Exception('Bad mode %s' % mode)
     
-    def get_RGB(self, pixel):
-        '''return an instance specific pixel representation from an RGB pixel'''
-        (R, G, B) = pixel
-        if mode == "1":
-            return round(self.pixel_to_brightness(pixel))
-        if mode == "L":
-            # This is just a quick estimate, it could be horribly wrong
-            # We have white as 0 and RGB saturates to 0 for full values, so we take compliment
-            # define as set as the proportion of RGB we have set
-            return 1.0 - (1.0 * (R + G + B) / (256 * 3))
-        if mode == "RGB":
-            return pixel
-
-        raise Exception('Bad mode %s' % mode)
-    
     def pixel_to_brightness(self, pixel):
         '''Convert pixel to brightness value, [0.0, 1.0] where 0 is white and 1 is black'''
         # The above range was chosen somewhat arbitrarily as thats what old code did (think because thats what "1" mode does)
@@ -243,22 +194,7 @@ class PImage:
             return 1.0 - (pixel[0] + pixel[1] + pixel[2] + 3) / (256.0 * 3)
         raise Exception('Bad mode %s' % mode)
     
-    def to_array(self):
-        '''returns array[Y/height][X/width] indexed data structure'''
-        width = self.image.size[0]
-        height = self.image.size[1]
-        # I guess people expect to index x first?
-        # think matlab does y first
-        # so we are doing index height (y) first since thats what old code did
-        array = [[0 for i in range(width)] for j in range(height)]
-        for cur_height in range(0, height):
-            for cur_width in range(0, width):
-                array[cur_height][cur_width] = self.image.getdata()[cur_height * width + cur_width]
-        return array
-
     def get_mode(self):
-        # FIXME
-        #return PImage.get_default_mode()
         return self.image.mode
 
     def file_name(self):
@@ -317,54 +253,21 @@ class PImage:
         elif isinstance(image, image.Image):
             ret = PImage.from_image(image)
         else:
-           raise Exception("unknown parameter: %s" % repr(image))
+            raise Exception("unknown parameter: %s" % repr(image))
         if trim:
             ret = ret.trim()
         return ret
-
-    @staticmethod
-    def get_default_mode():
-        '''
-        WARNING: not all functions support all modes
-        I can't find concrete documentation on the meaning of these, so gathered from misc sources
-            http://www.pythonware.com/library/pil/handbook/image.htm
-            http://www.pythonware.com/library/pil/handbook/introduction.htm            
-        The first three some the most portable across the functions
-        Original code (XOR/comparison) used binary images, but it seems we are trying to move towards grayscale
-        
-        "1"
-            A bilevel image
-            Stored as single ingeter on [0, 1]?
-        "L"
-            luminance
-            for greyscale images
-            Stored as single integer on [0, 256]?
-        "RGB"
-            for true colour images
-            Stored as tuple ([0-255], [0-255], [0-255])?
-            Image formats I've seen return this
-                png
-        "RGBA"
-        "RGBX"
-        "CMYK"
-            for pre-press images.
-        "P"
-            Pallete?
-            Image formats I've seen return this
-                bmp
-        '''
-        return "L"
 
     @staticmethod
     def get_pixel_mode(pixel):
         '''Tries to guess pixel mode.  Hack to transition some old code, don't use this'''
         # FIXME: make sure array mode matches our created image
         if type(pixel) == type(0):
-            return PImage.get_default_mode()
+            return "L"
         if len(pixel) == 3:
             return 'RGB'
         else:
-            return PImage.get_default_mode()
+            return "L"
             
     @staticmethod
     def from_array(array, mode_in = None, mode_out = None):
@@ -399,27 +302,6 @@ class PImage:
     @staticmethod
     def is_image_filename(filename):
         return filename.find('.tif') > 0 or filename.find('.jpg') > 0 or filename.find('.png') > 0 or filename.find('.bmp') > 0
-
-class TempPImage:
-    def __init__(self, file_name):
-        if file_name:
-            self.file_name = file_name
-        else:
-            self.file_name = TempFile.get()
-    
-    def get_a_file_name(self):
-        pass
-    
-    @staticmethod
-    def get(prefix = None, suffix = None):
-        return ManagedTempFile(TempFile.get(prefix, suffix))
-
-    @staticmethod
-    def from_existing(file_name):
-        return ManagedTempFile(file_name)
-
-    def __del__(self):
-        os.rm(self.file_name)
 
 def from_fns(images_in, tw=None, th=None):
     '''
@@ -512,10 +394,20 @@ def rescale(im, factor, filt=Image.NEAREST):
     return ret
 
 # Change canvas, not filling in new pixels
-def resize(im, width, height):
-    ret = Image.new(im.mode, (width, height))
+def resize(im, width, height, def_color=None):
     if im.palette:
-        ret.putpalette(im.palette)
+        # Lower right corner is a decent default
+        # since will probably have a (black) border
+        xy = tuple([x - 1 for x in im.size])
+        def_color = im.getpixel(xy)
+        ret = Image.new(im.mode, (width, height), def_color)
+        # WARNING: workaround for PIL bugs
+        # don't use putpalette(im.palette)
+        # it mixes up RGB and RGB;L
+        ret.putpalette(im.palette.tobytes())
+    else:
+        ret = Image.new(im.mode, (width, height))
+    
     ret.paste(im, (0, 0))
     return ret
 
