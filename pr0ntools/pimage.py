@@ -9,6 +9,11 @@ Licensed under a 2 clause BSD license, see COPYING for details
 '''
 
 from PIL import Image
+import os
+
+# needed for PNG support
+# rarely used and PIL seems to have bugs
+PALETTES = bool(os.getenv('PR0N_PALETTES', ''))
 
 class PImage:
     # We do not copy array, so be careful with modifications
@@ -206,7 +211,7 @@ class PImage:
             return
         
         ip = Image.new(self.image.mode, (width, height))
-        if self.image.palette:
+        if PALETTES and self.image.palette:
             ip.putpalette(self.image.palette)
         ip.paste(self.image, (0,0))
         # Shift the old image out
@@ -332,7 +337,8 @@ def from_fns(images_in, tw=None, th=None):
                 # is for some reason causing corruption
                 iml = Image.open(src_last)
                 imf = Image.new(mode, (tw, th))
-                imf.putpalette(iml.palette)
+                if PALETTES:
+                    imf.putpalette(iml.palette)
                 pix = iml.getpixel((tw - 1, th - 1))
                 imf.paste(pix, (0, 0, tw, th))
                 
@@ -365,7 +371,7 @@ def from_fns(images_in, tw=None, th=None):
     height = th * rows
     ret = Image.new(mode, (width, height))
     # Copy palette over from last png, if possible
-    if im and im.palette:
+    if PALETTES and im and im.palette:
         ret.putpalette(im.palette)
     
     #ret = im.copy()
@@ -395,7 +401,7 @@ def rescale(im, factor, filt=Image.NEAREST):
 
 # Change canvas, not filling in new pixels
 def resize(im, width, height, def_color=None):
-    if im.palette:
+    if PALETTES and im.palette:
         # Lower right corner is a decent default
         # since will probably have a (black) border
         xy = tuple([x - 1 for x in im.size])

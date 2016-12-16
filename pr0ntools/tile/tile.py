@@ -18,6 +18,10 @@ import multiprocessing
 import traceback
 import time
 
+# needed for PNG support
+# rarely used and PIL seems to have bugs
+PALETTES = bool(os.getenv('PR0N_PALETTES', '0'))
+
 def get_fn(basedir, row, col, im_ext='.jpg'):
     return '%s/y%03d_x%03d%s' % (basedir, row, col, im_ext)
 
@@ -81,7 +85,7 @@ class ImageTiler(object):
         
         im = self.pim.image.crop((xmin, ymin, xmax, ymax))
 
-        if self.pim.image.palette:
+        if PALETTES and self.pim.image.palette:
             im.putpalette(self.pim.image.palette)
             # XXX: workaround for PIL bug
             im = pimage.im_reload(im)
