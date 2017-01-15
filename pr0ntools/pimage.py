@@ -227,6 +227,9 @@ class PImage:
         '''
         I'm having difficulty dealing with anything paletted, so convert everything right off the bat
         '''
+        if not type(path) in (str, unicode):
+            raise Exception()
+
         img = Image.open(path)
         if img is None:
             raise Exception("Couldn't open image file: %s" % path)

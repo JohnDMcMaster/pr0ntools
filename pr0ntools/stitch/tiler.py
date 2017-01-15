@@ -297,7 +297,8 @@ class Worker(object):
                 # prevent deletion
                 temp_file.file_name = ''
                 
-                print 'supertile width: %d, height: %d' % (img.width(), img.height())
+                #print 'supertile width: %d, height: %d' % (img.width(), img.height())
+                print 'Supertile done w/ fn %s' % (img_fn,)
             return img_fn
         except:
             print 'supertile failed at %s' % (bench,)
@@ -1027,8 +1028,14 @@ class Tiler:
                     if what == 'done':
                         (st_bounds, img_fn) = out[1]
                         print 'MW%d: done w/ submit %d, complete %d' % (wi, pair_submit, pair_complete)
-                        pim = PImage.from_file(img_fn)
-                        os.remove(img_fn)
+                        # Dry run
+                        if img_fn is None:
+                            pim = None
+                        else:
+                            pim = PImage.from_file(img_fn)
+                        # hack
+                        # ugh remove may be an already existing supertile (not a temp file)
+                        #os.remove(img_fn)
                         self.process_image(pim, st_bounds)
                     elif what == 'exception':
                         if not self.ignore_errors:
