@@ -22,6 +22,7 @@ def parser_add_bool_arg(yes_arg, default=False, **kwargs):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Manipulate .pto files')
+    parser.add_argument('--verbose', action="store_true", help='Verbose output')
     parser.add_argument('--center', action="store_true", dest="center", default=None, help='Center the project')
     parser.add_argument('--no-center', action="store_false", dest="center", default=None, help='Center the project')
     parser.add_argument('--anchor', action="store_true", dest="anchor", help='Re-anchor in the center')
@@ -42,6 +43,7 @@ if __name__ == "__main__":
                    help='project to use for creating linear system (default: in)')
     parser.add_argument('--allow-missing', action="store_true", help='Allow missing images')
     parser_add_bool_arg('--stampout', default=True, help='timestamp output')
+    parser.add_argument('--stdev', type=float, default=0, help='pre_opt: standard deviation filter for messy sets')
     parser.add_argument('pto', metavar='.pto in', nargs=1,
                    help='project to work on')
     parser.add_argument('out', metavar='.pto out', nargs='?',
@@ -139,6 +141,8 @@ if __name__ == "__main__":
     if args.pre_opt:
         print 'Optimizing'
         opt = PreOptimizer(pto)
+        opt.debug = args.verbose
+        opt.stdev = args.stdev
         opt.run()
         # Default
         if args.center != False:

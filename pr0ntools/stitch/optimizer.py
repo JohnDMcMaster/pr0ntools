@@ -31,6 +31,8 @@ from pr0ntools import execute
 from pr0ntools.pimage import PImage
 from pr0ntools.stitch.pto.util import *
 from pr0ntools.benchmark import Benchmark
+from pr0ntools import statistics
+
 import sys
 import random
 
@@ -340,7 +342,7 @@ def pair_check(project, l_il, r_il):
         return (1.0 * sum(cps_x)/len(cps_x),
                 1.0 * sum(cps_y)/len(cps_y))
 
-def pre_opt_core(project, icm, closed_set, pairsx, pairsy, order):
+def pre_opt_core(project, icm, closed_set, pairsx, pairsy, order, verbose=False):
     iters = 0
     while True:
         iters += 1
@@ -396,7 +398,7 @@ def pre_opt_core(project, icm, closed_set, pairsx, pairsy, order):
                 if len(points) == 0:
                     continue
 
-                if debugging:
+                if verbose:
                     print '  %03dX, %03dY: setting' % (x, y)
                     for p in points:
                         print '    ', p
@@ -545,7 +547,71 @@ def pre_opt_propagate(project, icm, closed_set, pairsx, pairsy, order, anch_cr):
             il.set_y(ypos)
             closed_set[(c, r)] = (xpos, ypos)
 
-def pre_opt(project, icm):
+def check_pair_outlier(icm, pairs, xorder, yorder, stdev=3):
+    print 'Checking for outliers'
+    print 'Computing stat'
+    pointsx = []
+    pointsy = []
+    for y in xrange(0, icm.height(), yorder):
+        for x in xrange(0, icm.width(), xorder):
+            # Missing image
+            try:
+                d = pairs[(x, y)]
+            except KeyError:
+                continue
+            # No control points
+            if d is None:
+                continue
+            dx, dy = d
+            pointsx.append(dx)
+            pointsy.append(dy)
+
+    x_sd = statistics.stdev(pointsx)
+    x_u = statistics.mean(pointsx)
+    print 'X mean: %0.3f' % x_u
+    print 'X SD:   %0.3f' % x_sd
+
+    y_sd = statistics.stdev(pointsy)
+    y_u = statistics.mean(pointsy)
+    print 'Y mean: %0.3f' % y_u
+    print 'Y SD:   %0.3f' % y_sd
+
+    if not stdev:
+        print 'stdev filter: none'
+    else:
+        print 'stdev filter: %0.3f' % stdev
+        '''
+        x_thresh = abs(x_u) + abs(x_sd) * stdev
+        y_thresh = abs(y_u) + abs(y_sd) * stdev
+        print 'X thresh: %0.3f' % x_thresh
+        print 'Y thresh: %0.3f' % y_thresh
+        '''
+        x_min = x_u - x_sd * stdev
+        x_max = x_u + x_sd * stdev
+        print 'X : %0.3f to %0.3f' % (x_min, x_max)
+        y_min = y_u - y_sd * stdev
+        y_max = y_u + y_sd * stdev
+        print 'Y : %0.3f to %0.3f' % (y_min, y_max)
+        
+        removed = 0
+        for y in xrange(0, icm.height(), yorder):
+            for x in xrange(0, icm.width(), xorder):
+                # Missing image
+                try:
+                    d = pairs[(x, y)]
+                except KeyError:
+                    continue
+                # No control points
+                if d is None:
+                    continue
+                dx, dy = d
+                if (dx < x_min or dx > x_max) or (dy < y_min or dy > y_max):
+                    print 'Ignoring x%d y%d' % (x, y)
+                    pairs[(x, y)] = None
+                    removed += 1
+        print 'Removed %d pairs' % removed
+
+def pre_opt(project, icm, verbose=False, stdev=None):
     '''
     Generates row/col to use for initial image placement
     spiral pattern outward from center
@@ -561,10 +627,8 @@ def pre_opt(project, icm):
     #yc = icm.height() / 2
     project.build_image_fn_map()
     
-    debugging = 0
-    #debugging = 1
     def printd(s):
-        if debugging:
+        if verbose:
             print s
 
     rms_this = get_rms(project)
@@ -573,7 +637,7 @@ def pre_opt(project, icm):
     
     # NOTE: algorithm will still run with missing control points to best of its ability
     # however, its expected that user will only run it on copmlete data sets
-    if debugging:
+    if verbose:
         fail = False
         counts = {}
         for cpl in project.get_control_point_lines():
@@ -623,7 +687,7 @@ def pre_opt(project, icm):
                 else:
                     pairsx[(x, y)] = None
     
-    if debugging:
+    if verbose:
         print 'Delta map'
         for y in xrange(0, icm.height()):
             for x in xrange(0, icm.width()):
@@ -640,6 +704,12 @@ def pre_opt(project, icm):
                     print '    Y: none'
                 else:
                     print '    Y: %0.3fx, %0.3fy' % (p[0], p[1])
+    
+    print
+    check_pair_outlier(icm, pairsx, xorder=1, yorder=2, stdev=stdev)
+    print
+    check_pair_outlier(icm, pairsy, xorder=1, yorder=1, stdev=stdev)
+    print
     
     # repair holes by successive passes
     # contains x,y points that have been finalized
@@ -671,12 +741,12 @@ def pre_opt(project, icm):
     print
     print
     print 'First pass: adjacent images'
-    pre_opt_core(project, icm, closed_set, pairsx, pairsy, order=1)
+    pre_opt_core(project, icm, closed_set, pairsx, pairsy, order=1, verbose=verbose)
     
     print
     print
     print 'Second pass: adjacent adjacent images'
-    pre_opt_core(project, icm, closed_set, pairsx, pairsy, order=2)
+    pre_opt_core(project, icm, closed_set, pairsx, pairsy, order=2, verbose=verbose)
     
     print
     print
@@ -698,7 +768,7 @@ def pre_opt(project, icm):
             print '  WARNING: un-located image %s' % img
 
     
-    if debugging:
+    if verbose:
         print 'Final position optimization:'
         for y in xrange(icm.height()):
             for x in xrange(icm.width()):
@@ -752,10 +822,10 @@ def chaos_opt(project, icm):
     raise Exception("Isn't helpful, don't use")
     pos_xy = pre_opt(project, icm)
     
-    debugging = 0
-    #debugging = 1
+    verbose = 0
+    #verbose = 1
     def printd(s):
-        if debugging:
+        if verbose:
             print s
     
     
@@ -819,7 +889,7 @@ def chaos_opt(project, icm):
                 if len(points) == 0:
                     return
         
-                if debugging:
+                if verbose:
                     print '  %03dX, %03dY: setting' % (x, y)
                     for p in points:
                         print '    ', p
@@ -926,6 +996,7 @@ class PreOptimizer:
         self.project = project
         self.debug = False
         self.icm = None
+        self.stdev = None
     
     def verify_images(self):
         first = True
@@ -955,9 +1026,9 @@ class PreOptimizer:
             fns.append(il.get_name())
         self.icm = ImageCoordinateMap.from_tagged_file_names(fns)
 
-        print 'DEBUG: short circuit...'
+        print 'Verbose: %d' % self.debug
         print 'working direclty on %s' % self.project.get_a_file_name()
-        pre_opt(self.project, self.icm)
+        pre_opt(self.project, self.icm, verbose=self.debug, stdev=self.stdev)
         
         bench.stop()
         print 'Optimized project in %s' % bench
