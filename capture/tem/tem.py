@@ -4,6 +4,10 @@ Takes in some sample tagged tiles
 
 Ubuntu 16.04.2
 sudo apt-get install -y python-scipy
+
+instead of ROI, weight by per pixel Pearson correlation?
+Right now smaller region might pickup dust better though
+Maybe instead should add some other quality dimensions for roughness or something
 '''
 
 from scipy.stats import multivariate_normal
@@ -74,8 +78,8 @@ def data_gen(dir_fn):
             # There are a few meta files
             continue
         # FIXME: are these rows or columns?
-        im_row = int(m.group(1))
-        im_col = int(m.group(2))
+        im_row = int(m.group(2))
+        im_col = int(m.group(1))
 
         meta = {
             'im_fn': png_fn,
@@ -129,25 +133,46 @@ Returns in row major order
 1:13
 1:4, 5:9, 10:13
 '''
-def bitimg_pois(im, debug=False):
-    ret = np.zeros(9)
-    i = 0
-    for xmin, xmax in ((1, 4), (5, 9), (10, 13)):
-        for ymin, ymax in ((1, 4), (5, 9), (10, 13)):
-            im_pix = im.crop((xmin, ymin, xmax, ymax))
-            np_pix = np.array(im_pix)
-            # Maybe should normalize this to average pixel?
-            # Will make easier to compare distributions
-            xw = xmax - xmin
-            yh = ymax - ymin
-            avg = np.sum(np_pix) / (xw * yh)
-            if debug:
-                print xmin, xmax, ymin, ymax, '%0.3f' % avg
-            ret[i] = avg
-            i += 1
-    #if debug:
-    #    raise KeyboardInterrupt()
-    return ret
+if 0:
+    POIS = 9
+    def bitimg_pois(im, debug=False):
+        ret = np.zeros(9)
+        i = 0
+        for xmin, xmax in ((1, 4), (5, 9), (10, 13)):
+            for ymin, ymax in ((1, 4), (5, 9), (10, 13)):
+                im_pix = im.crop((xmin, ymin, xmax, ymax))
+                np_pix = np.array(im_pix)
+                # Maybe should normalize this to average pixel?
+                # Will make easier to compare distributions
+                xw = xmax - xmin
+                yh = ymax - ymin
+                avg = np.sum(np_pix) / (xw * yh)
+                if debug:
+                    print xmin, xmax, ymin, ymax, '%0.3f' % avg
+                ret[i] = avg
+                i += 1
+        #if debug:
+        #    raise KeyboardInterrupt()
+        return ret
+
+if 1:
+    POIS = 1
+    def bitimg_pois(im, debug=False):
+        ret = np.zeros(1)
+        i = 0
+        np_pix = np.array(im)
+        # Maybe should normalize this to average pixel?
+        # Will make easier to compare distributions
+        xw = 9
+        yh = 9
+        avg = np.sum(np_pix) / (xw * yh)
+        if debug:
+            print xmin, xmax, ymin, ymax, '%0.3f' % avg
+        ret[i] = avg
+        i += 1
+        #if debug:
+        #    raise KeyboardInterrupt()
+        return ret
 
 '''
 Reads data, splitting into sections and placing into output arrays
@@ -156,14 +181,14 @@ Output arrays have one entry per input image
 def bucket_data(gen):
     ret = {}
     for klr in genk():
-        ret[klr] = [[] for _x in xrange(9)]
+        ret[klr] = [[] for _x in xrange(POIS)]
     for bitg in gen:
         im, bit, meta = bitg
         lr = meta['lr']
         klr = (bit, lr)
         pois = bitimg_pois(im)
         bucket = ret[klr]
-        for i in xrange(9):
+        for i in xrange(POIS):
             bucket[i].append(pois[i])
     return ret
 
@@ -273,6 +298,8 @@ class Template(object):
                 'bestk': bestk,
                 'res': list(res),
                 'pois': list(pois),
+                'us': list(self.us),
+                'covs': list([list(x) for x in self.covs]),
             }
             metag.append(metal)
 
