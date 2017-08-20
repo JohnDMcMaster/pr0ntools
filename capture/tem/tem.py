@@ -1,4 +1,14 @@
 '''
+Conventions
+File name like
+sega_315-5571_xpol_cc_rr.png
+cc: column (x), base 10
+rr: row (y), base 10
+
+Note PIL is also x, y
+So keep everything xy
+
+
 Template matching test
 Takes in some sample tagged tiles
 
@@ -91,7 +101,9 @@ def data_gen(dir_fn):
         if os.path.exists(txt_fn):
             txt = open(txt_fn, 'r').read()
             txt = txt.strip().replace('\n', '')
-            txtb = ''.join(['\x00' if c == '0' else '\x01' for c in txt])
+            if len(txt) != 8 * 8:
+                raise Exception("Bad file %s" % txt_fn)
+            txtb = ''.join([{'0': '\x00', '1': '\x01'}[c] for c in txt])
             meta['txt_fn'] = txt_fn
         else:
             txtb = None
@@ -115,64 +127,118 @@ def data_gen(dir_fn):
                 imwh = 14
                 xmin = 1 + 14 * tile_col
                 ymin = 1 + 14 * tile_row
+                crop = (xmin, ymin, xmin + imwh - 1, ymin + imwh - 1)
+                meta['crop'] = crop
                 # The crop rectangle, as a (left, upper, right, lower)-tuple.
-                im_tile = im_full.crop((xmin, ymin, xmin + imwh, ymin + imwh))
+                im_tile = im_full.crop(crop)
                 # Ex: (Image object, '\x00', {...})
                 yield (im_tile, bit, dict(meta))
 
-'''
-4 variants: 0/1 or l/r
-List of bits
-Each bit has a 3x3 array of floats for each iamge section
-But may be better to store as lists for each of the individual sectors for training
-'''
 
-'''
-Split input iamge into sections
-Returns in row major order
-1:13
-1:4, 5:9, 10:13
-'''
-if 0:
-    POIS = 9
-    def bitimg_pois(im, debug=False):
-        ret = np.zeros(9)
-        i = 0
-        for xmin, xmax in ((1, 4), (5, 9), (10, 13)):
-            for ymin, ymax in ((1, 4), (5, 9), (10, 13)):
-                im_pix = im.crop((xmin, ymin, xmax, ymax))
-                np_pix = np.array(im_pix)
-                # Maybe should normalize this to average pixel?
-                # Will make easier to compare distributions
-                xw = xmax - xmin
-                yh = ymax - ymin
-                avg = np.sum(np_pix) / (xw * yh)
-                if debug:
-                    print xmin, xmax, ymin, ymax, '%0.3f' % avg
-                ret[i] = avg
-                i += 1
-        #if debug:
-        #    raise KeyboardInterrupt()
-        return ret
+def params(which):
+    global POIS
+    global bitimg_pois
 
-if 1:
-    POIS = 1
-    def bitimg_pois(im, debug=False):
-        ret = np.zeros(1)
-        i = 0
-        np_pix = np.array(im)
-        # Maybe should normalize this to average pixel?
-        # Will make easier to compare distributions
-        xw = 9
-        yh = 9
-        avg = np.sum(np_pix) / (xw * yh)
-        if debug:
-            print xmin, xmax, ymin, ymax, '%0.3f' % avg
-        ret[i] = avg
-        i += 1
-        #if debug:
-        #    raise KeyboardInterrupt()
-        return ret
+    '''
+    4 variants: 0/1 or l/r
+    List of bits
+    Each bit has a 3x3 array of floats for each iamge section
+    But may be better to store as lists for each of the individual sectors for training
+    '''
+
+    # Single average pixel value
+    if which == 'sum':
+        POIS = 1
+        def bitimg_pois(im, debug=False):
+            ret = np.zeros(1)
+            i = 0
+            np_pix = np.array(im)
+            # Maybe should normalize this to average pixel?
+            # Will make easier to compare distributions
+            xw = 9
+            yh = 9
+            avg = np.sum(np_pix) / (xw * yh) / 3.0
+            if debug:
+                print xmin, xmax, ymin, ymax, '%0.3f' % avg
+            ret[i] = avg
+            i += 1
+            #if debug:
+            #    raise KeyboardInterrupt()
+            return ret
+
+    # Single average pixel value with crop
+    if which == 'sumc':
+        POIS = 1
+        def bitimg_pois(im, debug=False):
+            ret = np.zeros(1)
+            i = 0
+            for xmin, xmax in [(5, 9)]:
+                for ymin, ymax in [(5, 9)]:
+                    im_pix = im.crop((xmin, ymin, xmax, ymax))
+                    np_pix = np.array(im_pix)
+                    # Maybe should normalize this to average pixel?
+                    # Will make easier to compare distributions
+                    xw = xmax - xmin
+                    yh = ymax - ymin
+                    avg = np.sum(np_pix) / (xw * yh) / 3.0
+                    if debug:
+                        print xmin, xmax, ymin, ymax, '%0.3f' % avg
+                    ret[i] = avg
+                    i += 1
+            #if debug:
+            #    raise KeyboardInterrupt()
+            return ret
+
+
+    '''
+    Split input iamge into sections
+    Returns in row major order
+    1:13
+    1:4, 5:9, 10:13
+    '''
+    if which == 'sum9':
+        POIS = 9
+        def bitimg_pois(im, debug=False):
+            ret = np.zeros(9)
+            i = 0
+            for xmin, xmax in ((1, 4), (5, 9), (10, 13)):
+                for ymin, ymax in ((1, 4), (5, 9), (10, 13)):
+                    im_pix = im.crop((xmin, ymin, xmax, ymax))
+                    np_pix = np.array(im_pix)
+                    # Maybe should normalize this to average pixel?
+                    # Will make easier to compare distributions
+                    xw = xmax - xmin
+                    yh = ymax - ymin
+                    avg = np.sum(np_pix) / (xw * yh) / 3.0
+                    if debug:
+                        print xmin, xmax, ymin, ymax, '%0.3f' % avg
+                    ret[i] = avg
+                    i += 1
+            #if debug:
+            #    raise KeyboardInterrupt()
+            return ret
+
+    # Average pixel value + standard deviation
+    if which == 'sumstd':
+        POIS = 2
+        def bitimg_pois(im, debug=False):
+            ret = np.zeros(POIS)
+            i = 0
+            np_pix = np.array(im)
+            # Maybe should normalize this to average pixel?
+            # Will make easier to compare distributions
+            xw = 9
+            yh = 9
+            avg = np.sum(np_pix) / (xw * yh) / 3.0
+            if debug:
+                print xmin, xmax, ymin, ymax, '%0.3f' % avg
+            ret[i] = avg
+            i += 1
+            ret[i] = np.std(np_pix)
+            i += 1
+            #if debug:
+            #    raise KeyboardInterrupt()
+            return ret
 
 '''
 Reads data, splitting into sections and placing into output arrays
@@ -259,11 +325,14 @@ class Template(object):
         best_match = 0.0
         worst_match = 1.0
         for bitgi, bitg in enumerate(data_gen(dir_fn)):
-            verbosel = verbose and bitgi < 3
             im, bit_ref, meta = bitg
+            verbosel = verbose and bitgi < 3
+            #verbosel = verbosel or meta['tile_loc'] == (0, 1)
+
             if verbosel:
                 print
                 print 'Bit %d in %s' % (bitgi, meta['im_fn'])
+                print 'tile_loc: ', meta['tile_loc']
             lr = meta['lr']
             # Returns a 9 element array
             pois = bitimg_pois(im)
@@ -292,16 +361,20 @@ class Template(object):
                 print 'res', res
                 print 'pois', pois
                 print 'Result: %d' % bestk
-            
+                print 'Expect %s, think %d' % (bit_ref, bestk) 
+
             metal = {
                 'meta': meta,
                 'bestk': bestk,
                 'res': list(res),
                 'pois': list(pois),
-                'us': list(self.us),
-                'covs': list([list(x) for x in self.covs]),
+                'ref': bit_ref,
             }
             metag.append(metal)
+
+        if verbose:
+            print
+            print
 
         print 'Stats'
         nbits = sum([len(x) for x in bits])
@@ -317,6 +390,9 @@ class Template(object):
         print '  Best:  %g' % best_match
         print '  Worst: %g' % worst_match
 
+        # numpy doesn't json
+        usj = dict([('%d%s' % (n, lr), list(v)) for (n, lr), v in self.us.iteritems()])
+        covsj = dict([('%d%s' % (n, lr), list([list (x) for x in v])) for (n, lr), v in self.covs.iteritems()])
         metaf = {
             'runs': metag,
             'nbits': nbits,
@@ -328,7 +404,10 @@ class Template(object):
             'score_worst': best_match,
             # width, height
             'bits_wh': (BIT_WH, BIT_WH),
+            'us': usj,
+            'covs': covsj,
         }
+        print self.us
 
         print 'Exporting...'
         # Are ready for output
@@ -337,7 +416,10 @@ class Template(object):
             os.mkdir(dir_out)
         dump_txt(bits, os.path.join(dir_out, 'out.txt'))
         #dump_bin(bits, os.path.join(dir_out, 'out.bin'))
-        json.dump(metaf, open(os.path.join(dir_out, 'out.json'), 'w'))
+        pretty = {}
+        pretty = {'sort_keys':True, 'indent':4, 'separators':(',', ': ')}
+        json.dump(metaf, open(os.path.join(dir_out, 'out.json'), 'w'), **pretty)
+
 
 def dump_txt(bits, fn):
     f = open(fn, 'w')
@@ -366,10 +448,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Grid auto-bitmap test')
     parser.add_argument('--verboset', action='store_true', help='verbose train')
     parser.add_argument('--verboser', action='store_true', help='verbose run')
+    parser.add_argument('--which', help='')
     parser.add_argument('dir_train', help='image file to process')
     parser.add_argument('dir_run', help='image file to process')
     parser.add_argument('dir_out', nargs='?', help='image file to process')
     args = parser.parse_args()
+
+    params(args.which)
 
     dir_out = args.dir_out
     if not dir_out:
