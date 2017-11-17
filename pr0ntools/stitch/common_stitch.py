@@ -45,32 +45,32 @@ class FailedImages:
         self.pairs = 0
         # Set containing all image names
         self.open_list = set(all_images)
-        
+
     def add_failure(self, image_fn_pair):
         self.pairs += 1
         ima, imb = image_fn_pair
         # Make canonical order
         if ima > imb:
             ima, imb = imb, ima
-        
+
         if not ima in self.json:
             failure = list()
         else:
             failure = self.json[ima]
         failure.append(imb)
         self.json[ima] = failure
-    
+
     def add_success(self, image_fn_pair):
         for fn in image_fn_pair:
             if fn in self.open_list:
                 self.open_list.remove(fn)
-    
+
     def __str__(self):
         return json.dumps(self.json, sort_keys=True, indent=4)
 
     def pair_count(self):
         return self.pairs
-        
+
     def critical_count(self):
         '''Number of unanchored images'''
         return len(self.open_list)
@@ -90,26 +90,29 @@ class CommonStitch:
         self.regular = False
         # Only used if regular image
         self.subimage_control_points = True
-        
-        # TODO: parse these from scan.json
-        # and fix scan.json to invert these to match these values
-        self.x_overlap = 1.0 / 3.0
-        self.y_overlap = 1.0 / 3.0
+
+        # Fraction shared between images
+        self.x_overlap = 0.7
+        self.y_overlap = 0.7
         if os.path.exists('scan.json'):
-            print 'Loading overlaps from scan.json'
             j = json.load(open('scan.json'))
             if 'computed' in j:
-                self.x_overlap = 1.0 - j['computed']['x']['overlap']
-                self.y_overlap = 1.0 - j['computed']['y']['overlap']
-            else:
-                self.x_overlap = 0.7
-                self.y_overlap = 0.7
-            print '  X: %g' % (self.x_overlap,)
-            print '  Y: %g' % (self.y_overlap,)
-        
+                self.x_overlap = j['computed']['x']['overlap']
+                self.y_overlap = j['computed']['y']['overlap']
+        # Newer file
+        # Decided want to keep scan.json verbatim
+        if os.path.exists('out.json'):
+            j = json.load(open('out.json', 'r'))
+            self.x_overlap = j['x']['overlap']
+            self.y_overlap = j['y']['overlap']
+        print 'Overlap'
+        print '  X: %g' % (self.x_overlap,)
+        print '  Y: %g' % (self.y_overlap,)
+
+
         self.dry = False
         self.log_dir = 'pr0nstitch'
-        
+
         # Each filename as the key
         #self.failures = FailedImages()
         self.failures = None
@@ -141,7 +144,7 @@ class CommonStitch:
         failure_json = {
                 'critical_images': cc,
                 'failures': self.failures.json,}
-                
+
         open('stitch_failures.json', 'w').write(json.dumps(failure_json, sort_keys=True, indent=4, separators=(',', ': ')))
 
     def run(self):
@@ -150,7 +153,7 @@ class CommonStitch:
             return
 
         bench = Benchmark()
-    
+
         if not self.output_project_file_name:
             raise Exception("need project file")
         #if not self.output_project_file_name:
@@ -158,7 +161,7 @@ class CommonStitch:
             #self.output_project_file_name = self.project_temp_file.file_name
         print 'Beginning stitch'
         print 'output project file name: %s' % self.output_project_file_name
-        
+
         #sys.exit(1)
         self.init_failures()
 
@@ -175,7 +178,7 @@ class CommonStitch:
                 os.remove(self.output_project_file_name)
         else:
             self.project.get_a_file_name(None, "_master.pto")
-        
+
         self.project.image_file_names = self.image_file_names
 
         try:
@@ -185,28 +188,28 @@ class CommonStitch:
             self.generate_control_points()
             print 'Soften try: %s' % (self.soften_try,)
             print 'Soften ok: %s' % (self.soften_ok,)
-    
+
             print 'Post stitch fixup...'
             optimize_xy_only(self.project)
             fixup_i_lines(self.project)
             fixup_p_lines(self.project)
-            
-            
+
+
             print
             print '***PTO project baseline final (%s / %s) data length %d***' % (self.project.file_name, self.output_project_file_name, len(self.project.get_text()))
             print
-            
+
             self.failure_json_w()
             print
-            
+
             # Make dead sure its saved up to date
             self.project.save()
             # having issues with this..
             if self.output_project_file_name and not self.project.file_name == self.output_project_file_name:
                 raise Exception('project file name changed %s %s', self.project.file_name, self.output_project_file_name)
-            
+
             # TODO: missing calc opt size/width/height/fov and crop
-            
+
         except Exception as e:
             sys.stdout.flush()
             sys.stderr.flush()
@@ -223,23 +226,23 @@ class CommonStitch:
         finally:
             bench.stop()
             print 'Stitch done in %s' % bench
-            
 
-    def control_points_by_subimage(self, pair, image_fn_pair, subimage_factor = None):
+
+    def control_points_by_subimage(self, pair, image_fn_pair):
         '''Stitch two images together by cropping to restrict overlap'''
-        
+
         # subimage_factor: (y, x) overlap percent tuple or none for default
         # pair: pair of row/col or coordinate positions (used to determine relative positions)
         # (0, 0) at upper left
         # image_fn_pair: pair of image file names
-        
+
         print 'Preparing subimage stitch on %s:%s' % (image_fn_pair[0], image_fn_pair[1])
         '''
         Just work on the overlap section, maybe even less
         '''
-        
+
         images = [PImage.from_file(image_file_name) for image_file_name in image_fn_pair]
-        
+
         '''
         image_0 used as reference
         4 basic situations: left, right, up right
@@ -251,25 +254,24 @@ class CommonStitch:
         sub_image_1_x_end = images[1].width()
         sub_image_1_y_end = images[1].height()
 
-        if subimage_factor:
-            y_overlap = subimage_factor[0]
-            x_overlap = subimage_factor[1]
-        else:
-            x_overlap = self.x_overlap
-            y_overlap = self.y_overlap
+        # Add some backlash margin
+        # "more overlap" means will try a slightly larger area
+        #margin = 0.05
+        x_overlap = self.x_overlap
+        y_overlap = self.y_overlap
 
         # image 0 left of image 1?
         if pair.first.col < pair.second.col:
             # Keep image 0 right, image 1 left
-            sub_image_0_x_delta = int(images[0].width() * (1.0 - x_overlap))
-            sub_image_1_x_end = int(images[1].width() * x_overlap)
-        
+            sub_image_0_x_delta = int(images[0].width() * x_overlap)
+            sub_image_1_x_end = int(round(images[1].width() * (1.0 - x_overlap)))
+
         # image 0 above image 1?
         if pair.first.row < pair.second.row:
             # Keep image 0 top, image 1 bottom
-            sub_image_0_y_delta = int(images[0].height() * (1.0 - y_overlap))
-            sub_image_1_y_end = int(images[1].height() * y_overlap)
-        
+            sub_image_0_y_delta = int(images[0].height() * y_overlap)
+            sub_image_1_y_end = int(round(images[1].height() * (1.0 - y_overlap)))
+
         '''
         print 'image 0 x delta: %d, y delta: %d' % (sub_image_0_x_delta, sub_image_0_y_delta)
         Note y starts at top in PIL
@@ -279,11 +281,11 @@ class CommonStitch:
         sub_image_0_file = ManagedTempFile.get(None, '.jpg')
         sub_image_1_file = ManagedTempFile.get(None, '.jpg')
         print 'sub image 0: width=%d, height=%d, name=%s' % (sub_image_0.width(), sub_image_0.height(), sub_image_0_file.file_name)
-        print 'sub image 1: width=%d, height=%d, name=%s' % (sub_image_1.width(), sub_image_1.height(), sub_image_0_file.file_name)
+        print 'sub image 1: width=%d, height=%d, name=%s' % (sub_image_1.width(), sub_image_1.height(), sub_image_1_file.file_name)
         #sys.exit(1)
         sub_image_0.image.save(sub_image_0_file.file_name)
         sub_image_1.image.save(sub_image_1_file.file_name)
-        
+
         sub_image_fn_pair = (sub_image_0_file.file_name, sub_image_1_file.file_name)
         # subimage file name symbolic link to subimage file name
         # this should be taken care of inside of control point actually
@@ -298,20 +300,20 @@ class CommonStitch:
         if pair_project is None:
             print 'WARNING: failed to gen control points @ %s' % repr(pair)
             return None
-        
+
         # all we need to do is adjust xy positions
         # afaik above is way overcomplicated
         final_pair_project = pto_unsub(pair_project, (sub_image_0_file, sub_image_1_file), (sub_image_0_x_delta, sub_image_0_y_delta), sub_to_real)
-        
+
         # Filenames become absolute
         #sys.exit(1)
         return final_pair_project
 
-    def try_control_points_with_position(self, pair, image_fn_pair, subimage_factor = None):
+    def try_control_points_with_position(self, pair, image_fn_pair):
         '''Try to stitch two images together without any (high level) image processing other than cropping'''
         # If images are arranged in a regular grid and we are allowed to crop do it
         if self.regular and self.subimage_control_points:
-            return self.control_points_by_subimage(pair, image_fn_pair, subimage_factor)
+            return self.control_points_by_subimage(pair, image_fn_pair)
         # Otherwise run stitches on the full image
         else:
             print 'Full image stitch (not partial w/ regular %d and subimage control %d)' % (self.regular, self.subimage_control_points)
@@ -331,32 +333,32 @@ class CommonStitch:
                 self.failures.add_failure(image_fn_pair)
         return ret
         '''
-    
+
     def do_generate_control_points_by_pair(self, pair, image_fn_pair):
         '''high level function uses by sub-stitches.  Given a pair of images make a best effort to return a .pto object'''
         '''
         pair: ImageCoordinatePair() object
         image_fn_pair: tuple of strings
-        
+
         Algorithm:
         First try to stitch normally (either whole image or partial depending on the mode)
         If that doesn't succeed and softening is enabled try up to three times to soften to produce a match
         If that still doesn't produce a decent solution return None and let higher levels deal with
         '''
         soften_iterations = 3
-    
+
         print
         print
         #print 'Generating project for image pair (%s / %s, %s / %s)' % (image_fn_pair[0], str(pair[0]), image_fn_pair[1], str(pair[1]))
         print 'Generating project for image pair (%s, %s)' % (image_fn_pair[0], image_fn_pair[1])
-    
+
         if True:
             # Try raw initially
             print 'Attempting sharp match...'
             ret_project = self.try_control_points_with_position(pair, image_fn_pair)
             if ret_project:
                 return ret_project
-        
+
         print 'WARNING: bad project, attempting soften...'
 
         soften_image_file_0_managed = ManagedTempFile.from_same_extension(image_fn_pair[0])
@@ -371,7 +373,7 @@ class CommonStitch:
             # Wonder if we can combine features from multiple soften passes?
             # Or at least take the maximum
             # Do features get much less accurate as the soften gets up there?
-        
+
             print 'Attempting soften %d / %d' % (i + 1, soften_iterations)
 
             if i == 0:
@@ -379,8 +381,8 @@ class CommonStitch:
                 soften_composite(image_fn_pair[1], soften_image_file_1_managed.file_name)
             else:
                 soften_composite(soften_image_file_0_managed.file_name)
-                soften_composite(soften_image_file_1_managed.file_name)            
-            
+                soften_composite(soften_image_file_1_managed.file_name)
+
             pair_soften_image_file_names = (soften_image_file_0_managed.file_name, soften_image_file_1_managed.file_name)
             ret_project = self.try_control_points_with_position(pair, pair_soften_image_file_names)
             # Did we win?
@@ -415,7 +417,7 @@ class CommonStitch:
                 print 'Soften ok: %s' % (self.soften_ok,)
                 return ret_project
 
-        print 'WARNING: gave up on generating control points!' 
+        print 'WARNING: gave up on generating control points!'
         return None
         #raise Exception('ERROR: still could not make a coherent project!')
 
