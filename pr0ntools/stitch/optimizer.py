@@ -839,9 +839,14 @@ def check_poor_opt(project, icm=None):
     imgx = 1632
     imgy = 1224
 
-    j = json.load(open('out.json', 'r'))
-    ox = j['x']['overlap'] * imgx
-    oy = j['y']['overlap'] * imgy
+    ox = 0.7
+    oy = 0.7
+    if os.path.exists('out.json'):
+        j = json.load(open('out.json', 'r'))
+        ox = j['x']['overlap']
+        oy = j['y']['overlap']
+    ox *=  imgx
+    oy *=  imgy
     # First order tolerance
     # ie x change in x direction
     tol_1 = ox + 175
@@ -915,16 +920,21 @@ def check_pair_outlier_angle(icm, pairsx, pairsy):
     imgx = 1632
     imgy = 1224
 
-    j = json.load(open('out.json', 'r'))
-    ox = j['x']['overlap'] * imgx
-    oy = j['y']['overlap'] * imgy
+    ox = 0.7
+    oy = 0.7
+    if os.path.exists('out.json'):
+        j = json.load(open('out.json', 'r'))
+        ox = j['x']['overlap']
+        oy = j['y']['overlap']
+    ox *=  imgx
+    oy *=  imgy
     # First order tolerance
     # ie x change in x direction
-    tolx_1 = ox + 100
-    toly_1 = oy + 100
+    tolx_1 = ox + 165
+    toly_1 = oy + 165
     # Second order tolernace
     # ie x change in y direction
-    tol_2 = 100
+    tol_2 = 165
 
     fails = 0
     npairs = [0, 0]
@@ -981,7 +991,7 @@ def check_pair_outlier_angle(icm, pairsx, pairsy):
                 fails += 1
 
     if fails:
-        print 'WARNING: %d / (%dx %dy) suspicious optimization result(s)' % (fails, npairs[0], npairs[1])
+        print 'WARNING: removed %d / (%dx %dy) suspicious optimization result(s)' % (fails, npairs[0], npairs[1])
     else:
         print 'OK'
 
