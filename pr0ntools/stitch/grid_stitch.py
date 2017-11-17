@@ -181,7 +181,9 @@ class GridStitch(common_stitch.CommonStitch):
                     if what == 'done':
                         (task, pto) = out[1]
                         prog = 'complete %d/%d' % (pair_complete, n_pairs)
-                        print 'W%d: done w/ submit %d, %s, result: %s' % (wi, pair_submit, prog, pto)
+                        print 'W%d: done w/ submit %d, %s' % (wi, pair_submit, prog)
+                        print task
+                        print pto
 
                         (_pair, pair_fns) = task
                         if pto:
