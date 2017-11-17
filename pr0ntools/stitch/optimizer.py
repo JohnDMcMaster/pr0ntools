@@ -35,6 +35,7 @@ from pr0ntools import statistics
 
 import sys
 import random
+import json
 
 def debug(s = ''):
     pass
@@ -594,6 +595,7 @@ def check_pair_outlier(icm, pairs, xorder, yorder, stdev=3):
         print 'Y : %0.3f to %0.3f' % (y_min, y_max)
         
         removed = 0
+        npairs = 0
         for y in xrange(0, icm.height(), yorder):
             for x in xrange(0, icm.width(), xorder):
                 # Missing image
@@ -604,12 +606,13 @@ def check_pair_outlier(icm, pairs, xorder, yorder, stdev=3):
                 # No control points
                 if d is None:
                     continue
+                npairs += 1
                 dx, dy = d
                 if (dx < x_min or dx > x_max) or (dy < y_min or dy > y_max):
                     print 'Ignoring x%d y%d' % (x, y)
                     pairs[(x, y)] = None
                     removed += 1
-        print 'Removed %d pairs' % removed
+        print 'Removed %d / %d pairs' % (removed, npairs)
 
 def pre_opt(project, icm, verbose=False, stdev=None):
     '''
@@ -661,32 +664,37 @@ def pre_opt(project, icm, verbose=False, stdev=None):
         if fail:
             raise Exception('One or more images do not have control points')
 
-    # dictionary of results so that we can play around with post-processing result
-    pairsx = {}
-    pairsy = {}
-    # start with simple algorithm where we just sweep left/right
-    for y in xrange(0, icm.height()):
-        print 'Calc delta with Y %d / %d' % (y + 1, icm.height())
-        for x in xrange(0, icm.width()):
-            img = icm.get_image(x, y)
-            # Skip missing images
-            if img is None:
-                continue
-            il = project.img_fn2il[img]
-            ili = il.get_index()
-            if x > 0:
-                img = icm.get_image(x - 1, y)
-                if img:
-                    pairsx[(x, y)] = pair_check(project, project.img_fn2il[img], ili)
-                else:
-                    pairsx[(x, y)] = None
-            if y > 0:
-                img = icm.get_image(x, y - 1)
-                if img:
-                    pairsy[(x, y)] = pair_check(project, project.img_fn2il[img], ili)
-                else:
-                    pairsx[(x, y)] = None
-    
+    def build_pairs():
+        # dictionary of results so that we can play around with post-processing result
+        pairsx = {}
+        pairsy = {}
+        # start with simple algorithm where we just sweep left/right
+        for y in xrange(0, icm.height()):
+            print 'Calc delta with Y %d / %d' % (y + 1, icm.height())
+            for x in xrange(0, icm.width()):
+                img = icm.get_image(x, y)
+                # Skip missing images
+                if img is None:
+                    continue
+                il = project.img_fn2il[img]
+                ili = il.get_index()
+                if x > 0:
+                    img = icm.get_image(x - 1, y)
+                    if img:
+                        pairsx[(x, y)] = pair_check(project, project.img_fn2il[img], ili)
+                    else:
+                        pairsx[(x, y)] = None
+                if y > 0:
+                    img = icm.get_image(x, y - 1)
+                    if img:
+                        pairsy[(x, y)] = pair_check(project, project.img_fn2il[img], ili)
+                    else:
+                        pairsx[(x, y)] = None
+        return pairsx, pairsy
+    # (x, y) keyed dict gives the delta to the left or up
+    # That is, (0, 0) is not included
+    pairsx, pairsy = build_pairs()
+
     if verbose:
         print 'Delta map'
         for y in xrange(0, icm.height()):
@@ -705,6 +713,8 @@ def pre_opt(project, icm, verbose=False, stdev=None):
                 else:
                     print '    Y: %0.3fx, %0.3fy' % (p[0], p[1])
     
+    print
+    check_pair_outlier_angle(icm, pairsx, pairsy)
     print
     check_pair_outlier(icm, pairsx, xorder=1, yorder=2, stdev=stdev)
     print
@@ -736,8 +746,8 @@ def pre_opt(project, icm, verbose=False, stdev=None):
             break
     else:
         raise Exception('No images...')
-        
-    
+
+
     print
     print
     print 'First pass: adjacent images'
@@ -767,7 +777,13 @@ def pre_opt(project, icm, verbose=False, stdev=None):
                 continue
             print '  WARNING: un-located image %s' % img
 
-    
+    print
+    print
+    print 'Checking for poorly optimized images'
+    check_poor_opt(project, icm)
+
+    print
+    print
     if verbose:
         print 'Final position optimization:'
         for y in xrange(icm.height()):
@@ -816,6 +832,158 @@ def get_rms(project):
             print '  ', this
         rms += this
     return rms / len(project.control_point_lines)
+
+def check_poor_opt(project, icm=None):
+    # FIXME: calculate from actual image size + used overlap
+    # Use an expected max angle
+    imgx = 1632
+    imgy = 1224
+
+    j = json.load(open('out.json', 'r'))
+    ox = j['x']['overlap'] * imgx
+    oy = j['y']['overlap'] * imgy
+    # First order tolerance
+    # ie x change in x direction
+    tol_1 = ox + 175
+    # Second order tolernace
+    # ie x change in y direction
+    tol_2 = 175
+
+    def ildiff(imgl, imgr):
+        '''
+        return l - r as dx, dy
+        '''
+        ill = project.img_fn2il[imgl]
+        ilr = project.img_fn2il[imgr]
+        dx = ill.x() - ilr.x()
+        dy = ill.y() - ilr.y()
+        return dx, dy
+
+    def check(refr, refc):
+        ret = True
+        img = icm.get_image(refc, refr)
+        # Skip missing imagesx
+        if img is None:
+            return True
+
+        # Global coordinates positive upper left
+        # icm positive upper 
+        if refc > 0:
+            imgl = icm.get_image(refc - 1, refr)
+            if imgl:
+                dx, dy = ildiff(imgl, img)
+                # Expected delta vs actual
+                got = abs(dx - ox)
+                if got > tol_1:
+                    print '%s-%s: x-x tolerance 1 %d > expect %d' % (img, imgl, got, tol_1)
+                    ret = False
+                got = abs(dy)
+                if got > tol_2:
+                    print '%s-%s: y-y tolerance 2 %d > expect %d' % (img, imgl, got, tol_2)
+                    ret = False
+        if refr > 0:
+            imgl = icm.get_image(refc, refr - 1)
+            if imgl:
+                dx, dy = ildiff(imgl, img)
+                # Expected delta vs actual
+                got = abs(dx)
+                if got > tol_2:
+                    print '%s-%s: x-x tolerance 2 %d > expect %d' % (img, imgl, got, tol_2)
+                    ret = False
+                got = abs(dy - oy)
+                if got > tol_1:
+                    print '%s-%s: y-y tolerance 1 %d > expect %d' % (img, imgl, got, tol_1)
+                    ret = False
+        return ret
+
+    fails = 0
+    for refr in xrange(icm.height()):
+        for refc in xrange(icm.width()):
+            if not check(refr, refc):
+                fails += 1
+    if fails:
+        print 'WARNING: %d suspicious optimization result(s)' % fails
+    else:
+        print 'OK'
+
+def check_pair_outlier_angle(icm, pairsx, pairsy):
+    print 'Checking for outliers by angle'
+    #return
+
+    # FIXME: calculate from actual image size + used overlap
+    # Use an expected max angle
+    imgx = 1632
+    imgy = 1224
+
+    j = json.load(open('out.json', 'r'))
+    ox = j['x']['overlap'] * imgx
+    oy = j['y']['overlap'] * imgy
+    # First order tolerance
+    # ie x change in x direction
+    tolx_1 = ox + 100
+    toly_1 = oy + 100
+    # Second order tolernace
+    # ie x change in y direction
+    tol_2 = 100
+
+    fails = 0
+    npairs = [0, 0]
+
+    '''
+    worst_dxdc = 0.0
+    worst_dxdr = 0.0
+    worst_dydc = 0.0
+    worst_dydr = 0.0
+    '''
+    def check(refc, refr):
+        ret = True
+        pairx = pairsx.get((refc, refr), None)
+        if pairx is not None:
+            npairs[0] += 1
+            dx, dy = pairx
+            img = icm.get_image(refc, refr)
+            imgl = icm.get_image(refc - 1, refr)
+            got = abs(dx - ox)
+            if got > tolx_1:
+                print '%s-%s: x-x tolerance 1 %d > expect %d' % (img, imgl, got, tolx_1)
+                ret = False
+                pairsx[(refc, refr)] = None
+                pairsy[(refc, refr)] = None
+            got = abs(dy)
+            if got > tol_2:
+                print '%s-%s: y-y tolerance 2 %d > expect %d' % (img, imgl, got, tol_2)
+                ret = False
+                pairsx[(refc, refr)] = None
+                pairsy[(refc, refr)] = None
+        pairy = pairsy.get((refc, refr), None)
+        if pairy is not None:
+            npairs[1] += 1
+            dx, dy = pairy
+            img = icm.get_image(refc, refr)
+            imgl = icm.get_image(refc, refr - 1)
+            got = abs(dx)
+            if got > tol_2:
+                print '%s-%s: x-x tolerance 2 %d > expect %d' % (img, imgl, got, tol_2)
+                ret = False
+                pairsx[(refc, refr)] = None
+                pairsy[(refc, refr)] = None
+            got = abs(dy - oy)
+            if got > toly_1:
+                print '%s-%s: y-y tolerance 1 %d > expect %d' % (img, imgl, got, toly_1)
+                ret = False
+                pairsx[(refc, refr)] = None
+                pairsy[(refc, refr)] = None
+        return ret
+
+    for refr in xrange(icm.height()):
+        for refc in xrange(icm.width()):
+            if not check(refc, refr):
+                fails += 1
+
+    if fails:
+        print 'WARNING: %d / (%dx %dy) suspicious optimization result(s)' % (fails, npairs[0], npairs[1])
+    else:
+        print 'OK'
 
 # TODO: give some more thought and then delete entirely
 def chaos_opt(project, icm):

@@ -25,7 +25,7 @@ from pr0ntools.util import IOTimestamp
 class Worker(object):
     def __init__(self, i, log_fn):
         self.process = multiprocessing.Process(target=self.run)
-        
+
         self.i = i
         self.qi = multiprocessing.Queue()
         self.qo = multiprocessing.Queue()
@@ -34,7 +34,7 @@ class Worker(object):
         self.generate_control_points_by_pair = None
         self.idle = True
         self.log_fn = log_fn
-        
+
     def start(self):
         self.process.start()
         # Prevents later join failure
@@ -56,7 +56,7 @@ class Worker(object):
                 self.idle = True
                 continue
             self.idle = False
-            
+
             try:
                 (pair, pair_fns) = task
 
@@ -67,18 +67,18 @@ class Worker(object):
                 print
                 print '*' * 80
                 print 'w%d: task rx' % self.i
-            
+
                 pto = self.generate_control_points_by_pair(pair, pair_fns)
-                
+
                 if not pto:
                     print 'WARNING: bad project @ %s, %s' % (repr(pair), pair_fns)
                 else:
                     if len(pto.get_text().strip()) == 0:
                         raise Exception('Generated empty pair project')
-                
+
                 self.qo.put(('done', (task, pto)))
-                print 'w%d: task done' % self.i
-                
+                print 'w%d: task done, pto: %s' % (self.i, pto)
+
             except Exception as e:
                 traceback.print_exc()
                 estr = traceback.format_exc()
@@ -94,21 +94,21 @@ class GridStitch(common_stitch.CommonStitch):
         self.threads = 1
         self.workers = []
         self.workers_p = []
-        
+
     @staticmethod
     def from_tagged_file_names(image_file_names):
         engine = GridStitch()
         engine.image_file_names = image_file_names
         dbg('Orig file names: %s' % str(image_file_names))
-        
+
         file_names_canonical = list()
         for file_name in image_file_names:
             new_fn = os.path.realpath(file_name)
             engine.canon2orig[new_fn] = file_name
             file_names_canonical.append(new_fn)
-        
+
         engine.coordinate_map = ImageCoordinateMap.from_tagged_file_names(file_names_canonical)
-        
+
         return engine
 
     def init_failures(self):
@@ -116,8 +116,8 @@ class GridStitch(common_stitch.CommonStitch):
         for (file_name, _row, _col) in self.coordinate_map.images():
             open_list.add(file_name)
         self.failures = common_stitch.FailedImages(open_list)
-        
-        
+
+
     def generate_control_points(self):
         '''
         Generate control points
@@ -131,7 +131,7 @@ class GridStitch(common_stitch.CommonStitch):
         print
         pair_submit = 0
         pair_complete = 0
-        
+
         if self.skip_missing:
             print 'Not verifying image map'
         else:
@@ -143,7 +143,7 @@ class GridStitch(common_stitch.CommonStitch):
                 print 'Missing images.  Use --skip-missing to continue'
                 print '!' * 80
                 raise e
-        
+
         print 'Initializing %d workers' % self.threads
         for ti in xrange(self.threads):
             w = Worker(ti, os.path.join(self.log_dir, 'w%02d.log' % ti))
@@ -153,16 +153,16 @@ class GridStitch(common_stitch.CommonStitch):
 
         try:
             coord_pairs = self.coordinate_map.gen_pairs(1, 1)
-            
+
             all_allocated = False
-    
+
             # Seed project with all images in order
             # note we used the filename that will get used below
             # not the final output file name
             for can_fn in sorted(self.canon2orig.keys()):
                 self.project.add_image(can_fn)
             self.project.save()
-    
+
             last_progress = time.time()
             while not (all_allocated and pair_complete == pair_submit):
                 progress = False
@@ -177,12 +177,12 @@ class GridStitch(common_stitch.CommonStitch):
                     pair_complete += 1
                     what = out[0]
                     progress = True
-                    
+
                     if what == 'done':
                         (task, pto) = out[1]
                         prog = 'complete %d/%d' % (pair_complete, n_pairs)
-                        print 'W%d: done w/ submit %d, %s' % (wi, pair_submit, prog)
-                        
+                        print 'W%d: done w/ submit %d, %s, result: %s' % (wi, pair_submit, prog, pto)
+
                         (_pair, pair_fns) = task
                         if pto:
                             self.failures.add_success(pair_fns)
@@ -199,13 +199,13 @@ class GridStitch(common_stitch.CommonStitch):
                                 print 'Saving intermediate result to %s' % self.project.file_name
                                 self.project.save()
                                 print 'Saved'
-    
+
                     elif what == 'exception':
                         for worker in self.workers:
                             worker.running.clear()
                         # let stdout clear up
                         time.sleep(1)
-                        
+
                         #(_task, e) = out[1]
                         print '!' * 80
                         print 'ERROR: W%d failed w/ exception' % wi
@@ -222,7 +222,7 @@ class GridStitch(common_stitch.CommonStitch):
                 if len(final_pair_projects):
                     print 'Merging %d projects' % len(final_pair_projects)
                     self.project.merge_into(final_pair_projects)
-                
+
                 # Any workers need more work?
                 for wi, worker in enumerate(self.workers):
                     if all_allocated:
@@ -235,39 +235,39 @@ class GridStitch(common_stitch.CommonStitch):
                                 print 'All tasks allocated'
                                 all_allocated = True
                                 break
-            
+
                             progress = True
-                
+
                             print '*' * 80
                             print 'W%d: submit %s (%d / %d)' % (wi, repr(pair), pair_submit, n_pairs)
-                
+
                             # Image file names as list
                             pair_images = self.coordinate_map.get_images_from_pair(pair)
                             print 'pair images: ' + repr(pair_images)
                             if pair_images[0] is None or pair_images[1] is None:
                                 print 'WARNING: skipping missing image'
                                 continue
-                                
+
                             worker.qi.put((pair, pair_images))
                             pair_submit += 1
                             break
-                        
+
                 if progress:
                     last_progress = time.time()
                 else:
                     if time.time() - last_progress > 30:
                         print 'WARNING: server thread stalled'
                         last_progress = time.time()
-                
+
                 time.sleep(0.1)
-                
+
             print 'pairs done'
-            
+
         finally:
             print 'Shutting down workers'
             for worker in self.workers:
                 worker.running.clear()
-        
+
         print 'Reverting canonical file names to original input...'
         # Fixup the canonical hack
         for can_fn in self.canon2orig:
@@ -282,7 +282,7 @@ class GridStitch(common_stitch.CommonStitch):
                 self.project.add_image(orig)
 
         self.project.save()
-        
+
         '''
         if 0:
             print 'Sub projects (full image):'
@@ -301,11 +301,11 @@ class GridStitch(common_stitch.CommonStitch):
             print
             print
         '''
-            
+
     def do_generate_control_points_by_pair(self, pair, image_fn_pair):
         ret = common_stitch.CommonStitch.do_generate_control_points_by_pair(self, pair, image_fn_pair)
         if ret is None and pair.adjacent():
             print 'WARNING: last ditch effort, increasing field of view'
-            
+
         return ret
 
