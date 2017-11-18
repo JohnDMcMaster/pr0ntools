@@ -29,11 +29,12 @@ if [ -z "$fn" ] ; then
     usage
     exit 1
 fi
+fnbase=$(basename $fn)
 
 vendor=$(echo $fn |cut -d_ -f 1)
 chipid=$(echo $fn |cut -d_ -f 2)
 dwbase=":${collect}:${vendor}:${chipid}"
-flavor="mz_mit20x"
+flavor=$(echo $fnbase |sed 's/[a-zA-Z\-]*_[a-zA-Z\-]*_\(.*\).jpg/\1/')
 desc="MZ @ 20x"
 urlbase="https://siliconpr0n.org/map/$vendor/$chipid"
 
