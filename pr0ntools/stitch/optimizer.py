@@ -340,6 +340,7 @@ def pair_check(project, l_il, r_il):
     if len(cps_x) == 0:
         return None
     else:
+        # XXX: actually, we might be better doing median or something like that
         return (1.0 * sum(cps_x)/len(cps_x),
                 1.0 * sum(cps_y)/len(cps_y))
 
@@ -672,6 +673,10 @@ def anchor(project, icm):
 
 def pre_opt(project, icm, verbose=False, stdev=None):
     '''
+    FIXME: implementation is extremely inefficient
+    Change to do a single pass on control points, indexing results
+    See pr0ncp for example
+
     Generates row/col to use for initial image placement
     spiral pattern outward from center
     
@@ -1124,6 +1129,12 @@ def chaos_opt(project, icm):
             process()
             open_set.remove(pref)
 
+def pto2icm(pto):
+    fns = []
+    for il in pto.get_image_lines():
+        fns.append(il.get_name())
+    return ImageCoordinateMap.from_tagged_file_names(fns)
+
 '''
 Assumes images are in a grid to simplify workflow management
 Seed
@@ -1161,12 +1172,9 @@ class ChaosOptimizer:
         # The following will assume all of the images have the same size
         self.verify_images()
         
-        fns = []
         # Copy project so we can trash it
         project = self.project.copy()
-        for il in project.get_image_lines():
-            fns.append(il.get_name())
-        self.icm = ImageCoordinateMap.from_tagged_file_names(fns)
+        self.icm = pto2icm(project)
 
         chaos_opt(project, self.icm)
         prepare_pto(project, reoptimize=False)
