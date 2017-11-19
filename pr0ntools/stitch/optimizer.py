@@ -614,6 +614,62 @@ def check_pair_outlier(icm, pairs, xorder, yorder, stdev=3):
                     removed += 1
         print 'Removed %d / %d pairs' % (removed, npairs)
 
+def anchor(project, icm):
+    '''
+    Chose an anchor image to stitch project
+    The image is located in the given project and the (col, row) is returned
+    Exception thrown if an anchor can't be chosen
+    (happens if no control points)
+    '''
+
+    ret = []
+
+    def try_anch(anch_c, anch_r):
+        # Image must exist
+        img = icm.get_image(anch_c, anch_r)
+        if img is None:
+            return False
+        # Must be linked to at least one other image
+        il = project.img_fn2il[img]
+        cpls = img_cpls(project, il.get_index())
+        if len(cpls) == 0:
+            return False
+        # Only anchor if control points
+        print 'Chose anchor image: %s' % img
+        ret.append((anch_c, anch_r))
+        anch_il = project.img_fn2il[img]
+        anch_il.set_x(0.0)
+        anch_il.set_y(0.0)
+        return True
+
+    def try_anchs():
+        # repair holes by successive passes
+        # contains x,y points that have been finalized
+        for anch_r in xrange(0, icm.height()):
+            for anch_c in xrange(0, icm.width()):
+                if try_anch(anch_c, anch_r):
+                    return
+        else:
+            raise Exception('No images...')
+
+    # Try center first, then work outward 
+    # Center should propagate the lowest error
+    def dxdys():
+        for dx in (0, 1, -1):
+            for dy in (0, 1, -1):
+                yield dx, dy
+    for (dx, dy) in dxdys():
+        col = icm.width() / 2 + dx
+        col = min(max(0, col), icm.width() - 1)
+        row = icm.height() / 2 + dy
+        row = min(max(0, row), icm.height() - 1)
+        if try_anch(col, row):
+            break
+    else:
+        try_anchs()
+
+    return ret[0]
+
 def pre_opt(project, icm, verbose=False, stdev=None):
     '''
     Generates row/col to use for initial image placement
@@ -666,6 +722,7 @@ def pre_opt(project, icm, verbose=False, stdev=None):
 
     def build_pairs():
         # dictionary of results so that we can play around with post-processing result
+        # This step takes by far the longest in the optimization process
         pairsx = {}
         pairsy = {}
         # start with simple algorithm where we just sweep left/right
@@ -720,33 +777,9 @@ def pre_opt(project, icm, verbose=False, stdev=None):
     print
     check_pair_outlier(icm, pairsy, xorder=1, yorder=1, stdev=stdev)
     print
-    
-    # repair holes by successive passes
-    # contains x,y points that have been finalized
-    for anch_r in xrange(0, icm.height()):
-        for anch_c in xrange(0, icm.width()):
-            # Image must exist
-            img = icm.get_image(anch_c, anch_r)
-            if img is None:
-                continue
-            # Must be linked to at least one other image
-            il = project.img_fn2il[img]
-            cpls = img_cpls(project, il.get_index())
-            if len(cpls) == 0:
-                img = None
-                continue
-            # Only anchor if control points
-            print 'Chose anchor image: %s' % img
-            closed_set = {(anch_c, anch_r): (0.0, 0.0)}
-            anch_il = project.img_fn2il[img]
-            anch_il.set_x(0.0)
-            anch_il.set_y(0.0)
-            break
-        if img:
-            break
-    else:
-        raise Exception('No images...')
 
+    anch_c, anch_r = anchor(project, icm)
+    closed_set = {(anch_c, anch_r): (0.0, 0.0)}
 
     print
     print

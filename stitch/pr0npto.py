@@ -43,7 +43,7 @@ if __name__ == "__main__":
                    help='project to use for creating linear system (default: in)')
     parser.add_argument('--allow-missing', action="store_true", help='Allow missing images')
     parser_add_bool_arg('--stampout', default=True, help='timestamp output')
-    parser.add_argument('--stdev', type=float, default=0, help='pre_opt: standard deviation filter for messy sets')
+    parser.add_argument('--stdev', type=float, default=3.0, help='pre_opt: keep points within n standard deviations')
     parser.add_argument('pto', metavar='.pto in', nargs=1,
                    help='project to work on')
     parser.add_argument('out', metavar='.pto out', nargs='?',

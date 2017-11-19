@@ -39,8 +39,8 @@ def mksize(s):
     # To make feeding args easier
     if s is None:
         return None
-        
-    m = re.match(r"(\d*)([A-Z]*)", s.upper())
+
+    m = re.match(r"(\d*)([A-Za-z]*)", s)
     if not m:
         raise ValueError("Bad size string %s" % s)
     num = int(m.group(1))
