@@ -47,9 +47,6 @@ cat <<EOF
 
 ====== Package ======
 
-<code>
-</code>
-
 {{${dwbase}:pack_top.jpg?300|}}
 
 <code>
@@ -57,6 +54,8 @@ cat <<EOF
 
 {{${dwbase}:pack_btm.jpg?300|}}
 
+<code>
+</code>
 
 ====== Die ======
 
