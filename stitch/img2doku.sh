@@ -34,13 +34,16 @@ fnbase=$(basename $fn)
 vendor=$(echo $fn |cut -d_ -f 1)
 chipid=$(echo $fn |cut -d_ -f 2)
 dwbase=":${collect}:${vendor}:${chipid}"
-flavor=$(echo $fnbase |sed 's/[a-zA-Z\-]*_[a-zA-Z\-]*_\(.*\).jpg/\1/')
+flavor=$(echo $fnbase |sed 's/[a-zA-Z0-9\-]*_[a-zA-Z0-9\-]*_\(.*\).jpg/\1/')
 desc="MZ @ 20x"
 urlbase="https://siliconpr0n.org/map/$vendor/$chipid"
 
 identify=$(identify $fn)
 wh=$(echo $identify |cut -d\  -f3)
 size=$(echo $identify |cut -d\  -f7)
+
+echo "https://siliconpr0n.org/archive/doku.php?id=$collect:$vendor:$chipid"
+echo
 
 cat <<EOF
 {{tag>collection_${collect} vendor_${vendor} type_unknown year_unknown foundry_unknown}}
