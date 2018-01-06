@@ -318,6 +318,7 @@ class Tiler:
         sth: super tile height
         stp: super tile pixels (auto stw, sth)
         '''
+        self.is_full = False
         self.img_width = None
         self.img_height = None
         self.dry = dry
@@ -588,7 +589,8 @@ class Tiler:
         '''Stitch a single supertile'''
         self.stw = self.width()
         self.sth = self.height()
-    
+        self.is_full = True
+
     def recalc_step(self):
         '''
         We won't stitch any tiles in the buffer zone
@@ -988,6 +990,9 @@ class Tiler:
         if self.merge:
             self.seed_merge()
 
+        if self.is_full:
+            print 'M: full => forcing 1 thread '
+            self.threads = 1
         print 'M: Initializing %d workers' % self.threads
         self.workers = []
         for ti in xrange(self.threads):
