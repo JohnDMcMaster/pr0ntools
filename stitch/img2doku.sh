@@ -31,8 +31,8 @@ if [ -z "$fn" ] ; then
 fi
 fnbase=$(basename $fn)
 
-vendor=$(echo $fn |cut -d_ -f 1)
-chipid=$(echo $fn |cut -d_ -f 2)
+vendor=$(echo $fnbase |cut -d_ -f 1)
+chipid=$(echo $fnbase |cut -d_ -f 2)
 dwbase=":${collect}:${vendor}:${chipid}"
 flavor=$(echo $fnbase |sed 's/[a-zA-Z0-9\-]*_[a-zA-Z0-9\-]*_\(.*\).jpg/\1/')
 desc="MZ @ 20x"
@@ -67,7 +67,7 @@ cat <<EOF
 
 [[${urlbase}/$flavor/|$desc]]
 
-    * [[${urlbase}/single/$fn|Single]] (${wh}, ${size})
+    * [[${urlbase}/single/$fnbase|Single]] (${wh}, ${size})
 
 EOF
 
