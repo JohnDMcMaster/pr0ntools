@@ -96,6 +96,9 @@ class CommonStitch:
         self.y_overlap = 0.7
         if os.path.exists('scan.json'):
             j = json.load(open('scan.json'))
+            if 'overlap' in j:
+                self.x_overlap = j['overlap']
+                self.y_overlap = j['overlap']
             if 'computed' in j:
                 self.x_overlap = j['computed']['x']['overlap']
                 self.y_overlap = j['computed']['y']['overlap']
