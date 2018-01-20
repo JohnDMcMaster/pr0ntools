@@ -94,6 +94,7 @@ class GridStitch(common_stitch.CommonStitch):
         self.threads = 1
         self.workers = []
         self.workers_p = []
+        self.ignore_errors = False
 
     @staticmethod
     def from_tagged_file_names(image_file_names):
@@ -203,11 +204,6 @@ class GridStitch(common_stitch.CommonStitch):
                                 print 'Saved'
 
                     elif what == 'exception':
-                        for worker in self.workers:
-                            worker.running.clear()
-                        # let stdout clear up
-                        time.sleep(1)
-
                         #(_task, e) = out[1]
                         print '!' * 80
                         print 'ERROR: W%d failed w/ exception' % wi
@@ -216,7 +212,13 @@ class GridStitch(common_stitch.CommonStitch):
                         for l in estr.split('\n'):
                             print l
                         print '!' * 80
-                        raise Exception('Shutdown on worker failure')
+
+                        if self.ignore_errors:
+                            print 'Continuing anyway on ignore errors'
+                        else:
+                            for worker in self.workers:
+                                worker.running.clear()
+                            raise Exception('Shutdown on worker failure')
                     else:
                         print '%s' % (out,)
                         raise Exception('Internal error: bad task type %s' % what)

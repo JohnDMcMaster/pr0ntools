@@ -52,6 +52,7 @@ if __name__ == "__main__":
     parser.add_argument('--y-overlap', type=int, help='in pixels')
     parser_add_bool_arg('--dry', default=False, help='')
     parser_add_bool_arg('--skip-missing', default=False, help='')
+    parser_add_bool_arg('--ignore-errors', default=False, help='')
     parser.add_argument('fns', nargs='+', help='File names')
     args = parser.parse_args()
     
@@ -86,7 +87,8 @@ if __name__ == "__main__":
     
     if args.algorithm == "grid":
         engine = GridStitch.from_tagged_file_names(input_image_file_names)
-        
+        engine.ignore_errors = args.ignore_errors
+
         print 'Using %d threads' % args.threads
         engine.threads = args.threads
         engine.skip_missing = args.skip_missing
