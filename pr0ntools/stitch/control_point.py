@@ -248,6 +248,11 @@ class PanoCP:
             print 'output:'
             print output
             print
+            # Happens very rarely
+            # 2018-01-24T04:00:18.720954: Exception: Bad rc: -11
+            # Log it but consider it a known failure
+            if rc == -11:
+                return None
             raise Exception('Bad rc: %d' % rc)
 
 
