@@ -4,7 +4,6 @@ Copyright 2011 John McMaster <JohnDMcMaster@gmail.com>
 Licensed under a 2 clause BSD license, see COPYING for details
 '''
 from pr0ntools.temp_file import ManagedTempFile
-from pr0ntools.temp_file import ManagedTempDir
 from pr0ntools.execute import exc_ret_istr
 from pr0ntools.stitch.pto.project import PTOProject
 from pr0ntools.stitch.pto.util import *
@@ -12,7 +11,6 @@ from pr0ntools.stitch.pto.control_point_line import ControlPointLine
 from pr0ntools.stitch.pto.image_line import ImageLine
 import shutil
 import os.path
-import time
 
 def dbg(s):
     pass
