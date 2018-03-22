@@ -6,8 +6,8 @@ collect=$COLLECT
 if [ -z "$collect" ] ; then
     collect=mcmaster
 fi
-collect=$MAP
 
+map=$MAP
 if [ -z "$map" ] ; then
     map=1
 fi
