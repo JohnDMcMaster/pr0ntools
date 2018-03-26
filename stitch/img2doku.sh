@@ -64,29 +64,32 @@ fi
 
 if [ "$map" = 1 ] ; then
     echo "mapping"
-    for fn in $ARGS; do
-        fnbase=$(basename $fn)
+    fn=${ARGS[0]}
+    fnbase=$(basename $fn)
 
-        vendor=$(echo $fnbase |cut -d_ -f 1)
-        chipid=$(echo $fnbase |cut -d_ -f 2)
-        dwbase=":${collect}:${vendor}:${chipid}"
-        flavor=$(echo $fnbase |sed 's/[a-zA-Z0-9\-]*_[a-zA-Z0-9\-]*_\(.*\).jpg/\1/')
-        desc="MZ"
-        urlbase="https://siliconpr0n.org/map/$vendor/$chipid"
+    vendor=$(echo $fnbase |cut -d_ -f 1)
+    chipid=$(echo $fnbase |cut -d_ -f 2)
+    dwbase=":${collect}:${vendor}:${chipid}"
+    flavor=$(echo $fnbase |sed 's/[a-zA-Z0-9\-]*_[a-zA-Z0-9\-]*_\(.*\).jpg/\1/')
+    desc="MZ"
+    urlbase="https://siliconpr0n.org/map/$vendor/$chipid"
 
-        identify=$(identify $fn)
-        wh=$(echo $identify |cut -d\  -f3)
-        size=$(echo $identify |cut -d\  -f7)
+    identify=$(identify $fn)
 
-        echo "https://siliconpr0n.org/archive/doku.php?id=$collect:$vendor:$chipid"
-        echo "https://siliconpr0n.org/archive/doku.php?id=$collect:$vendor:$chipid:s"
-        echo
-        echo
+    echo "https://siliconpr0n.org/archive/doku.php?id=$collect:$vendor:$chipid"
+    echo "https://siliconpr0n.org/archive/doku.php?id=$collect:$vendor:$chipid:s"
+    echo
+    echo
 
-        cat <<EOF
+    cat <<EOF
 {{tag>collection_${collect} vendor_${vendor} type_unknown year_unknown foundry_unknown}}
 
 ====== Package ======
+
+EOF
+
+    if [ "$pack" = 1 ] ; then
+        cat <<EOF
 
 {{${dwbase}:pack_top.jpg?300|}}
 
@@ -97,12 +100,25 @@ if [ "$map" = 1 ] ; then
 
 <code>
 </code>
+EOF
+    else
+        echo "Unknown"
+    fi
+
+    cat <<EOF
 
 ====== Die ======
 
 <code>
 </code>
 
+EOF
+
+    for fn in "${ARGS[@]}"; do
+        fnbase=$(basename $fn)
+        wh=$(echo $identify |cut -d\  -f3)
+        size=$(echo $identify |cut -d\  -f7)
+        cat <<EOF
 [[${urlbase}/$flavor/|$desc]]
 
     * [[${urlbase}/single/$fnbase|Single]] (${wh}, ${size})
