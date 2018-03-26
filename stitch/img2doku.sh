@@ -70,11 +70,8 @@ if [ "$map" = 1 ] ; then
     vendor=$(echo $fnbase |cut -d_ -f 1)
     chipid=$(echo $fnbase |cut -d_ -f 2)
     dwbase=":${collect}:${vendor}:${chipid}"
-    flavor=$(echo $fnbase |sed 's/[a-zA-Z0-9\-]*_[a-zA-Z0-9\-]*_\(.*\).jpg/\1/')
     desc="MZ"
     urlbase="https://siliconpr0n.org/map/$vendor/$chipid"
-
-    identify=$(identify $fn)
 
     echo "https://siliconpr0n.org/archive/doku.php?id=$collect:$vendor:$chipid"
     echo "https://siliconpr0n.org/archive/doku.php?id=$collect:$vendor:$chipid:s"
@@ -116,6 +113,8 @@ EOF
 
     for fn in "${ARGS[@]}"; do
         fnbase=$(basename $fn)
+        flavor=$(echo $fnbase |sed 's/[a-zA-Z0-9\-]*_[a-zA-Z0-9\-]*_\(.*\).jpg/\1/')
+        identify=$(identify $fn)
         wh=$(echo $identify |cut -d\  -f3)
         size=$(echo $identify |cut -d\  -f7)
         cat <<EOF
