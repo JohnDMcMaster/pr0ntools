@@ -13,11 +13,14 @@ if [ -z "$map" ] ; then
 fi
 
 pack=1
+link=1
 
 usage() {
     echo "usage: img2doku.sh <filename>"
     echo "-m|--map image as map"
     echo "-p|--page image as page"
+    echo "-P no package image"
+    echo "-L no link text"
 }
 
 ARGS=()
@@ -38,6 +41,10 @@ while [[ $# -gt 0 ]]; do
         ;;
     -P)
         pack=0
+        shift
+        ;;
+    -L)
+        link=0
         shift
         ;;
     -h|--help)
@@ -73,10 +80,12 @@ if [ "$map" = 1 ] ; then
     desc="MZ"
     urlbase="https://siliconpr0n.org/map/$vendor/$chipid"
 
-    echo "https://siliconpr0n.org/archive/doku.php?id=$collect:$vendor:$chipid"
-    echo "https://siliconpr0n.org/archive/doku.php?id=$collect:$vendor:$chipid:s"
-    echo
-    echo
+    if [ "$link" = 1 ] ; then
+        echo "https://siliconpr0n.org/archive/doku.php?id=$collect:$vendor:$chipid"
+        echo "https://siliconpr0n.org/archive/doku.php?id=$collect:$vendor:$chipid:s"
+        echo
+        echo
+    fi
 
     cat <<EOF
 {{tag>collection_${collect} vendor_${vendor} type_unknown year_unknown foundry_unknown}}
@@ -132,10 +141,12 @@ else
     chipid=$(echo $fnbase |cut -d_ -f 2)
     dwbase=":${collect}:${vendor}:${chipid}"
 
-    echo "https://siliconpr0n.org/archive/doku.php?id=$collect:$vendor:$chipid"
-    echo "https://siliconpr0n.org/archive/doku.php?id=$collect:$vendor:$chipid:s"
-    echo
-    echo
+    if [ "$link" = 1 ] ; then
+        echo "https://siliconpr0n.org/archive/doku.php?id=$collect:$vendor:$chipid"
+        echo "https://siliconpr0n.org/archive/doku.php?id=$collect:$vendor:$chipid:s"
+        echo
+        echo
+    fi
 
     cat <<EOF
 {{tag>collection_${collect} vendor_${vendor} type_unknown year_unknown foundry_unknown}}
