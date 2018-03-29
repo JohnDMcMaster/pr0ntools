@@ -14,13 +14,17 @@ fi
 
 pack=1
 link=1
+nspre=
+mappre=map
 
 usage() {
     echo "usage: img2doku.sh <filename>"
-    echo "-m|--map image as map"
-    echo "-p|--page image as page"
-    echo "-P no package image"
-    echo "-L no link text"
+    echo "--mappre      map URL prefix"
+    echo "--nspre       wiki namespace prefix"
+    echo "-m|--map      image as map"
+    echo "-p|--page     image as page"
+    echo "-P            no package image"
+    echo "-L            no link text"
 }
 
 ARGS=()
@@ -31,8 +35,18 @@ while [[ $# -gt 0 ]]; do
         shift
         shift
         ;;
+    --mappre)
+        mappre=$2
+        shift
+        shift
+        ;;
     -m|--map)
         map=1
+        shift
+        ;;
+    --nspre)
+        nspre=$2
+        shift
         shift
         ;;
     -p|--page)
@@ -69,24 +83,17 @@ if [ "$NA" = 0 ] ; then
 #elif [ "$NA" = 1 ] ; then
 fi
 
-if [ "$map" = 1 ] ; then
-    echo "mapping"
-    fn=${ARGS[0]}
-    fnbase=$(basename $fn)
 
-    vendor=$(echo $fnbase |cut -d_ -f 1)
-    chipid=$(echo $fnbase |cut -d_ -f 2)
-    dwbase=":${collect}:${vendor}:${chipid}"
-    desc="MZ"
-    urlbase="https://siliconpr0n.org/map/$vendor/$chipid"
-
+links () {
     if [ "$link" = 1 ] ; then
-        echo "https://siliconpr0n.org/archive/doku.php?id=$collect:$vendor:$chipid"
-        echo "https://siliconpr0n.org/archive/doku.php?id=$collect:$vendor:$chipid:s"
+        echo "https://siliconpr0n.org/archive/doku.php?id=${nspre}${collect}:$vendor:$chipid"
+        echo "https://siliconpr0n.org/archive/doku.php?id=${nspre}${collect}:$vendor:$chipid:s"
         echo
         echo
     fi
+}
 
+header_pack() {
     cat <<EOF
 {{tag>collection_${collect} vendor_${vendor} type_unknown year_unknown foundry_unknown}}
 
@@ -96,7 +103,6 @@ EOF
 
     if [ "$pack" = 1 ] ; then
         cat <<EOF
-
 {{${dwbase}:pack_top.jpg?300|}}
 
 <code>
@@ -119,6 +125,19 @@ EOF
 </code>
 
 EOF
+}
+
+if [ "$map" = 1 ] ; then
+    fn=${ARGS[0]}
+    fnbase=$(basename $fn)
+
+    vendor=$(echo $fnbase |cut -d_ -f 1)
+    chipid=$(echo $fnbase |cut -d_ -f 2)
+    dwbase=":${nspre}${collect}:${vendor}:${chipid}"
+    urlbase="https://siliconpr0n.org/${mappre}/$vendor/$chipid"
+
+    links
+    header_pack
 
     for fn in "${ARGS[@]}"; do
         fnbase=$(basename $fn)
@@ -127,7 +146,7 @@ EOF
         wh=$(echo $identify |cut -d\  -f3)
         size=$(echo $identify |cut -d\  -f7)
         cat <<EOF
-[[${urlbase}/$flavor/|$desc]]
+[[${urlbase}/$flavor/|$flavor]]
 
     * [[${urlbase}/single/$fnbase|Single]] (${wh}, ${size})
 
@@ -139,48 +158,10 @@ else
 
     vendor=$(echo $fnbase |cut -d_ -f 1)
     chipid=$(echo $fnbase |cut -d_ -f 2)
-    dwbase=":${collect}:${vendor}:${chipid}"
+    dwbase=":${nspre}${collect}:${vendor}:${chipid}"
 
-    if [ "$link" = 1 ] ; then
-        echo "https://siliconpr0n.org/archive/doku.php?id=$collect:$vendor:$chipid"
-        echo "https://siliconpr0n.org/archive/doku.php?id=$collect:$vendor:$chipid:s"
-        echo
-        echo
-    fi
-
-    cat <<EOF
-{{tag>collection_${collect} vendor_${vendor} type_unknown year_unknown foundry_unknown}}
-
-====== Package ======
-
-EOF
-
-    if [ "$pack" = 1 ] ; then
-        cat <<EOF
-
-{{${dwbase}:pack_top.jpg?300|}}
-
-<code>
-</code>
-
-{{${dwbase}:pack_btm.jpg?300|}}
-
-<code>
-</code>
-
-EOF
-    else
-        echo "Unknown"
-    fi
-
-    cat <<EOF
-
-====== Die ======
-
-<code>
-</code>
-
-EOF
+    links
+    header_pack
 
     for fn in "${ARGS[@]}"; do
         echo "{{${dwbase}:$fn?300|}}"
