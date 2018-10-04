@@ -239,9 +239,9 @@ class ImageLine(line.Line):
     def key_variables(self):
         return set()
     def int_variables(self):
-        return set(['w', 'h', 'f', 'g', 't', 'Vm', 'u', 'TrX', 'TrY', 'TrZ', 'j', 'Tpy', 'Tpp'])
+        return set(['w', 'h', 'f', 'g', 't', 'Vm', 'u', 'j', 'Tpy', 'Tpp'])
     def float_variables(self):
-        return set(['Eb', 'Eev', 'Er', 'Ra', 'Rb', 'Rc', 'Rd', 'Re', 'Va', 'Vb', 'Vc', 'Vd', 'Vx', 'Vy', 'a', 'b', 'c', 'd', 'e', 'p', 'r', 'v', 'y'])
+        return set(['Eb', 'Eev', 'Er', 'Ra', 'Rb', 'Rc', 'Rd', 'Re', 'Va', 'Vb', 'Vc', 'Vd', 'Vx', 'Vy', 'a', 'b', 'c', 'd', 'e', 'p', 'r', 'v', 'y', 'TrX', 'TrY', 'TrZ'])
     def string_variables(self):
         return set(['n'])
         

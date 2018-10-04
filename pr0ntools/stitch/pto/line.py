@@ -266,7 +266,7 @@ class Line:
 					pass
 				else:
 					print 'WARNING: unknown data type on %s (full: %s)' % (k, self.text)
-					raise Exception('Unknown key')
+					raise Exception('Unknown key %s' % k)
 			except:
 				print 'line: %s' % self.text
 				print 'key: %s, value: %s' % (repr(k), repr(v))

@@ -304,6 +304,18 @@ class Worker(object):
             print 'supertile failed at %s' % (bench,)
             raise
 
+def estimate_wh(pto):
+    ws = []
+    hs = []
+    for i in pto.get_image_lines():
+        ws.append(i.width())
+        hs.append(i.height())
+    
+    #if self.img_width != w or self.img_height != h:
+    #    raise Exception('Require uniform input images for size heuristic')
+    return int(sum(ws) / len(ws)), int(sum(hs) / len(hs))
+
+
 # For managing the closed list        
 
 class Tiler:
@@ -346,15 +358,7 @@ class Tiler:
         To work around this, workers do pre-map stuff single threaded (as if they were in the server thread)
         '''
         # TODO: this is a heuristic just for this, uniform input images aren't actually required
-        for i in pto.get_image_lines():
-            w = i.width()
-            h = i.height()
-            if self.img_width is None:
-                self.img_width = w
-            if self.img_height is None:
-                self.img_height = h
-            if self.img_width != w or self.img_height != h:
-                raise Exception('Require uniform input images for size heuristic')
+        self.img_width, self.img_height = estimate_wh(pto)
         
         self.pto = pto
         # make absolutely sure that threads will only be doing read only operations
@@ -478,6 +482,8 @@ class Tiler:
                             print 'Only 1 ST: early break'
                             break
                     print
+            if self.best_n is None:
+                raise Exception("Failed to find stitch solution")
             print 'Best n %d w/ %dw X %dh' % (self.best_n, best_w, best_h)
             if 0:
                 print
@@ -495,9 +501,9 @@ class Tiler:
         if self.sth is None:
             self.sth = self.img_height * self.st_scalar_heuristic
         
-        if self.stw <= w:
+        if self.stw <= self.img_width:
             self.clip_width = 0
-        if self.sth <= h:
+        if self.sth <= self.img_height:
             self.clip_height = 0
         
         self.recalc_step()        
@@ -507,15 +513,15 @@ class Tiler:
         print 'Clip height: %d' % self.clip_width
         print 'ST width: %d' % self.stw
         print 'ST height: %d' % self.sth
-        if self.stw <= 2 * self.clip_width and self.stw >= w:
+        if self.stw <= 2 * self.clip_width and self.stw >= self.img_width:
             print 'Failed'
             print '  STW: %d' % self.stw
             print '  Clip W: %d' % self.clip_width
-            print '  W: %d (%d - %d)' % (w, self.right(), self.left())
+            print '  W: %d (%d - %d)' % (self.img_width, self.right(), self.left())
             raise InvalidClip('Clip width %d exceeds supertile width %d after adj: reduce clip or increase ST size' % (self.clip_width, self.stw))
-        if self.sth <= 2 * self.clip_height and self.sth >= h:
+        if self.sth <= 2 * self.clip_height and self.sth >= self.img_height:
             raise InvalidClip('Clip height %d exceeds supertile height %d after adj: reduce clip or increase ST size' % (self.clip_height, self.sth))
-        
+
     def msg(self, s, l):
         '''Print message s at verbosity level l'''
         if l <= self.verbosity:
@@ -603,7 +609,13 @@ class Tiler:
         '''
         try:
             self.super_t_xstep = self.stw - 2 * self.clip_width - 2 * self.tw
+            if self.super_t_xstep <= 0:
+                print('parameters', self.sth, self.clip_height, self.th)
+                raise InvalidClip("Bad xstep: %s" % self.super_t_xstep)
             self.super_t_ystep = self.sth - 2 * self.clip_height - 2 * self.th
+            if self.super_t_ystep <= 0:
+                print('parameters', self.sth, self.clip_height, self.th)
+                raise InvalidClip("Bad ystep: %s" % self.super_t_ystep)
         except:
             print self.stw, self.clip_width, self.tw
             raise

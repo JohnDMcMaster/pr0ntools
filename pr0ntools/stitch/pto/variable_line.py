@@ -19,12 +19,24 @@ class VariableLine(Line):
         return 'v'
         
     def variable_print_order(self):
-        return list(['d', 'e', 'p', 'r', 'x', 'y', 'v'])
+        return list(['d', 'e', 'p', 'r', 'x', 'y', 'v', 'Ra', 'Rb'])
     
     def key_variables(self):
         return set()
     def int_variables(self):
-        return set('deprxyv')
+        ret = set('deprxyv')
+        ret.add('Ra')
+        ret.add('Rb')
+        ret.add('Rc')
+        ret.add('Rd')
+        ret.add('Re')
+        ret.add('Vb')
+        ret.add('Vc')
+        ret.add('Vd')
+        ret.add('Eev')
+        ret.add('TrX')
+        ret.add('TrY')
+        return ret
     def float_variables(self):
         return set()
     def string_variables(self):
