@@ -240,9 +240,8 @@ class Worker(object):
                 dst = os.path.join(self.st_dir, 'st_%06dx_%06dy.jpg' % (x0, y0))
                 if os.path.exists(dst):
                     # normally this is a .tif so slight loss in quality
-                    img = PImage.from_file(dst)
                     print 'supertile short circuit on already existing: %s' % (dst,)
-                    return img
+                    return dst
                 
             # st_081357x_000587y.jpg
             temp_file = ManagedTempFile.get(None, '.tif', prefix_mangle='st_%06dx_%06dy_' % (x0, y0))
